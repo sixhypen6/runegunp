@@ -43,7 +43,8 @@ const Meta = {
   juiceSet: false,    // has the player chosen explicitly? OS reduced-motion only sets the
                       // default while this is false — an explicit choice always outranks it.
   runTimer: true,     // speedrun clock in the HUD — display only; records are kept either way
-  speedBests: {},     // fastest COMPLETED descent per warden id, seconds (0/absent = never cleared)
+  speedrun: false,    // SPEEDRUN mode: guarantee WARD in the first rune choice (independent of the clock)
+  speedBests: {},     // fastest COMPLETED descent per warden id and mode, seconds (0/absent = never cleared)
   bests: {            // personal records (local leaderboard — you vs your own past runs)
     score: 0,               // max Game.score
     survivedSec: 0,         // longest single run, floor(Game.time)
@@ -135,6 +136,8 @@ function metaLoad() {
       Meta.showHiddenRunes = d.showHiddenRunes === true;
       /* speedrun clock — on for returning saves unless they explicitly hid it */
       Meta.runTimer = d.runTimer !== false;
+      /* SPEEDRUN mode is opt-in: saves from before it existed start with it off */
+      Meta.speedrun = d.speedrun === true;
       if (d.speedBests && typeof d.speedBests === "object")
         for (const k in d.speedBests) {
           const base = String(k).split(":")[0];   // "gunsmith" or "gunsmith:classic"

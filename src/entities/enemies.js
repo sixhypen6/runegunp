@@ -540,7 +540,8 @@ function wavePool() {
 
 function startWave() {
   Game.wave++;
-  const n = 4 + Math.floor(Game.wave * 1.8 + depth() * 1.5);
+  const raw = 4 + Math.floor(Game.wave * 1.8 + depth() * 1.5);
+  const n = Math.max(1, Math.round(raw * (1 - partyWardCut())));
   if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("WAVE", "wave " + Game.wave + " started (" + n + " enemies)");
   const pool = wavePool();
   for (let i = 0; i < n; i++) {
@@ -556,7 +557,8 @@ function startWave() {
 
 function triggerAmbush(chest) {
   chest.state = "ambush";
-  const n = 6 + Math.floor(Game.wave * 1.3 + depth() * 1.5);
+  const raw = 6 + Math.floor(Game.wave * 1.3 + depth() * 1.5);
+  const n = Math.max(1, Math.round(raw * (1 - partyWardCut())));
   const pool = wavePool();
   let remaining = 0;
   for (let i = 0; i < n; i++) {

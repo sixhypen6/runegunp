@@ -57,6 +57,25 @@ function reprieveInvulSecs(n) { return Math.min(REPRIEVE_INVUL_CAP, Math.max(REP
 function reprieveCooldown(n) { return Math.max(REPRIEVE_CD_FLOOR, REPRIEVE_CD - REPRIEVE_CD_PER_STACK * (n - 1)); }
 
 /* =========================================================
+   WARD — the horde arrives thinner
+   Each stack holds back more of a normal wave and of a chest's
+   ambush. The CHAOS wave-clear rune therefore comes sooner too.
+   Co-op: the strongest WARD in the party thins the shared wave.
+   ========================================================= */
+const WARD_CUT_PER_STACK = 0.15;      // share of a wave withheld per stack
+const WARD_CUT_CAP = 0.45;            // never more than this much of the horde
+function wardCut(stacks) { return Math.min(WARD_CUT_CAP, WARD_CUT_PER_STACK * (stacks | 0)); }
+function partyWardCut() {
+  let best = 0;
+  if (typeof players !== "undefined" && players)
+    for (const p of players) {
+      const n = p && p.runes ? (p.runes.ward || 0) : 0;
+      if (n > best) best = n;
+    }
+  return wardCut(best);
+}
+
+/* =========================================================
    RUNES — every rune stacks: mod(m, n) where n = stacks held
    ========================================================= */
 const RUNES = {
@@ -156,6 +175,9 @@ const RUNES = {
   aegis: { name: "AEGIS", glyph: "ᛝ", color: "#bcd0ff",
     desc: "Carved wards bleed the force from every blow before it lands. Each stack shaves 12% off the damage you take, up to a 60% ward — never enough to make you untouchable.",
     mod: (m, n) => { m.dr = Math.min(0.6, m.dr + 0.12 * n); } },
+  ward: { name: "WARD", glyph: "ᛜ", color: "#7ee6c4",
+    desc: "The dark keeps its distance. Each stack holds back 15% of the horrors in every wave and chest ambush, up to 45% — fewer bodies between you and the next rune.",
+    mod: (m, n) => { m.wardStacks = n; } },
   bramble: { name: "BRAMBLE", glyph: "ᛕ", color: "#ff6b8a",
     desc: "Strike the warded and the wards strike back. When something wounds you, a ring of barbed force erupts and tears into whatever dared. Stacks sharpen the barbs.",
     mod: (m, n) => { m.thorns += stackCurve(n); } },
@@ -281,6 +303,9 @@ const UNK_PLAYER_RUNES = {
   aegis: { name: "THE CARAPACE", glyph: "ᛝ", color: "#bcd0ff",
     desc: "Carved wards bleed the force from every blow before it lands. Each stack shaves 12% off the damage you take, up to a 60% ward — never enough to make you untouchable.",
     mod: (m, n) => { m.dr = Math.min(0.6, m.dr + 0.12 * n); } },
+  ward: { name: "THE WARD", glyph: "ᛜ", color: "#7ee6c4",
+    desc: "The abyss thins where you stand. Each stack holds back 15% of the horrors in every wave and chest ambush, up to 45% — fewer bodies between you and the next rune.",
+    mod: (m, n) => { m.wardStacks = n; } },
   bramble: { name: "THE RETORT", glyph: "ᛕ", color: "#ff6b8a",
     desc: "Strike the warded and the wards strike back. When something wounds you, a ring of barbed force erupts and tears into whatever dared. Stacks sharpen the barbs.",
     mod: (m, n) => { m.thorns += stackCurve(n); } },
@@ -364,6 +389,17 @@ function genThreeRunes(p) {
     avail.splice(idx, 1);
   }
   while (ids.length < 3) ids.push(ids[ids.length - 1]);
+  /* SPEEDRUN's promise: the first choice of the run always shows WARD in the
+     rightmost slot. It stays in the pool afterwards — this is one free showing,
+     not a reroll lock. A per-warden flag keeps co-op fair (each hand gets one). */
+  if (typeof Meta !== "undefined" && Meta.speedrun && !p.wardOffered && ids.length === 3) {
+    p.wardOffered = true;
+    if (pool.includes("ward")) {
+      const at = ids.indexOf("ward");
+      if (at === -1) ids[2] = "ward";
+      else if (at !== 2) { ids[at] = ids[2]; ids[2] = "ward"; }
+    }
+  }
   return ids;
 }
 const heldRuneIds = p => Object.keys(p.runes).filter(id => p.runes[id] > 0);
@@ -397,7 +433,7 @@ function buildWeaponModsFrom(runes, p) {
     prey: 1, crit: 0, critMul: 2.2, wrath: 0, dr: 0, thorns: 0,
     regen: 0, regenDelay: 3, vortex: 0, fear: 0, fearDur: 0,
     timeField: 0, timeR: 0, timeMul: 0, prickle: 0, prickleR: 0, slime: 0,
-    scatterSplit: 1, sawDmg: 0, reprieveStacks: 0 };
+    scatterSplit: 1, sawDmg: 0, reprieveStacks: 0, wardStacks: 0 };
   /* a character may reshape the bare gun before any rune speaks (JUGGERNAUT's massive slow slug) */
   const wb = CHARS[p.char] && CHARS[p.char].weaponBase;
   if (wb) Object.assign(m, wb);
@@ -505,6 +541,8 @@ function runeStatLines(p, id) {
   if (full.timeField !== w.timeField) L.push("TIME-SLOW AURA, RADIUS " + Math.round(full.timeR));
   if (full.prickle !== w.prickle) L.push("THORN AURA, RADIUS " + Math.round(full.prickleR));
   if (full.slime !== w.slime) L.push("CAUSTIC SLIME TRAIL " + Math.round(2 + full.slime) + " DMG / TICK");
+  if (full.wardStacks !== w.wardStacks)
+    L.push("WAVES & AMBUSHES −" + Math.round(wardCut(full.wardStacks) * 100) + "% ENEMIES");
   if (full.reprieveStacks !== w.reprieveStacks) {
     const rn = full.reprieveStacks;
     L.push("DEATH SAVE — RESTORES " + Math.round(reprieveHealFrac(rn) * 100) + "% VITALITY");

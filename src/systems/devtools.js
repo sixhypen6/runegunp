@@ -269,7 +269,7 @@ function devBuild() {
   const destOpts = FLOORS.map((F, i) => `<option value="floor:${i}">${ROMAN(i + 1)} · ${F.name}</option>`).join("");
   const unkOpts = DEV_UNK_STAGES.map(([k, n]) => `<option value="unk:${k}">${n}</option>`).join("");
   const charOpts = Object.keys(CHARS).map(k => `<option value="${k}">${CHARS[k].name}</option>`).join("");
-  const castOpts = RUNE_IDS.map(id => `<option value="${id}">${RUNES[id].glyph} ${RUNES[id].name}${typeof UNK_RUNES !== "undefined" ? " → " + UNK_RUNES[id].name : ""}</option>`).join("");
+  const castOpts = RUNE_IDS.map(id => `<option value="${id}">${RUNES[id].glyph} ${RUNES[id].name}${typeof UNK_RUNES !== "undefined" && UNK_RUNES[id] ? " → " + UNK_RUNES[id].name : ""}</option>`).join("");
   const el = document.createElement("div");
   el.id = "devPanel";
   el.innerHTML = `

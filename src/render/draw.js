@@ -142,6 +142,29 @@ function drawEnemyBars(e) {
   }
 }
 
+/* CHAOS: the last horror of a normal wave is the one carrying the wave-clear
+   rune. One pulsing dashed ring and four ticks — no blur, no extra pass — so
+   the kill you need is unmistakable even in a crowded room. */
+function drawChaosLastMark(g, e) {
+  const t = Game.time, pulse = 0.5 + 0.5 * Math.sin(t * 5);
+  g.save();
+  g.translate(e.x, e.y);
+  g.globalAlpha = 0.62 + pulse * 0.32;
+  g.strokeStyle = typeof CHAOS_COLOR !== "undefined" ? CHAOS_COLOR : "#ff6bd6";
+  g.lineWidth = 2.5;
+  g.setLineDash([7, 6]);
+  g.lineDashOffset = -t * 26;
+  g.beginPath(); g.arc(0, 0, e.r + 9 + pulse * 2, 0, TAU); g.stroke();
+  g.setLineDash([]);
+  g.globalAlpha = 0.9;
+  g.lineWidth = 2;
+  for (let k = 0; k < 4; k++) {
+    g.rotate(TAU / 4);
+    g.beginPath(); g.moveTo(0, -e.r - 4); g.lineTo(0, -e.r - 14); g.stroke();
+  }
+  g.restore();
+}
+
 /* One creature's body silhouette, drawn at the origin — the caller translates to
    (e.x, e.y) first. aimA is a parameter (not read from a live `player`) so the
    main-menu glossary can reuse the exact in-game art with a stub creature. */
@@ -1345,6 +1368,17 @@ function draw() {
   /* enemies — a big horde on PC draws through one glow layer (hordeGlowLayer above) */
   const layer = hordeGlowLayer();
   const after = layer ? [] : null;   // with a layer: bosses (standing over their horde) and every bar wait for it to land
+  /* CHAOS: find the single remaining wave horror (the one whose death drops the
+     wave-clear rune) — computed once per frame, then marked after the horde lands */
+  let chaosLast = null;
+  if (Game.chaosMode && !Game.boss && !Game.ambush && !Game.inRift) {
+    let found = 0;
+    for (const e of enemies) {
+      if (e.dead || e.boss || e.ambush || e.team === "p") continue;
+      if (++found > 1) { chaosLast = null; break; }
+      chaosLast = e;
+    }
+  }
   for (const e of enemies) {
     if (e.dead) continue;
     /* 240: wide enough for the slammer's 170px raise-telegraph ring, a warden's
@@ -1379,6 +1413,7 @@ function draw() {
     compositeGlowLayer(layer);
     for (const e of after) { if (e.boss) drawEnemyBody(cx, e); drawEnemyBars(e); }
   }
+  if (chaosLast) drawChaosLastMark(cx, chaosLast);
 
   /* pets */
   for (const pet of pets) drawPet(cx, pet);

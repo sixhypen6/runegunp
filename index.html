@@ -993,7 +993,13 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
     <div id="runTimerRow" style="margin-top:18px;display:flex;flex-direction:column;align-items:center">
       <label style="font-size:10px;letter-spacing:.3em;color:var(--dim)">SPEEDRUN</label>
       <button class="menu-btn small" id="btnRunTimer" style="border-color:var(--frost);color:var(--frost);margin-top:8px">RUN TIMER: ON</button>
-      <div class="aim-mode-note" id="runTimerNote">millisecond run clock · pauses with the game · keeps your fastest clear per warden</div>
+      <div class="aim-mode-note" id="runTimerNote">millisecond run clock · pauses with the game · keeps your fastest clear per warden and mode</div>
+    </div>
+    <div id="speedrunRow" style="margin-top:18px;display:flex;flex-direction:column;align-items:center">
+      <label style="font-size:10px;letter-spacing:.3em;color:var(--dim)">SPEEDRUN MODE</label>
+      <button class="menu-btn small" id="btnSpeedrun" style="border-color:var(--frost);color:var(--frost);margin-top:8px">SPEEDRUN MODE: OFF</button>
+      <div class="aim-mode-note" id="speedrunNote">guarantees WARD in the rightmost slot of your first rune choice — independent of the clock</div>
+      <div class="aim-mode-note" id="speedBestsNote" style="margin-top:6px"></div>
     </div>
     <div id="deskCtrlRow" style="margin-top:18px;display:flex;flex-direction:column;align-items:center;gap:8px">
       <label style="font-size:10px;letter-spacing:.3em;color:var(--dim)">AIMING &amp; FIRING</label>

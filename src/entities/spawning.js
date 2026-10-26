@@ -26,7 +26,9 @@ function makePlayer(cfg, idx) {
     /* downed / revive (co-op): crawling, waiting on a partner's hands */
     downed: false, reviveT: 0,
     /* REPRIEVE: the save's cooldown and the horde-hold it leaves behind */
-    reprieveCd: 0, reprieveFreezeT: 0 };
+    reprieveCd: 0, reprieveFreezeT: 0,
+    /* SPEEDRUN: has this warden's first rune offer already shown WARD? */
+    wardOffered: false };
 }
 function localPlayerCfg() {
   return { char: Meta.char, skin: Meta.skin, gunSkin: Meta.gunSkin, pet: Meta.pet,

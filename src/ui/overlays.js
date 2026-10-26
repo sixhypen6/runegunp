@@ -1055,7 +1055,7 @@ function applyRunTimerUI() {
   const b = $("btnRunTimer"); if (b) b.textContent = "RUN TIMER: " + (Meta.runTimer ? "ON" : "OFF");
   const n = $("runTimerNote");
   if (n) n.textContent = Meta.runTimer
-    ? "millisecond run clock · pauses with the game · keeps your fastest clear per warden"
+    ? "millisecond run clock · pauses with the game · keeps your fastest clear per warden and mode"
     : "clock hidden — records are still kept while it is off";
   const box = $("runTimer"); if (box) box.classList.toggle("on", !!Meta.runTimer);
   if (typeof RunTimer !== "undefined") RunTimer.paint(true);
@@ -1067,6 +1067,27 @@ function cycleRunTimer() {
   AudioFX.equip();
 }
 $("btnRunTimer").addEventListener("click", cycleRunTimer);
+
+/* ---------- SPEEDRUN mode: the guaranteed first WARD + the per-mode ledger ---------- */
+function fmtSpeedBest(b) {
+  return b && b.speedSec > 0 && typeof fmtRunTime === "function" ? fmtRunTime(b.speedSec) : "";
+}
+function applySpeedrunUI() {
+  const b = $("btnSpeedrun");
+  if (b) b.textContent = "SPEEDRUN MODE: " + (Meta.speedrun ? "ON" : "OFF");
+  const n = $("speedBestsNote");
+  if (!n) return;
+  const rows = [["NORMAL", Meta.bests], ["HARD", Meta.bestsHard], ["CHAOS", Meta.bestsChaos], ["CLASSIC", Meta.bestsClassic]];
+  const parts = rows.filter(r => fmtSpeedBest(r[1])).map(r => r[0] + ": " + fmtSpeedBest(r[1]));
+  n.textContent = parts.length ? "RUN BESTS · " + parts.join(" · ") : "RUN BESTS · no completed descent yet";
+}
+function cycleSpeedrun() {
+  Meta.speedrun = !Meta.speedrun;
+  metaSave();
+  applySpeedrunUI();
+  AudioFX.equip();
+}
+$("btnSpeedrun").addEventListener("click", cycleSpeedrun);
 
 /* ---------- on-screen controls (mobile): scheme · button layout · gestures ---------- */
 function applyCtrlSettingsUI() {
@@ -1123,7 +1144,7 @@ $("ctrlEditDone").addEventListener("click", () => closeCtrlEdit(true));
 $("ctrlEditReset").addEventListener("click", resetCtrlLayout);
 
 /* ---------- settings overlay ---------- */
-function openSettings() { if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings opened"); syncVolumeUI(); applyDeskMode(); applyAimMode(); applyBtnSizeUI(); applyCtrlSettingsUI(); applyHapticsUI(); applyShakeUI(); applyAdvancedNumbersUI(); applyRuneDescriptionSettingsUI(); applyGlowUI(); applyJuiceUI(); applyHiddenRunesUI(); applyRunTimerUI(); syncPrivacyOptions(); $("btnReplayCutscene").style.display = (Game.state === "menu") ? "" : "none"; $("settings").classList.add("on"); }
+function openSettings() { if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings opened"); syncVolumeUI(); applyDeskMode(); applyAimMode(); applyBtnSizeUI(); applyCtrlSettingsUI(); applyHapticsUI(); applyShakeUI(); applyAdvancedNumbersUI(); applyRuneDescriptionSettingsUI(); applyGlowUI(); applyJuiceUI(); applyHiddenRunesUI(); applyRunTimerUI(); applySpeedrunUI(); syncPrivacyOptions(); $("btnReplayCutscene").style.display = (Game.state === "menu") ? "" : "none"; $("settings").classList.add("on"); }
 function closeSettings() { $("settings").classList.remove("on"); if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings closed"); }
 /* Google requires EEA/UK players to have a persistent way back to the consent
    choice. UMP tells us who needs one; everyone else never sees the button. */
@@ -1247,7 +1268,8 @@ function openModeChoice() {
     : "⛓ SEALED — collapse THE EVENT HORIZON once to earn this descent.";
   const hb = $("mcHardBest"), hs = Meta.bestsHard.score;
   hb.style.display = unlocked && hs > 0 ? "" : "none";
-  if (unlocked && hs > 0) hb.textContent = "YOUR HARD BEST · " + hs + " SOULS";
+  if (unlocked && hs > 0) hb.textContent = "YOUR HARD BEST · " + hs + " SOULS" +
+    (fmtSpeedBest(Meta.bestsHard) ? " · CLEAR " + fmtSpeedBest(Meta.bestsHard) : "");
   /* CHAOS sits beside the others from the start — sealed until the Void has fallen.
      Showing the locked card mirrors HARD and keeps the chooser's four-way shape. */
   const chaosOpen = chaosUnlocked(), chaos = $("mcChaos");
@@ -1258,7 +1280,8 @@ function openModeChoice() {
     : "⛓ SEALED — put down THE UNKNOWN to unleash this descent.";
   const cb = $("mcChaosBest"), cs = Meta.bestsChaos.score;
   cb.style.display = chaosOpen && cs > 0 ? "" : "none";
-  if (chaosOpen && cs > 0) cb.textContent = "YOUR CHAOS BEST · " + cs + " SOULS";
+  if (chaosOpen && cs > 0) cb.textContent = "YOUR CHAOS BEST · " + cs + " SOULS" +
+    (fmtSpeedBest(Meta.bestsChaos) ? " · CLEAR " + fmtSpeedBest(Meta.bestsChaos) : "");
   /* CLASSIC is always open — it is the short, old descent. Its ending is a spoiler,
      though: the "no deep, no unknown" half only shows to those who have put THE
      UNKNOWN down (the same gate CHAOS uses). Everyone else sees the short line. */
@@ -1267,7 +1290,8 @@ function openModeChoice() {
     : "The descent as it used to end.";
   const clb = $("mcClassicBest"), cls = Meta.bestsClassic.score;
   clb.style.display = cls > 0 ? "" : "none";
-  if (cls > 0) clb.textContent = "YOUR CLASSIC BEST · " + cls + " SOULS";
+  if (cls > 0) clb.textContent = "YOUR CLASSIC BEST · " + cls + " SOULS" +
+    (fmtSpeedBest(Meta.bestsClassic) ? " · CLEAR " + fmtSpeedBest(Meta.bestsClassic) : "");
   $("modeChoice").classList.add("on");
 }
 function closeModeChoice() { $("modeChoice").classList.remove("on"); }

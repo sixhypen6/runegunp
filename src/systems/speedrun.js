@@ -18,9 +18,18 @@ function fmtRunTime(sec) {
 }
 
 /* fastest clear for a warden: their own record first, then the mode ledger
-   (a returning save may only have the mode-wide record). CLASSIC clears are a
-   much shorter run, so they keep their own per-warden key. */
-function runSpeedKey(forChar) { return Game.classicMode ? forChar + ":classic" : forChar; }
+   (a returning save may only have the mode-wide record). Every descent keeps
+   its own key — NORMAL is the bare warden id, then :hard, :chaos, :classic —
+   so a fast NORMAL run can never masquerade as a CHAOS best. */
+function runSpeedKey(forChar) {
+  if (Game.classicMode) return forChar + ":classic";
+  if (Game.chaosMode) return forChar + ":chaos";
+  if (Game.hardMode) return forChar + ":hard";
+  return forChar;
+}
+function runModeLabel() {
+  return Game.chaosMode ? "CHAOS BEST" : Game.classicMode ? "CLASSIC BEST" : Game.hardMode ? "HARD BEST" : "BEST";
+}
 function runBestTime(forChar) {
   const per = Meta.speedBests && Meta.speedBests[runSpeedKey(forChar)];
   if (typeof per === "number" && per > 0) return per;
@@ -89,7 +98,7 @@ const RunTimer = {
     if (force || txt !== this.lastClock) { clock.textContent = txt; this.lastClock = txt; }
     clock.classList.toggle("done", this.done);
     if (!bestEl) return;
-    const pb = runBestTime(Meta.char), bt = pb ? "BEST · " + fmtRunTime(pb) : "";
+    const pb = runBestTime(Meta.char), bt = pb ? runModeLabel() + " · " + fmtRunTime(pb) : "";
     if (force || bt !== this.lastBest) { bestEl.textContent = bt; this.lastBest = bt; }
   },
 };
