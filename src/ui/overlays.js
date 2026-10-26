@@ -13,6 +13,7 @@ function renderHeld(gunEl = "gunLine", gridEl = "heldGrid", petEl = null) {
     " · SHOT <span>×" + (m.count * (1 + m.twin) * (1 + m.mirror)) + "</span> · SPREAD <span>" + Math.round(m.spread * 57) + "°</span>" +
     (m.pierce ? " · PIERCE <span>" + m.pierce + "</span>" : "") +
     (m.bounce ? " · BOUNCE <span>" + m.bounce + "</span>" : "") +
+    (m.sawDmg ? " · SAW <span>" + Math.round(m.sawDmg * (m.rate / 5) * (m.shredDmgMul || 1)) + "</span>" : "") +
     (m.moveMul > 1 ? " · SPEED <span>+" + Math.round((m.moveMul - 1) * 100) + "%</span>" : "") +
     (m.shieldMax ? " · SHIELD <span>" + m.shieldMax + "× / " + m.shieldDmg + "</span>" : "") +
     (m.execute ? " · REAP <span>&lt;" + Math.round(m.execute * 100) + "%</span>" : "") +
@@ -1257,7 +1258,12 @@ function openModeChoice() {
   const cb = $("mcChaosBest"), cs = Meta.bestsChaos.score;
   cb.style.display = chaosOpen && cs > 0 ? "" : "none";
   if (chaosOpen && cs > 0) cb.textContent = "YOUR CHAOS BEST · " + cs + " SOULS";
-  /* CLASSIC is always open — it is the short, old descent */
+  /* CLASSIC is always open — it is the short, old descent. Its ending is a spoiler,
+     though: the "no deep, no unknown" half only shows to those who have put THE
+     UNKNOWN down (the same gate CHAOS uses). Everyone else sees the short line. */
+  $("mcClassicDesc").textContent = chaosOpen
+    ? "The descent as it used to end — collapse THE EVENT HORIZON and walk away. No deep, no unknown."
+    : "The descent as it used to end.";
   const clb = $("mcClassicBest"), cls = Meta.bestsClassic.score;
   clb.style.display = cls > 0 ? "" : "none";
   if (cls > 0) clb.textContent = "YOUR CLASSIC BEST · " + cls + " SOULS";

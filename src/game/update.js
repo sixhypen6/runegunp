@@ -76,6 +76,27 @@ function updateShredderSaw(p, dt) {
   if (p.downed || p.hp <= 0) return;
 
   const reach = m.sawReach || 76;
+  /* SEEKER on a saw build: the blade's hunger bends the room. Prey inside the
+     outer ring is dragged toward the grind (never a warden, never a planted foe),
+     so a bullet-only rune still answers when the trigger is a whirling blade. */
+  const pull = m.homing ? Math.min(80, m.homing * 7) : 0;
+  const hourStill = !!(Game.deep && Game.deep.stillT > 0);   // the stopped hour freezes the drag too
+  if (pull && !hourStill) {
+    const grabR = Math.min(300, reach * 1.6), holdR = reach * 0.7;
+    for (const e of enemies) {
+      if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p" || e.boss || e.buffed) continue;
+      const d2 = dist2(p.x, p.y, e.x, e.y);
+      if (d2 > grabR * grabR || d2 < holdR * holdR) continue;
+      const a = angTo(e.x, e.y, p.x, p.y);
+      e.x += Math.cos(a) * pull * dt;
+      e.y += Math.sin(a) * pull * dt;
+      /* a violet mote now and then, torn off the dragged body toward the teeth */
+      if (particles.length < 360 && Math.random() < 0.02)
+        particles.push({ x: e.x + rnd(-6, 6), y: e.y + rnd(-6, 6),
+          vx: Math.cos(a) * 120, vy: Math.sin(a) * 120,
+          t: 0, life: 0.2, r: rnd(1, 2), color: "#a99bd8" });
+    }
+  }
   let nearest = Infinity;
   for (const e of enemies) {
     if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p") continue;
@@ -90,7 +111,7 @@ function updateShredderSaw(p, dt) {
   p.sawT = (p.sawT || 0) - (dt + Math.min(dAim, 0.4) * 0.4);
   if (p.sawT > 0) return;
   p.sawT = 0.1;
-  const damage = m.dmg * (m.rate / 5) * (m.shredDmgMul || 1) * (p.dashT > 0 ? 2.5 : 1);
+  const damage = (m.sawDmg || m.dmg) * (m.rate / 5) * (m.shredDmgMul || 1) * (p.dashT > 0 ? 2.5 : 1);
   for (const e of enemies) {
     if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p") continue;
     if (dist2(p.x, p.y, e.x, e.y) >= (reach + e.r) ** 2) continue;

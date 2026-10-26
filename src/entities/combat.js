@@ -59,6 +59,9 @@ function contactHurt(e, pad, dmg) {
    with warden `p`'s mods. Shared by the gun and by VEIL BURST corpse-discharges. */
 function spawnShot(p, x, y, baseAim, skip) {
   const m = p.mods;
+  /* the shredder's debris must live long enough to cross its saw's reach even
+     when HEAVY / TITAN have slowed the shards to a crawl */
+  const shredLife = p.char === "shredder" ? Math.max(1.5, (m.sawReach || 76) * 1.8 / Math.max(120, m.speed)) : 1.5;
   const dirs = [baseAim];
   for (let i = 0; i < m.mirror; i++) dirs.push(baseAim + Math.PI + rnd(-0.06, 0.06));
   for (let d = 0; d < dirs.length; d++) {
@@ -74,7 +77,7 @@ function spawnShot(p, x, y, baseAim, skip) {
       const mk = (ox, oy) => bullets.push({
         x: x + Math.cos(a) * 18 + ox, y: y + Math.sin(a) * 18 + oy,
         vx: Math.cos(a) * m.speed, vy: Math.sin(a) * m.speed,
-        r: p.char === "shredder" ? 6 : m.size, dmg, t: 0, life: 1.5,
+        r: p.char === "shredder" ? 5 + m.size * 0.35 : m.size, dmg, t: 0, life: shredLife,
         pierce: m.pierce, bounce: m.bounce, homing: m.homing,
         venom: m.venom, ember: m.ember, frost: m.frost, storm: m.storm,
         execute: m.execute, knock: m.knock,
@@ -117,13 +120,31 @@ function fireWeapon(p, inp, dt) {
   if (Game.inSaloon) { if (inp.mouseDown || (inp.touchMode && inp.aiming)) saloonHolster(p); return; }
   if (!firing || p.fireT > 0) return;
   const jamMul = curseActive(p, "jam") ? 0.5 : 1;
-  /* The Shredder's trigger sends a debris burst from the enemy its saw is touching. */
+  /* The Shredder's trigger throws rune-etched debris off the saw's rim at whatever
+     the blade is grinding. It used to spawn ON the victim and fly along your aim
+     with that victim skipped — which read as the enemy firing somewhere random,
+     and meant no bullet rune ever touched the horror in front of you. */
   if (p.char === "shredder") {
     const target = p.sawHitTarget;
     if (!target || target.dead || target.team === "p") return;
     p.fireT = 1 / (m.rate * jamMul);
-    spawnShot(p, target.x, target.y, p.aim, target);
+    const aimAt = angTo(p.x, p.y, target.x, target.y);
+    /* start the debris a little inside the blade: spawnShot pushes it 18px out,
+       and a horror pressed against you must still be in front of the shards */
+    spawnShot(p, p.x - Math.cos(aimAt) * 12, p.y - Math.sin(aimAt) * 12, aimAt);
+    p.kickT = 0.07;
+    Game.shake = Math.max(Game.shake, 1.5);
     AudioFX.shoot();
+    /* flecks torn off the rim, thrown the way the debris goes */
+    if (particles.length < 460) {
+      const rim = (m.sawReach || 76) * 0.8;
+      for (let k = 0; k < 3; k++) {
+        const pa = aimAt + rnd(-0.45, 0.45);
+        particles.push({ x: p.x + Math.cos(aimAt) * rim, y: p.y + Math.sin(aimAt) * rim,
+          vx: Math.cos(pa) * rnd(80, 220), vy: Math.sin(pa) * rnd(80, 220),
+          t: 0, life: rnd(0.12, 0.26), r: rnd(1.5, 3), color: pick(["#a99bd8", "#fff3c8", "#7a62bd"]) });
+      }
+    }
     return;
   }
   /* THE WRAITH does not pull a trigger — it tears the veil */

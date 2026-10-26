@@ -45,10 +45,17 @@ const RUNES = {
       const pellets = Math.min(m.count + 2 * n, 40);
       /* CLASSIC: the pre-7.0 fan — +2 pellets and +0.3 spread per stack, every pellet
          20% softer, for every stack. No fan-flattening past the third. */
-      if (classicStacks()) { m.count = pellets; m.spread += 0.3 * n; m.dmg *= Math.pow(0.8, n); return; }
+      if (classicStacks()) {
+        const soft = Math.pow(0.8, n);
+        m.count = pellets; m.spread += 0.3 * n; m.dmg *= soft;
+        m.scatterSplit = (m.scatterSplit || 1) * soft;   // the SHREDDER's saw recovers this
+        return;
+      }
       const fan = n <= STACK_FULL ? (1 + 2 * n) * Math.pow(0.8, n)
         : (1 + 2 * STACK_FULL) * Math.pow(0.8, STACK_FULL) + 0.4 * (stackCurve(n) - STACK_FULL);
-      m.count = pellets; m.spread += 0.3 * stackCurve(n); m.dmg *= fan / pellets; } },
+      m.count = pellets; m.spread += 0.3 * stackCurve(n); m.dmg *= fan / pellets;
+      m.scatterSplit = (m.scatterSplit || 1) * (fan / pellets);   // the SHREDDER's saw recovers this
+    } },
   heavy: { name: "HEAVY", glyph: "ᚺ", color: "#ff8a3d",
     desc: "A hand-cannon. Per stack: huge damage and brutal knockback, but it fires much slower. One devastating slug at a time.",
     mod: (m, n) => { m.dmg *= stackMul(1.9, n); m.rate *= stackMul(0.7, n); m.size *= stackMul(1.08, n); m.knock *= stackMul(1.6, n); } },
@@ -162,10 +169,17 @@ const UNK_PLAYER_RUNES = {
       const pellets = Math.min(m.count + 2 * n, 40);
       /* CLASSIC: the pre-7.0 fan — +2 pellets and +0.3 spread per stack, every pellet
          20% softer, for every stack. No fan-flattening past the third. */
-      if (classicStacks()) { m.count = pellets; m.spread += 0.3 * n; m.dmg *= Math.pow(0.8, n); return; }
+      if (classicStacks()) {
+        const soft = Math.pow(0.8, n);
+        m.count = pellets; m.spread += 0.3 * n; m.dmg *= soft;
+        m.scatterSplit = (m.scatterSplit || 1) * soft;   // the SHREDDER's saw recovers this
+        return;
+      }
       const fan = n <= STACK_FULL ? (1 + 2 * n) * Math.pow(0.8, n)
         : (1 + 2 * STACK_FULL) * Math.pow(0.8, STACK_FULL) + 0.4 * (stackCurve(n) - STACK_FULL);
-      m.count = pellets; m.spread += 0.3 * stackCurve(n); m.dmg *= fan / pellets; } },
+      m.count = pellets; m.spread += 0.3 * stackCurve(n); m.dmg *= fan / pellets;
+      m.scatterSplit = (m.scatterSplit || 1) * (fan / pellets);   // the SHREDDER's saw recovers this
+    } },
   heavy: { name: "HAND-CANNON", glyph: "ᚺ", color: "#ff8a3d",
     desc: "A hand-cannon. Per stack: huge damage and brutal knockback, but it fires much slower. One devastating slug at a time.",
     mod: (m, n) => { m.dmg *= stackMul(1.9, n); m.rate *= stackMul(0.7, n); m.size *= stackMul(1.08, n); m.knock *= stackMul(1.6, n); } },
@@ -353,7 +367,8 @@ function buildWeaponModsFrom(runes, p) {
     moveMul: 1, hpBonus: 0, dashCdMul: 1, dashTrail: 0, shield: 0,
     prey: 1, crit: 0, critMul: 2.2, wrath: 0, dr: 0, thorns: 0,
     regen: 0, regenDelay: 3, vortex: 0, fear: 0, fearDur: 0,
-    timeField: 0, timeR: 0, timeMul: 0, prickle: 0, prickleR: 0, slime: 0 };
+    timeField: 0, timeR: 0, timeMul: 0, prickle: 0, prickleR: 0, slime: 0,
+    scatterSplit: 1, sawDmg: 0 };
   /* a character may reshape the bare gun before any rune speaks (JUGGERNAUT's massive slow slug) */
   const wb = CHARS[p.char] && CHARS[p.char].weaponBase;
   if (wb) Object.assign(m, wb);
@@ -379,7 +394,12 @@ function buildWeaponModsFrom(runes, p) {
   m.shieldDmg = m.shield > 0 ? Math.round(30 + 18 * (stackCurve(m.shield) - 1)) : 0; // every stack deepens the burst
   m.shieldR = 130;
   if (p.char === "shredder") {
-    /* Keep saw reach separate from projectile size, which is deliberately capped above. */
+    /* The blade translates the bullet runes that have no projectile analogue:
+       SCATTER widens the grind and its reach, PIERCE and RICOCHET bite deeper,
+       and SEEKER drags prey toward the teeth (game/update.js). The debris itself
+       is a real shot now (entities/combat.js), so TWIN / MIRROR / HEAVY /
+       VELOCITY / the elements and homing all answer through it.
+       Keep saw reach separate from projectile size, which is deliberately capped above. */
     const sawRunes = runes || {};
     const scatter = sawRunes.scatter || 0, pierce = sawRunes.pierce || 0, bounce = sawRunes.ricochet || 0;
     m.shredDmgMul = 1 + scatter * 0.1 + pierce * 0.1 + bounce * 0.1;
@@ -387,6 +407,10 @@ function buildWeaponModsFrom(runes, p) {
     m.dmg *= 1 + m.twin * 0.4;
     m.rate *= 1 + m.twin * 0.25;
     if (m.rate > 20) { m.dmg *= m.rate / 20; m.rate = 20; }
+    /* SCATTER splits its bite across the debris pellets — that split is a
+       projectile concern and must not soften the blade, so the saw swings with
+       the undivided figure. */
+    m.sawDmg = m.dmg / (m.scatterSplit || 1);
   }
   return m;
 }
@@ -415,6 +439,15 @@ function runeStatLines(p, id) {
   if (full.bounce !== w.bounce) L.push("+" + di(full.bounce, w.bounce) + " BOUNCE");
   if (Math.abs(full.knock / w.knock - 1) > 0.005) L.push("KNOCKBACK " + mul(full.knock / w.knock));
   if (full.homing !== w.homing) L.push("HOMING PULL " + full.homing.toFixed(1));
+  /* the SHREDDER's blade reads the same runes differently — show what they do to the saw */
+  if (full.sawReach !== undefined && Math.abs(full.sawReach - w.sawReach) > 0.05) {
+    const sd = full.sawReach - w.sawReach;
+    L.push("SAW REACH " + (sd > 0 ? "+" : "\u2212") + Math.round(Math.abs(sd)));
+  }
+  if (full.shredDmgMul !== undefined && Math.abs(full.shredDmgMul - w.shredDmgMul) > 0.005)
+    L.push("SAW DAMAGE " + mul(full.shredDmgMul / w.shredDmgMul));
+  if (full.sawReach !== undefined && full.homing !== w.homing)
+    L.push("SAW PULL " + Math.round(Math.min(80, full.homing * 7)) + " px/s");
   if (Math.abs(full.moveMul / w.moveMul - 1) > 0.005) L.push("MOVE SPEED " + mul(full.moveMul / w.moveMul));
   if (full.hpBonus !== w.hpBonus) L.push("+" + di(full.hpBonus, w.hpBonus) + " MAX VITALITY");
   if (full.shieldMax !== w.shieldMax) L.push("SHIELD ABSORBS " + full.shieldMax + " HIT" + (full.shieldMax === 1 ? "" : "S"));
