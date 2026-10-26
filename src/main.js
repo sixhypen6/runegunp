@@ -14,6 +14,7 @@ applyGlow();         // set the halo budget from the save before the first frame
    the Android setting takes effect without the game having overwritten it. */
 if (!Meta.juiceSet && window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) Meta.juice = "off";
 document.body.classList.toggle("juiceOff", Meta.juice === "off");
+applyTextSizeUI();   // set --text-scale from the save before the first paint
 refreshMenu();
 applyButtonSize();   // set the --tbtn size var + clamp bounds before first layout/paint
 applyCtrlScheme();   // apply saved on-screen control scheme + custom button layout

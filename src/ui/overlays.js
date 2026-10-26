@@ -931,6 +931,30 @@ function syncVolumeUI() {
 $("volSettings").addEventListener("input", e => AudioFX.setVolume(e.target.value / 100));
 $("volSettings").addEventListener("change", metaSave);
 
+/* ---------- text size (the small print: normal · large · huge) ----------
+   Browser tab zoom scales the whole page; this setting instead grows only the
+   tiny labels (7–11px) and the menu's subtitle/omen, so a zoomed-out or
+   high-DPI screen stays readable without inflating titles and big numbers. */
+const TEXT_SIZE_ORDER = ["normal", "large", "huge"];
+const TEXT_SIZE_SCALE = { normal: 1, large: 1.25, huge: 1.45 };
+function textSizeKey() {
+  return TEXT_SIZE_SCALE[Meta.textSize] ? Meta.textSize : "large";
+}
+function applyTextSizeUI() {
+  const key = textSizeKey();
+  document.documentElement.style.setProperty("--text-scale", String(TEXT_SIZE_SCALE[key]));
+  const b = $("btnTextSize");
+  if (b) b.textContent = "TEXT SIZE: " + key.toUpperCase();
+}
+function cycleTextSize() {
+  const i = TEXT_SIZE_ORDER.indexOf(textSizeKey());
+  Meta.textSize = TEXT_SIZE_ORDER[(i + 1) % TEXT_SIZE_ORDER.length];
+  metaSave();
+  applyTextSizeUI();
+  AudioFX.equip();
+}
+$("btnTextSize").addEventListener("click", cycleTextSize);
+
 /* ---------- haptics (mobile vibration on combat beats) ---------- */
 function applyHapticsUI() {
   const b = $("btnHaptics"); if (b) b.textContent = "VIBRATION: " + (Meta.haptics !== false ? "ON" : "OFF");
@@ -986,6 +1010,7 @@ function toggleRuneDescriptions() {
 $("btnRuneDescriptions").addEventListener("click", toggleRuneDescriptions);
 applyAdvancedNumbersUI();
 applyRuneDescriptionSettingsUI();
+applyTextSizeUI();
 
 /* ---------- glow (neon halo budget — the lever itself lives in canvas.js) ----------
    Purely a performance/stability valve for weaker GPUs: "full" is the intended art and
@@ -1144,7 +1169,7 @@ $("ctrlEditDone").addEventListener("click", () => closeCtrlEdit(true));
 $("ctrlEditReset").addEventListener("click", resetCtrlLayout);
 
 /* ---------- settings overlay ---------- */
-function openSettings() { if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings opened"); syncVolumeUI(); applyDeskMode(); applyAimMode(); applyBtnSizeUI(); applyCtrlSettingsUI(); applyHapticsUI(); applyShakeUI(); applyAdvancedNumbersUI(); applyRuneDescriptionSettingsUI(); applyGlowUI(); applyJuiceUI(); applyHiddenRunesUI(); applyRunTimerUI(); applySpeedrunUI(); syncPrivacyOptions(); $("btnReplayCutscene").style.display = (Game.state === "menu") ? "" : "none"; $("settings").classList.add("on"); }
+function openSettings() { if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings opened"); syncVolumeUI(); applyDeskMode(); applyAimMode(); applyBtnSizeUI(); applyCtrlSettingsUI(); applyHapticsUI(); applyShakeUI(); applyAdvancedNumbersUI(); applyRuneDescriptionSettingsUI(); applyTextSizeUI(); applyGlowUI(); applyJuiceUI(); applyHiddenRunesUI(); applyRunTimerUI(); applySpeedrunUI(); syncPrivacyOptions(); $("btnReplayCutscene").style.display = (Game.state === "menu") ? "" : "none"; $("settings").classList.add("on"); }
 function closeSettings() { $("settings").classList.remove("on"); if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings closed"); }
 /* Google requires EEA/UK players to have a persistent way back to the consent
    choice. UMP tells us who needs one; everyone else never sees the button. */

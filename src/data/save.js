@@ -8,6 +8,7 @@
 /* ---------- persistent meta (vault) ---------- */
 const Meta = {
   bank: 0, volume: 0.8,
+  textSize: "large",   // small-print scale: "normal" · "large" (default) · "huge" — see ui/overlays.js
   schemaV: 4,         // save-shape version — bump when stored keys change meaning (see the metaLoad migration)
   deaths: 0,          // lifetime accepted deaths — paces the run-end interstitial
   seenTutorial: false, // has the first-launch how-to-play walkthrough played once
@@ -95,6 +96,8 @@ function metaLoad() {
       Meta.seenTutorial = !!d.seenTutorial;
       Meta.seenCutscene = !!d.seenCutscene;
       Meta.volume = typeof d.volume === "number" ? clamp(d.volume, 0, 1) : 0.8;
+      /* saves from before TEXT SIZE existed get the new, more readable default */
+      if (d.textSize === "normal" || d.textSize === "large" || d.textSize === "huge") Meta.textSize = d.textSize;
       Object.assign(Meta.unlocked, d.unlocked || {});
       Object.assign(Meta.slain, d.slain || {});
       Object.assign(Meta.slainFlawless, d.slainFlawless || {});
