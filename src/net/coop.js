@@ -409,7 +409,10 @@ const Coop = {
     for (let i = shockwaves.length - 1; i >= 0; i--) {
       const sw = shockwaves[i];
       if (sw.delay > 0) { sw.delay -= dt; continue; }
-      sw.r += sw.speed * dt;
+      if (!isFinite(sw.r) || !isFinite(sw.speed) || !isFinite(sw.max) || sw.max <= 0) {
+        shockwaves.splice(i, 1); continue;
+      }
+      sw.r = Math.max(0, sw.r + sw.speed * dt);
       if (sw.r > sw.max) shockwaves.splice(i, 1);
     }
     for (let i = puddles.length - 1; i >= 0; i--) {

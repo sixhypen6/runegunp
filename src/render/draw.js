@@ -1246,12 +1246,16 @@ function draw() {
   /* shockwaves */
   for (const s of shockwaves) {
     if (s.delay > 0) continue;
-    if (s.x - s.r > cullR + 40 || s.x + s.r < cullL - 40 || s.y - s.r > cullB + 40 || s.y + s.r < cullT - 40) continue;
+    /* canvas.arc throws on a negative/non-finite radius, and a throw here used to
+       leave the camera transform pushed and the world black for the rest of the run */
+    if (!isFinite(s.r) || !isFinite(s.max) || s.max <= 0) continue;
+    const sr = Math.max(0, s.r);
+    if (s.x - sr > cullR + 40 || s.x + sr < cullL - 40 || s.y - sr > cullB + 40 || s.y + sr < cullT - 40) continue;
     cx.strokeStyle = s.color || (s.hostile ? "#ff8a3d" : "#ffae5e");
-    cx.globalAlpha = clamp(1 - s.r / s.max, 0, 1);
+    cx.globalAlpha = clamp(1 - sr / s.max, 0, 1);
     cx.lineWidth = s.hostile ? 6 : 4;
     if (s.color) { cx.shadowColor = s.color; cx.shadowBlur = 16; }
-    cx.beginPath(); cx.arc(s.x, s.y, s.r, 0, TAU); cx.stroke();
+    cx.beginPath(); cx.arc(s.x, s.y, sr, 0, TAU); cx.stroke();
     cx.shadowBlur = 0; cx.globalAlpha = 1;
   }
 

@@ -29,7 +29,9 @@ function frame(now) {
      and the next one is attempted instead. */
   try {
     const rawDt = (now - last) / 1000;
-    let dt = Math.min(rawDt, 0.05);
+    /* a non-monotonic clock must never run the sim backwards — a negative dt used
+       to shrink shockwave rings until canvas.arc() threw on the negative radius */
+    let dt = Math.max(0, Math.min(rawDt, 0.05));
     last = now;
     /* the run clock freezes itself whenever the descent isn't live; it takes the
        unclamped frame time (capped so a hidden tab can't fast-forward the clock) */

@@ -71,6 +71,9 @@ function cutDrawChar(x, y, rot, sx, sy, col, alpha, flame, charType) {
   /* the gun's warpaint follows the character into every scene; unpainted barrels
      match the body here (no run, no runes to tint them) */
   const gun = gunSkinColor() || col;
+  /* a scene-local clock: this helper is shared by the intro, the vault cutscene and
+     the tutorial, so it must never borrow a `t` that only exists in one caller */
+  const now = (typeof performance !== "undefined" && performance.now ? performance.now() : 0) / 1000;
   cx.save(); cx.translate(x, y); cx.rotate(rot); cx.scale(sx, sy);
   cx.globalAlpha = alpha;
   const backX = charType === "juggernaut" ? -13 : -11;
@@ -122,12 +125,49 @@ function cutDrawChar(x, y, rot, sx, sy, col, alpha, flame, charType) {
     cx.beginPath(); cx.moveTo(11, 0); cx.lineTo(21, 0); cx.stroke();
     cx.strokeStyle = "#0a0a14"; cx.lineWidth = 2.5;
     cx.beginPath(); cx.moveTo(16, 0); cx.lineTo(22, 0); cx.stroke();
+  } else if (charType === "shredder") {
+    /* jagged industrial body behind a whirling void-saw */
+    const sawR = 20;
+    cx.save(); cx.rotate(now * 7);
+    cx.strokeStyle = gun; cx.lineWidth = 2.5;
+    cx.beginPath(); cx.arc(0, 0, sawR * 0.62, 0, TAU); cx.stroke();
+    cx.fillStyle = gun;
+    for (let i = 0; i < 10; i++) {
+      cx.rotate(TAU / 10);
+      cx.beginPath(); cx.moveTo(sawR * 0.58, -2.5); cx.lineTo(sawR, 0); cx.lineTo(sawR * 0.58, 2.5); cx.closePath(); cx.fill();
+    }
+    cx.restore();
+    cx.fillStyle = col;
+    cx.beginPath(); cx.moveTo(-10, -12); cx.lineTo(12, -8); cx.lineTo(12, 8); cx.lineTo(-10, 12); cx.closePath(); cx.fill();
+    cx.fillStyle = "#0a0a14"; cx.fillRect(2, -3, 6, 6);
+    cx.beginPath(); cx.arc(0, 0, 8, 0, TAU); cx.fill();
+    cx.fillStyle = col; cx.font = "bold 9px monospace"; cx.textAlign = "center"; cx.textBaseline = "middle";
+    cx.fillText("ᛃ", 0, 1);
+  } else if (charType === "necromancer") {
+    /* Reanimator: ragged robe, floating skull, soul core and runic staff */
+    cx.beginPath(); cx.moveTo(0, -10); cx.quadraticCurveTo(12, -8, 10, 8);
+    cx.lineTo(-10, 8); cx.quadraticCurveTo(-12, -8, 0, -10); cx.closePath(); cx.fill();
+    cx.fillStyle = "#e8e2d0";
+    for (const side of [-1, 1]) { cx.beginPath(); cx.arc(side * 9, -5, 4, 0, TAU); cx.fill(); }
+    const pulse = 0.6 + 0.4 * Math.sin(now * 5);
+    cx.fillStyle = "#9d6bff"; cx.shadowColor = "#9d6bff"; cx.shadowBlur = 10 * pulse;
+    cx.beginPath(); cx.arc(0, 0, 4, 0, TAU); cx.fill(); cx.shadowBlur = 0;
+    cx.save(); cx.translate(0, -14 + Math.sin(now * 2.5) * 2);
+    cx.fillStyle = "#e8e2d0"; cx.beginPath(); cx.arc(0, 0, 5, 0, TAU); cx.fill();
+    cx.fillRect(-2.5, 3, 5, 2); cx.fillStyle = "#0a0a14";
+    cx.beginPath(); cx.arc(-1.5, 0, 1.2, 0, TAU); cx.fill();
+    cx.beginPath(); cx.arc(1.5, 0, 1.2, 0, TAU); cx.fill(); cx.restore();
+    cx.strokeStyle = gun; cx.lineWidth = 2.5;
+    cx.beginPath(); cx.moveTo(0, 0); cx.lineTo(24, 0); cx.stroke();
+    cx.save(); cx.translate(24, 0);
+    cx.fillStyle = gun; cx.font = "bold 10px monospace"; cx.textAlign = "center"; cx.textBaseline = "middle";
+    cx.fillText("ᚻ", 0, 0); cx.restore();
   } else if (charType === "theUnknown") {
     /* void-ring body with orbiting rune glyphs */
-    const ua = t * 0.9;
+    const ua = now * 0.9;
     for (let k = 0; k < 3; k++) {
       const a = ua + k * TAU / 3;
-      cx.fillStyle = "rgba(201,184,255," + (0.35 + 0.25 * Math.sin(t * 2 + k)) + ")";
+      cx.fillStyle = "rgba(201,184,255," + (0.35 + 0.25 * Math.sin(now * 2 + k)) + ")";
       cx.beginPath(); cx.arc(Math.cos(a) * 14, Math.sin(a) * 14, 3, 0, TAU); cx.fill();
     }
     cx.fillStyle = "#0a0818";

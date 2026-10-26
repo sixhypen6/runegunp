@@ -890,7 +890,12 @@ function update(dt) {
     if (!s) continue;   // bossSlain splices hostile waves mid-loop; the index may overshoot
     if (still) break;   // the stopped hour: every ring hangs where it is
     if (s.delay > 0) { s.delay -= dt; continue; }
-    s.r += s.speed * dt;
+    /* A ring with a bad radius/speed used to throw inside canvas.arc() and black the
+       world out for the rest of the run. Never let one poisoned ring escape the sim. */
+    if (!isFinite(s.r) || !isFinite(s.speed) || !isFinite(s.max) || s.max <= 0) {
+      shockwaves.splice(i, 1); continue;
+    }
+    s.r = Math.max(0, s.r + s.speed * dt);
     if (s.hostile && !s.hit && s.dmg > 0) {
       for (const p of alivePlayers()) {
         const d = Math.sqrt(dist2(s.x, s.y, p.x, p.y));
@@ -907,6 +912,9 @@ function update(dt) {
       }
     }
     if (!s.hostile && s.dmg > 0) {
+      /* older/dynamic friendly rings may arrive without a ledger — make one rather
+         than letting .has() throw and freeze the whole frame */
+      if (!s.hitSet) s.hitSet = new Set();
       for (const e of enemies) {
         if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p" || s.hitSet.has(e)) continue;
         if (dist2(s.x, s.y, e.x, e.y) < (s.r + e.r) ** 2) { s.hitSet.add(e); damageEnemy(e, s.dmg, s.owner ? { owner: s.owner } : undefined); }

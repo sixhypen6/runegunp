@@ -198,7 +198,9 @@ const ETYPES = {
         e.vx = e.vy = 0;
         if (e.pt <= 0) {
           e.phase = "walk"; e.pt = 0; e.cd = 1.6;
-          shockwaves.push({ x: e.x, y: e.y, r: 10, max: 170, speed: 420, dmg: 20, hit: false, hostile: e.team !== "p", owner: e.owner, wrath: e.wrath, rime: e.rime, sear: e.sear });
+          /* a REANIMATED slammer fights for you: its ring is friendly, so it needs the
+             same hit ledger the player's novas carry (the update loop assumes one) */
+          shockwaves.push({ x: e.x, y: e.y, r: 10, max: 170, speed: 420, dmg: 20, hit: false, hostile: e.team !== "p", hitSet: new Set(), owner: e.owner, wrath: e.wrath, rime: e.rime, sear: e.sear });
           Game.shake = Math.max(Game.shake, 9); AudioFX.slam();
         }
       }
