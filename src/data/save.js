@@ -7,7 +7,7 @@
 
 /* ---------- persistent meta (vault) ---------- */
 const Meta = {
-  bank: 99999220, volume: 0.8,
+  bank: 0, volume: 0.8,
   schemaV: 4,         // save-shape version — bump when stored keys change meaning (see the metaLoad migration)
   deaths: 0,          // lifetime accepted deaths — paces the run-end interstitial
   seenTutorial: false, // has the first-launch how-to-play walkthrough played once
