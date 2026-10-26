@@ -1,0 +1,298 @@
+/* =========================================================
+   RUNEGUN · Local run console
+   F9 / backtick opens a small, allowlisted command console.
+   Commands edit only the current local run; no arbitrary JS is evaluated.
+   ========================================================= */
+"use strict";
+
+const RunegunConsole = {
+  open: false,
+  paused: false,
+  history: [],
+  historyIndex: -1,
+  output: [],
+  maxLines: 100,
+  eventLog: [],
+  maxEventLines: 200,
+  viewMode: "cmd",
+
+  init() {
+    const style = document.createElement("style");
+    style.textContent = `
+      #runegunConsole{position:fixed;inset:8% 6%;z-index:100;display:none;flex-direction:column;
+        max-width:900px;max-height:80vh;margin:auto;padding:12px;background:rgba(8,7,17,.97);
+        border:1px solid #9d6bff;box-shadow:0 0 32px rgba(157,107,255,.28);color:#e8e2d0;
+        font:12px "Courier New",monospace;letter-spacing:.04em;pointer-events:auto;user-select:text;-webkit-user-select:text}
+      #runegunConsole.on{display:flex}
+      #runegunConsole .rg-head{display:flex;align-items:center;justify-content:space-between;gap:8px;
+        padding-bottom:8px;border-bottom:1px solid #2c2a45;color:#c9b8ff}
+      #runegunConsole .rg-actions{display:flex;gap:6px}
+      #runegunConsole button{padding:5px 9px;border:1px solid #45415f;background:#171426;color:#e8e2d0;
+        font:10px "Courier New",monospace;letter-spacing:.1em}
+      #runegunConsole button:active{border-color:#9d6bff}
+      #runegunConsole .rg-output{flex:1;min-height:120px;overflow:auto;padding:8px 2px;white-space:pre-wrap;
+        overflow-wrap:anywhere;color:#c8c4d6;line-height:1.5}
+      #runegunConsole .rg-input{display:flex;gap:8px;align-items:center;border-top:1px solid #2c2a45;padding-top:8px;color:#7dff5e}
+      #runegunConsole input{flex:1;min-width:0;padding:8px;background:#100e1b;border:1px solid #45415f;
+        color:#e8e2d0;font:12px "Courier New",monospace;user-select:text;-webkit-user-select:text}
+      #runegunConsole .rg-help{padding-top:6px;color:#8a86a0;font-size:9px}
+    `;
+    document.head.appendChild(style);
+    const box = document.createElement("section");
+    box.id = "runegunConsole";
+    box.setAttribute("aria-label", "Runegun run console");
+    box.innerHTML = `<div class="rg-head"><span>LOCAL RUN CONSOLE · F9 / BACKTICK</span><span class="rg-actions"><button type="button" id="rgClear">CLEAR</button><button type="button" id="rgToggleView">VIEW: CMD</button><button type="button" id="rgClose">CLOSE</button></span></div>
+      <div class="rg-output" id="rgOutput" role="log" aria-live="polite"></div>
+      <form class="rg-input" id="rgForm"><span>&gt;</span><input id="rgCommand" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Console command"></form>
+      <div class="rg-help">Commands: help · status · souls &lt;amount&gt; · runes · list · enemies · spawn &lt;enemy&gt; [count] · floors · unknown · cast &lt;rune&gt; · tp &lt;floor number or name&gt; · add &lt;rune&gt; [stacks] · set &lt;rune&gt; &lt;stacks&gt; · remove &lt;rune&gt; [stacks] · clear · heal · char &lt;id&gt;</div>`;
+    document.body.appendChild(box);
+    this.box = box;
+    this.input = box.querySelector("#rgCommand");
+    this.outputEl = box.querySelector("#rgOutput");
+    box.querySelector("#rgClose").addEventListener("click", () => this.toggle(false));
+    box.querySelector("#rgClear").addEventListener("click", () => { this.output = []; this.render(); });
+    box.querySelector("#rgToggleView").addEventListener("click", () => {
+      this.viewMode = this.viewMode === "cmd" ? "events" : "cmd";
+      box.querySelector("#rgToggleView").textContent = "VIEW: " + (this.viewMode === "cmd" ? "CMD" : "EVENTS");
+      this.render();
+    });
+    box.querySelector("#rgForm").addEventListener("submit", e => {
+      e.preventDefault();
+      const command = this.input.value;
+      this.input.value = "";
+      this.historyIndex = -1;
+      this.execute(command);
+      this.input.focus();
+    });
+    this.input.addEventListener("keydown", e => {
+      e.stopPropagation();
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        if (this.historyIndex < this.history.length - 1) this.historyIndex++;
+        this.input.value = this.history[this.history.length - 1 - this.historyIndex] || "";
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        if (this.historyIndex > 0) this.historyIndex--;
+        else this.historyIndex = -1;
+        this.input.value = this.historyIndex < 0 ? "" : (this.history[this.history.length - 1 - this.historyIndex] || "");
+      } else if (e.key === "Escape") {
+        e.preventDefault(); this.toggle(false);
+      }
+    });
+    window.addEventListener("keydown", e => {
+      if (e.key === "F9" || e.code === "Backquote") {
+        e.preventDefault();
+        this.toggle();
+      }
+    });
+    this.log("Ready. Type help for supported commands.");
+  },
+
+  toggle(force) {
+    this.open = force === undefined ? !this.open : !!force;
+    this.box.classList.toggle("on", this.open);
+    if (this.open) {
+      if (Game.state === "play" && !(typeof Net !== "undefined" && Net.active)) {
+        this.paused = true;
+        setState("pause");
+      }
+      this.input.focus();
+    } else {
+      if (this.paused && Game.state === "pause") setState("play");
+      this.paused = false;
+    }
+  },
+
+  log(text) {
+    this.output.push(String(text));
+    if (this.output.length > this.maxLines) this.output.shift();
+    this.render();
+  },
+  logEvent(kind, detail) {
+    const t = Game ? (Math.floor(Game.time * 10) / 10).toFixed(1) : "0.0";
+    const line = `[t${t}] ${kind}: ${detail}`;
+    this.eventLog.push(line);
+    if (this.eventLog.length > this.maxEventLines) this.eventLog.shift();
+    this.render();
+  },
+
+  render() {
+    if (!this.outputEl) return;
+    if (this.viewMode === "events") {
+      this.outputEl.textContent = this.eventLog.join("\n");
+    } else {
+      this.outputEl.textContent = this.output.join("\n");
+    }
+    this.outputEl.scrollTop = this.outputEl.scrollHeight;
+  },
+
+  currentPlayer() {
+    if (typeof Net !== "undefined" && Net.active) throw new Error("Console edits are disabled during co-op.");
+    if (!["play", "pause", "rune", "wait", "held", "choice"].includes(Game.state))
+      throw new Error("Start a run before using run-edit commands.");
+    const p = localPlayer();
+    if (!p || !p.runes) throw new Error("No active local player.");
+    return p;
+  },
+
+  editRune(command, id, amount) {
+    const p = this.currentPlayer();
+    if (!Object.prototype.hasOwnProperty.call(RUNES, id)) throw new Error("Unknown rune: " + id);
+    const current = p.runes[id] || 0;
+    const next = command === "add" ? current + amount : command === "remove" ? Math.max(0, current - amount) : amount;
+    if (!Number.isInteger(next) || next < 0 || next > 99) throw new Error("Stacks must be between 0 and 99.");
+    if (next) p.runes[id] = next; else delete p.runes[id];
+    /* Keep the run's existing seal state. An unsealed run must stay unsealed. */
+    if (Array.isArray(p.lockedRunes)) {
+      p.lockedRunes = p.lockedRunes.filter(key => p.runes[key] > 0);
+      if (!p.lockedRunes.length) p.lockedRunes = null;
+    }
+    recalc(p);
+    this.log(RUNES[id].name + " ×" + (p.runes[id] || 0) + " · stats recalculated");
+  },
+
+  teleportFloor(query) {
+    this.currentPlayer();
+    const value = String(query || "").trim();
+    if (!value) throw new Error("Usage: tp <floor number or name>. Use floors to list floors.");
+    let index = -1;
+    if (/^\d+$/.test(value)) {
+      const floorNumber = Number(value);
+      if (floorNumber < 1 || floorNumber > FLOORS.length)
+        throw new Error("Floor number must be from 1 to " + FLOORS.length + ".");
+      index = floorNumber - 1;
+    } else {
+      const normalize = s => s.toLowerCase().replace(/^the\s+/, "").replace(/[^a-z0-9]+/g, " ").trim();
+      const wanted = normalize(value);
+      const matches = FLOORS.map((floor, i) => ({ i, name: normalize(floor.name) }))
+        .filter(floor => floor.name === wanted || floor.name.includes(wanted));
+      if (!matches.length) throw new Error("No floor matches '" + value + "'. Use floors to list names.");
+      if (matches.length > 1) throw new Error("That name is ambiguous. Use a longer floor name.");
+      index = matches[0].i;
+    }
+    const target = FLOORS[index];
+    if (Game.inUnknown || Game.inSaloon || Game.inRift) {
+      Game.inRift = false; Game.riftCreature = null; Game.riftPicks = null;
+    }
+    Game.mapIdx = index;
+    setupFloor(false);
+    Game.intermission = 2.5;
+    if (Game.state !== "play" && Game.state !== "pause") setState("play");
+    this.log("Teleported to floor " + (index + 1) + ": " + target.name + ".");
+  },
+
+  spawnEnemies(type, count) {
+    const p = this.currentPlayer();
+    if (!Object.prototype.hasOwnProperty.call(ETYPES, type))
+      throw new Error("Unknown enemy type. Use enemies to list valid types.");
+    if (!Number.isInteger(count) || count < 1 || count > 20)
+      throw new Error("Count must be between 1 and 20.");
+    if (enemies.length + count > 350) throw new Error("Enemy limit reached; clear some enemies first.");
+    for (let i = 0; i < count; i++) {
+      const a = i / count * TAU + rnd(-0.12, 0.12);
+      const radius = 180 + (i % 3) * 36;
+      const x = clamp(p.x + Math.cos(a) * radius, 60, MAP.w - 60);
+      const y = clamp(p.y + Math.sin(a) * radius, 60, MAP.h - 60);
+      enemies.push(spawnEnemy(type, x, y));
+    }
+    this.log("Spawned " + count + " " + type + (count === 1 ? "" : "s") + " near the player.");
+  },
+
+  execute(line) {
+    const raw = String(line || "").trim();
+    if (!raw) return;
+    this.history.push(raw);
+    this.log("> " + raw);
+    const [command, ...args] = raw.toLowerCase().split(/\s+/);
+    const amount = (value, fallback) => {
+      if (value === undefined) return fallback;
+      if (!/^\d+$/.test(value)) throw new Error("Stack count must be a whole number.");
+      const n = Number(value);
+      if (n > 99) throw new Error("Maximum stack count is 99.");
+      return n;
+    };
+    try {
+      if (command === "help") {
+        this.log("help · status · souls <amount> · runes · list · enemies · spawn <enemy> [count] · floors · unknown · cast <rune> · tp <floor number or name> · add <rune> [stacks] · set <rune> <stacks> · remove <rune> [stacks] · clear · heal · char <id>");
+      } else if (command === "runes") {
+        const p = this.currentPlayer();
+        const held = Object.keys(p.runes).filter(id => p.runes[id] > 0);
+        this.log(held.length ? held.map(id => { const R = runeDefFor(p, id); return R.glyph + " " + id + " ×" + p.runes[id]; }).join("\n") : "No runes held.");
+      } else if (command === "list") {
+        this.log(RUNE_IDS.map(id => RUNES[id].glyph + " " + id).join("\n"));
+      } else if (command === "enemies") {
+        this.log(Object.keys(ETYPES).join("\n"));
+      } else if (command === "spawn") {
+        if (!args[0]) throw new Error("Usage: spawn <enemy type> [count]. Use enemies to list valid types.");
+        const count = args[1] === undefined ? 1 : amount(args[1], 1);
+        this.spawnEnemies(args[0], count);
+      } else if (command === "floors") {
+        this.log(FLOORS.map((floor, i) => (i + 1) + ". " + floor.name).join("\n"));
+      } else if (command === "unknown" || command === "unkrunes") {
+        const ids = Object.keys(UNK_RUNES).sort((a, b) => UNK_RUNES[a].phase - UNK_RUNES[b].phase || a.localeCompare(b));
+        this.log(ids.map(id => RUNES[id].glyph + " " + id + " · PHASE " + UNK_RUNES[id].phase + " · " + UNK_RUNES[id].name).join("\n"));
+      } else if (command === "cast") {
+        this.currentPlayer();
+        const id = args[0], U = Game.unk;
+        if (!id || !Object.prototype.hasOwnProperty.call(UNK_RUNES, id)) throw new Error("Unknown attack rune. Use unknown to list them.");
+        if (!Game.inUnknown || !U || U.stage !== "fight") throw new Error("cast is available only while THE UNKNOWN is in its fight stage.");
+        for (const c of U.casts) if (c.h) c.h.busy = false;
+        U.casts = []; U.left = 0;
+        unkStartGroup([id]);
+        this.log("Forced THE UNKNOWN to cast " + id + " (" + UNK_RUNES[id].name + ").");
+      } else if (command === "tp" || command === "teleport") {
+        this.teleportFloor(args.join(" "));
+      } else if (command === "status") {
+        const p = this.currentPlayer();
+        const c = typeof CHARS !== "undefined" && CHARS[p.char] ? CHARS[p.char] : { name: p.char };
+        this.log(c.name + " · HP " + Math.ceil(p.hp) + "/" + p.maxHp + " · " + Object.keys(p.runes).filter(id => p.runes[id] > 0).length + " runes");
+      } else if (command === "souls") {
+        this.currentPlayer();
+        if (!args[0] || !/^\d+$/.test(args[0])) throw new Error("Usage: souls <positive amount>.");
+        const gained = Number(args[0]);
+        if (!Number.isSafeInteger(gained) || gained < 1 || gained > 1000000) throw new Error("Amount must be from 1 to 1,000,000.");
+        Game.score += gained;
+        updateScore();
+        this.log("Added " + gained.toLocaleString() + " souls to this run · run total " + Game.score.toLocaleString() + ".");
+      } else if (command === "add" || command === "set" || command === "remove") {
+        if (!args[0]) throw new Error("Specify a rune id. Use runes to list held runes.");
+        this.editRune(command, args[0], amount(args[1], command === "set" ? undefined : 1));
+      } else if (command === "clear") {
+        const p = this.currentPlayer();
+        p.runes = {}; p.lockedRunes = null; recalc(p);
+        this.log("Runes cleared.");
+      } else if (command === "heal") {
+        const p = this.currentPlayer();
+        p.hp = p.maxHp; p.downed = false; updateHp();
+        this.log("Player healed to full.");
+      } else if (command === "char") {
+        const p = this.currentPlayer(), id = args[0];
+        if (!id) throw new Error("Usage: char <id>.");
+        if (typeof CHARS === "undefined") throw new Error("Character data not loaded.");
+        if (!Object.prototype.hasOwnProperty.call(CHARS, id)) throw new Error("Unknown character id: " + id + ".");
+        p.char = id;
+        p.dashCdBase = CHARS[id].dashCd;
+        p.dashDur = CHARS[id].dashDur || 0.18;
+        p.dashSpeed = CHARS[id].dashSpeed || 720;
+        recalc(p);
+        this.log("Current run character: " + CHARS[id].name + ".");
+      } else if (command === "log") {
+        this.viewMode = "events";
+        this.box.querySelector("#rgToggleView").textContent = "VIEW: EVENTS";
+        this.log("Switched to event log view. Press VIEW: CMD to return.");
+      } else if (command === "events") {
+        this.viewMode = "events";
+        this.box.querySelector("#rgToggleView").textContent = "VIEW: EVENTS";
+        this.log("Event log (" + this.eventLog.length + " entries):");
+        this.eventLog.slice(-30).forEach(line => this.log("  " + line));
+      } else {
+        this.log("Unknown command. Type help.");
+      }
+    } catch (e) {
+      this.log("ERROR: " + e.message);
+    }
+  },
+};
+
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => RunegunConsole.init());
+else RunegunConsole.init();

@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>RUNEGUN — catacomb arena roguelike</title>
+
+  <!-- Web Manifest for PWA / Android -->
+  <link rel="manifest" href="site.webmanifest">
+  
+  <!-- Standard Favicon Fallback -->
+  <link rel="icon" type="image/x-icon" href="favicon.ico" sizes="any">
+  
+  <!-- Multi-size PNG Favicons -->
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+  
+  <!-- Apple Touch Icon (iOS Home Screen) -->
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  
+  <!-- Android Chrome Icons -->
+  <link rel="icon" type="image/png" sizes="192x192" href="android-chrome-192x192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="android-chrome-512x512.png">
+
+<style>
+  :root{
+    --void:#0b0b14; --bone:#e8e2d0; --dim:#8a86a0;
+    --ember:#ff8a3d; --arcane:#9d6bff; --venom:#7dff5e; --frost:#5ee6ff; --blood:#ff4d5e; --gold:#ffd23d;
+    --panel:rgba(14,13,26,.94); --line:#2c2a45;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+  html,body{width:100%;height:100%;overflow:hidden;background:var(--void);
+    font-family:"Courier New",ui-monospace,Menlo,Consolas,monospace;color:var(--bone)}
+  #game{position:fixed;inset:0;display:block;touch-action:none}
+
+  /* ---------- HUD ---------- */
+  /* z-index keeps the HUD's interactive bits (the pause button) above the
+     touch sticks, which are later siblings and would otherwise capture the
+     tap. Stays below overlays (z-index 10+) so the pause menu covers it. */
+  #hud{position:fixed;inset:0;pointer-events:none;display:none;z-index:5}
+  #hud.on{display:block}
+  .hp-wrap{position:fixed;top:max(10px,env(safe-area-inset-top));left:max(12px,env(safe-area-inset-left));width:min(260px,38vw)}
+  .hp-label{font-size:10px;letter-spacing:.25em;color:var(--dim);margin-bottom:3px;display:flex;justify-content:space-between}
+  .hp-bar{height:14px;border:1px solid var(--line);background:rgba(0,0,0,.5);position:relative}
+  .hp-fill{height:100%;width:100%;background:linear-gradient(90deg,#ff4d5e,#ff8a3d);transition:width .15s}
+  .hp-tick{position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 24px,rgba(0,0,0,.45) 24px 25px)}
+  #runeStrip{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;max-width:min(320px,44vw)}
+  .chip{font-size:13px;padding:1px 5px;border:1px solid var(--line);background:rgba(0,0,0,.5);white-space:nowrap}
+  .chip small{font-size:9px;color:var(--dim)}
+  #curseStrip{display:flex;gap:4px;margin-top:5px;flex-wrap:wrap;max-width:min(320px,44vw)}
+  .curse{font-size:12px;padding:1px 6px;border:1px solid;background:rgba(0,0,0,.55);white-space:nowrap;
+    animation:cursePulse 1s ease-in-out infinite}
+  .curse small{font-size:9px;opacity:.8}
+  @keyframes cursePulse{0%,100%{opacity:.65}50%{opacity:1}}
+  /* the saloon's rounds — amber, with the sober clock draining below it */
+  #drunkHud{display:none;margin-top:7px;max-width:min(320px,44vw);font-variant-numeric:tabular-nums}
+  #drunkHud.on{display:block}
+  #drunkName{font-size:10px;letter-spacing:.2em;color:#f2b36d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    text-shadow:0 0 8px rgba(242,179,109,.4)}
+  #drunkBar{height:3px;margin-top:3px;background:rgba(0,0,0,.55);border:1px solid rgba(242,179,109,.35)}
+  #drunkFill{height:100%;width:100%;background:linear-gradient(90deg,#f2b36d,#ffd23d)}
+  #drunkTime{font-size:9px;letter-spacing:.18em;color:rgba(242,179,109,.75);margin-top:2px}
+  .wave-wrap{position:fixed;top:max(10px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);text-align:center}
+  #waveNum{font-size:22px;letter-spacing:.35em;text-shadow:0 0 12px rgba(157,107,255,.7)}
+  #mapName{font-size:10px;letter-spacing:.3em;color:var(--dim)}
+  #sealCount{font-size:10px;letter-spacing:.25em;color:var(--arcane);margin-top:2px}
+  /* vitality caches — same line style as the seal tally, in the heal green */
+  #vitalCount{font-size:10px;letter-spacing:.25em;color:#7dff5e;margin-top:2px;opacity:.85}
+  /* speedrun clock — tabular figures so the milliseconds never jitter the line */
+  #runTimer{display:none;flex-direction:column;align-items:center;gap:1px;margin-top:7px;font-variant-numeric:tabular-nums}
+  #runTimer.on{display:flex}
+  #runClock{font-size:12px;letter-spacing:.16em;color:var(--gold);text-shadow:0 0 8px rgba(255,210,61,.45)}
+  #runClock.done{color:var(--arcane);text-shadow:0 0 10px rgba(157,107,255,.65)}
+  #runBest{font-size:9px;letter-spacing:.2em;color:var(--dim)}
+  #runBest b{color:var(--gold);font-weight:normal}
+  .score-wrap{position:fixed;top:max(10px,env(safe-area-inset-top));right:max(12px,env(safe-area-inset-right));text-align:right;pointer-events:auto}
+  #score{font-size:18px;letter-spacing:.15em}
+  .score-label{font-size:9px;letter-spacing:.25em;color:var(--dim)}
+  #rerolls{font-size:10px;letter-spacing:.2em;color:var(--gold);margin-top:4px}
+  #pauseBtn{margin-top:8px;font-family:inherit;font-size:10px;letter-spacing:.25em;color:var(--bone);
+    background:rgba(0,0,0,.5);border:1px solid var(--line);padding:6px 12px;cursor:pointer}
+  body.touch #pauseBtn{position:fixed;margin-top:0;z-index:6;pointer-events:auto;
+    bottom:max(14px,env(safe-area-inset-bottom));right:max(12px,env(safe-area-inset-right))}
+  #bossBar{position:fixed;bottom:max(14px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);
+    width:min(560px,84vw);display:none}
+  #bossBar.on{display:block}
+  #bossName{font-size:11px;letter-spacing:.4em;text-align:center;color:var(--blood);text-shadow:0 0 10px var(--blood);margin-bottom:4px}
+  .boss-track{height:10px;border:1px solid var(--blood);background:rgba(0,0,0,.6)}
+  #bossFill{height:100%;width:100%;background:linear-gradient(90deg,#ff4d5e,#9d6bff);transition:width .1s}
+  /* THE UNKNOWN: its bar carries the 50% / 25% gates, dims while it hides in the abyss,
+     and the two returned wardens of a challenge round get their own bars above it */
+  .boss-track{position:relative}
+  #bossBar .notch{position:absolute;top:-4px;bottom:-4px;width:2px;margin-left:-1px;background:var(--bone);display:none;pointer-events:none}
+  #bossBar.unk .notch{display:block}
+  #bossBar.unk #bossName{color:#c9b8ff;text-shadow:0 0 10px #9d6bff}
+  #bossBar.unk #bossFill{background:linear-gradient(90deg,#9d6bff,#c9b8ff)}
+  #bossBar.abyss{opacity:.45}
+  #echoBars{position:fixed;bottom:calc(max(14px,env(safe-area-inset-bottom)) + 44px);left:50%;transform:translateX(-50%);
+    width:min(560px,84vw);display:none;gap:14px}
+  #echoBars.on{display:flex}
+  #echoBars .echo{flex:1;min-width:0}
+  #echoBars .en{font-size:9px;letter-spacing:.22em;text-align:center;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 0 8px currentColor}
+  #echoBars .et{height:7px;border:1px solid currentColor;background:rgba(0,0,0,.6)}
+  #echoBars .ef{height:100%;width:100%;background:currentColor;transition:width .1s}
+  #echoBars .echo.dead{opacity:.3}
+  #toast{position:fixed;bottom:20%;left:50%;transform:translateX(-50%);font-size:13px;letter-spacing:.2em;
+    color:var(--bone);background:var(--panel);border:1px solid var(--line);padding:8px 16px;opacity:0;transition:opacity .25s;text-align:center;max-width:90vw}
+  #interactHint{position:fixed;bottom:28%;left:50%;transform:translateX(-50%);font-size:12px;letter-spacing:.25em;
+    color:var(--ember);text-shadow:0 0 10px var(--ember);opacity:0;transition:opacity .2s;text-align:center}
+
+  /* ---------- touch ---------- */
+  .stick{position:fixed;bottom:0;width:46%;height:50%;pointer-events:auto;display:none}
+  body.touch .stick{display:block}
+  /* auto-aim: one stick only — hide the right (aim) stick, widen the movement zone */
+  body.touch.autoaim #stickR{display:none}
+  body.touch.autoaim #stickL{width:100%}
+  #stickL{left:0} #stickR{right:0}
+  .stick .base,.stick .nub{position:absolute;border-radius:50%;pointer-events:none;opacity:0;transition:opacity .15s}
+  .stick .base{width:96px;height:96px;border:1px solid var(--line);background:rgba(20,18,38,.45)}
+  .stick .nub{width:44px;height:44px;background:rgba(157,107,255,.35);border:1px solid var(--arcane)}
+  .tbtns{position:fixed;right:max(10px,env(safe-area-inset-right));bottom:52%;display:none;flex-direction:column;gap:10px;pointer-events:auto}
+  body.touch.inGame .tbtns{display:flex}   /* .inGame set by setState() — buttons only exist during a run */
+  .tbtn{width:var(--tbtn,54px);height:var(--tbtn,54px);border-radius:50%;border:1px solid var(--line);background:rgba(20,18,38,.6);
+    color:var(--bone);font-size:9px;letter-spacing:.1em;font-family:inherit;display:flex;align-items:center;justify-content:center}
+  .tbtn:active{background:rgba(157,107,255,.35)}
+  /* custom button layout / tap-gesture scheme / layout editor */
+  body.touch.customCtrl.inGame .tbtns{display:flex}   /* custom buttons are individually fixed */
+  body.touch.tapgest .tbtns{display:none!important}   /* gestures scheme has no buttons — !important so the
+                                                         4-class customCtrl rule above can't out-rank it
+                                                         (customCtrl lingers on body after a scheme switch) */
+  body.editingCtrl .tbtns{display:flex;z-index:50}    /* lift buttons above the edit scrim (z40) */
+  body.editingCtrl .tbtn{outline:2px dashed var(--arcane);opacity:1;pointer-events:auto}
+  /* ---------- first-run walkthrough ---------- */
+  body.tut .stick,body.tut .tbtns{display:none!important}   /* drawn diagrams stand in for the real controls */
+  #btnTutSkip{display:none;position:fixed;top:max(12px,env(safe-area-inset-top));right:max(12px,env(safe-area-inset-right));
+    z-index:11;pointer-events:auto;padding:8px 14px;border-radius:20px;border:1px solid var(--line);
+    background:rgba(20,18,38,.6);color:var(--dim);font-family:inherit;font-size:10px;letter-spacing:.2em}
+  body.tut #btnTutSkip{display:block}
+  #btnTutSkip:active{background:rgba(157,107,255,.35);color:var(--bone)}
+
+  /* ---------- overlays ---------- */
+  /* align-items/justify-content use the `safe` keyword so that when content is taller
+     than the screen it top-aligns and scrolls instead of clipping the top (e.g. the
+     PAUSED title sliding up under the notch). Padding reserves the device safe-area
+     insets so nothing hides behind a status bar / notch / rounded corner. */
+  .overlay{position:fixed;inset:0;background:rgba(7,6,14,.9);display:none;flex-direction:column;
+    align-items:safe center;justify-content:safe center;z-index:10;pointer-events:auto;overflow-y:auto;
+    padding:max(18px,env(safe-area-inset-top)) max(18px,env(safe-area-inset-right)) max(18px,env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left))}
+  .overlay.on{display:flex}
+  .title{font-size:clamp(38px,9vw,84px);letter-spacing:.3em;text-indent:.3em;font-weight:bold;
+    background:linear-gradient(180deg,var(--bone) 30%,var(--arcane));-webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 0 18px rgba(157,107,255,.45))}
+  .subtitle{margin-top:6px;font-size:clamp(10px,2vw,13px);letter-spacing:.45em;color:var(--dim);text-indent:.45em;text-align:center}
+  .rule{width:min(420px,70vw);height:1px;background:linear-gradient(90deg,transparent,var(--arcane),transparent);margin:22px 0}
+  .menu-btn{font-family:inherit;font-size:15px;letter-spacing:.35em;text-indent:.35em;color:var(--bone);
+    background:transparent;border:1px solid var(--line);padding:14px 44px;cursor:pointer;margin-top:10px;transition:all .15s}
+  .menu-btn:hover,.menu-btn:active{border-color:var(--arcane);box-shadow:0 0 16px rgba(157,107,255,.4);color:#fff}
+  .menu-btn.small{font-size:11px;padding:10px 26px}
+
+  /* ---------- main menu — the Void shows through ---------- */
+  #menu{background:linear-gradient(180deg,rgba(6,4,16,0) 0%,rgba(6,4,16,.05) 34%,rgba(6,4,16,.55) 62%,rgba(6,4,16,.92) 100%);
+    justify-content:flex-end;padding-bottom:max(26px,env(safe-area-inset-bottom))}
+  .menu-spacer{flex:1 1 auto;min-height:clamp(150px,39vh,540px)}   /* room for what waits above */
+  #menu .title{background:linear-gradient(180deg,#f3efe2 14%,#c9b8ff 52%,#4d3590);
+    -webkit-background-clip:text;background-clip:text;
+    filter:drop-shadow(0 0 22px rgba(157,107,255,.55)) drop-shadow(0 2px 14px rgba(0,0,0,.9));
+    animation:titleFlicker 7s infinite}
+  @keyframes titleFlicker{0%,90%,100%{opacity:1}91%{opacity:.7}92%{opacity:1}95%{opacity:.84}96%{opacity:1}}
+  .omen{margin-top:10px;font-size:clamp(8px,1.6vw,11px);letter-spacing:.5em;text-indent:.5em;text-align:center;
+    color:var(--blood);text-shadow:0 0 14px rgba(255,77,94,.7),0 1px 6px rgba(0,0,0,.95);animation:omenPulse 3.4s ease-in-out infinite}
+  @keyframes omenPulse{0%,100%{opacity:.4}50%{opacity:1}}
+  #menu .rule{margin:14px 0}
+  /* inside a panel the divider never outgrows it: 420px vs settings' 360 scrolled sideways on desktop */
+  .panel .rule{max-width:100%}
+  #btnStart{position:relative;border-color:var(--arcane);color:#fff;
+    background:linear-gradient(180deg,rgba(157,107,255,.16),rgba(157,107,255,.03));
+    text-shadow:0 0 10px rgba(201,184,255,.9)}
+  /* the breath is a static glow on a ::after, breathing via opacity — composited,
+     not a box-shadow repaint of the button every frame the menu is open */
+  #btnStart::after{content:"";position:absolute;inset:-1px;pointer-events:none;will-change:opacity;
+    box-shadow:0 0 28px rgba(157,107,255,.5),inset 0 0 22px rgba(157,107,255,.16);
+    animation:btnBreath 2.8s ease-in-out infinite}
+  #btnStart:hover,#btnStart:active{border-color:#c9b8ff;box-shadow:0 0 30px rgba(157,107,255,.6)}
+  #btnStart:hover::after,#btnStart:active::after{animation:none;opacity:0}
+  @keyframes btnBreath{0%,100%{opacity:.3}50%{opacity:1}}
+  .menu-row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+  #menu .menu-btn{background-color:rgba(7,5,16,.55)}
+  #menu .bank-line,#menu .subtitle{text-shadow:0 1px 8px rgba(0,0,0,.95)}
+  #menu .bank-line{margin-top:10px}
+  #menu .vol-row{margin-top:12px}
+  #menu .howto{border:1px solid var(--line);background:rgba(8,6,18,.6);padding:10px 18px;margin-top:14px;line-height:1.85;font-size:10px}
+  /* control-scheme toggle — only meaningful on touch */
+  .aim-mode-row{display:none;flex-direction:column;align-items:center}
+  body.touch .aim-mode-row{display:flex}
+  body.touch #deskCtrlRow{display:none !important}
+  #btnAimModeSettings{border-color:var(--frost);color:var(--frost)}
+  .aim-mode-note{font-size:9px;letter-spacing:.25em;color:var(--dim);margin-top:6px;text-align:center;max-width:100%}
+
+  /* ---------- desktop CONTROLS panel + controller focus (systems/controls.js) ---------- */
+  body.touch #controlsRow{display:none!important}
+  #controls .bind-grid{display:grid;grid-template-columns:minmax(0,1.3fr) repeat(3,minmax(0,1fr));gap:6px 10px;align-items:center;margin-top:16px}
+  #controls .bind-h{font-size:9px;letter-spacing:.3em;color:var(--dim);padding-bottom:4px}
+  #controls .bind-act{font-size:11px;letter-spacing:.2em;text-align:left}
+  #controls .bind-fixed{font-size:10px;letter-spacing:.15em;color:var(--dim)}
+  .bind-btn{font-family:inherit;font-size:11px;letter-spacing:.1em;color:var(--bone);background:rgba(0,0,0,.4);
+    border:1px solid #55516f;border-bottom-width:3px;border-radius:4px;padding:6px 8px;min-height:34px;cursor:pointer;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bind-btn:hover{border-color:var(--arcane)}
+  .bind-btn.empty{color:var(--dim)}
+  .bind-btn.capturing{border-style:dashed;border-color:var(--arcane);color:#c9b8ff;background:rgba(157,107,255,.14)}
+  /* the ring a controller moves between a panel's buttons */
+  .padfocus{outline:2px solid var(--arcane)!important;outline-offset:3px;box-shadow:0 0 16px rgba(157,107,255,.55)!important}
+  body.padmode #game{cursor:none}
+  .howto{margin-top:22px;font-size:11px;line-height:2;letter-spacing:.12em;color:var(--dim);text-align:center;max-width:580px}
+  .howto b{color:var(--bone)}
+  .bank-line{font-size:12px;letter-spacing:.25em;color:var(--gold);margin-top:14px}
+  /* RESUME — thinner than the stock .9 backdrop on purpose: the whole point of this
+     screen is that you get to LOOK at the floor you are about to be dropped back onto,
+     see where the dead were shoved to, and step back in when you are ready. */
+  #resumeScreen{background:rgba(7,6,14,.68)}
+  /* the background shorthand resets background-clip, so re-declare it (cf. #menu .title)
+     or the gradient paints the box and the transparent glyphs vanish */
+  #resumeScreen .title{background:linear-gradient(180deg,#fff3c8 26%,var(--gold));
+    -webkit-background-clip:text;background-clip:text;
+    filter:drop-shadow(0 0 20px rgba(255,210,61,.5))}
+  #resumeScreen #btnResumeRun{border-color:var(--gold);color:#fff;
+    box-shadow:0 0 18px rgba(255,210,61,.28);margin-top:22px}
+  @keyframes wardPulse{0%,100%{opacity:.62}50%{opacity:1}}
+  .ward-line{font-size:10px;letter-spacing:.2em;color:var(--frost);margin-top:10px;text-align:center;
+    max-width:88vw;line-height:1.8;animation:wardPulse 1.8s ease-in-out infinite}
+  .best-line{font-size:10px;letter-spacing:.18em;color:var(--dim);margin-top:8px;text-align:center;max-width:88vw;line-height:1.7}
+  .vol-row{display:flex;align-items:center;gap:14px;margin-top:18px}
+  .vol-row label{font-size:10px;letter-spacing:.3em;color:var(--dim)}
+  input[type=range]{width:min(240px,50vw);accent-color:#9d6bff}
+  .stat-row{display:flex;gap:30px;margin:16px 0;flex-wrap:wrap;justify-content:center}
+  .stat{text-align:center}
+  .stat .v{font-size:24px;letter-spacing:.1em}
+  .stat .l{font-size:9px;letter-spacing:.3em;color:var(--dim);margin-top:3px}
+  #deathRunes{display:flex;gap:8px;margin-top:6px;font-size:20px;flex-wrap:wrap;justify-content:center;max-width:80vw}
+
+  /* ---------- panels ---------- */
+  /* Cap to the safe-area content box (not a raw 90vh) so a tall panel scrolls
+     inside itself and its heading never slides under a notch / status bar. */
+  .panel{width:min(720px,94vw);max-height:calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 36px);
+    background:var(--panel);border:1px solid var(--line);padding:18px;overflow-y:auto}
+  .panel h2{font-size:14px;letter-spacing:.4em;text-align:center;color:var(--arcane);margin-bottom:4px}
+  .panel .hint{font-size:10px;letter-spacing:.15em;color:var(--dim);text-align:center;margin-bottom:14px}
+  .panel h3{font-size:11px;letter-spacing:.35em;color:var(--dim);margin:16px 0 8px;border-bottom:1px solid var(--line);padding-bottom:5px}
+  .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+  .card{border:1px solid var(--line);background:rgba(0,0,0,.35);padding:10px;cursor:pointer;transition:all .12s;position:relative}
+  .card:hover{border-color:currentColor}
+  .card.sel{border-color:currentColor;box-shadow:0 0 12px currentColor}
+  .card.locked{opacity:.65}
+  .card.upg{border-left:3px solid currentColor;background:rgba(0,0,0,.5)}
+  .card .glyph{font-size:24px;float:left;margin-right:8px;text-shadow:0 0 10px currentColor}
+  .card .nm{font-size:11px;letter-spacing:.12em;color:var(--bone)}
+  .card .ds{font-size:9px;line-height:1.6;color:var(--dim);clear:both;padding-top:6px}
+  .card .contrib{clear:both;padding-top:7px;display:flex;flex-direction:column;gap:3px}
+  .card .contrib span{font-size:9px;letter-spacing:.06em;color:var(--bone);
+    background:rgba(255,255,255,.06);padding:2px 5px;border-left:2px solid currentColor;line-height:1.3}
+  .advanced-stat-line{font-variant-numeric:tabular-nums;letter-spacing:.025em;line-height:1.6}
+  .card .tag{position:absolute;top:4px;right:6px;font-size:8px;letter-spacing:.2em;color:currentColor}
+  .empty-note{grid-column:1/-1;text-align:center;font-size:11px;letter-spacing:.2em;color:var(--dim);padding:22px 0}
+  .vsec{grid-column:1/-1;font-size:10px;letter-spacing:.24em;color:var(--gold);
+    border-bottom:1px solid var(--line);padding:10px 0 4px;margin-top:2px}
+  /* glossary: real-art creature portraits + page tabs */
+  .creature-icon{float:left;margin-right:8px;width:60px;height:60px}
+  /* the freed Vault Keeper — proprietor of the store, floating on the left quarter of
+     the screen while the shelves (tabs) take the rest */
+  #vault{flex-direction:row;align-items:center;justify-content:center;gap:14px}
+  .keeper-side{flex:0 0 25%;max-width:25%;min-width:0;align-self:stretch;display:flex;
+    flex-direction:column;align-items:center;justify-content:center;gap:10px}
+  #vault .panel{flex:1 1 auto;width:auto;min-width:0;max-width:720px}
+  #keeperCanvas{cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .keeper-name{font-size:11px;letter-spacing:.28em;color:var(--gold);text-shadow:0 0 10px rgba(255,210,61,.5);
+    text-align:center;line-height:1.8}
+  /* his words — spoken the way the rift creature speaks: italic light hanging in the
+     dark above him, no box. min-height reserves his breath so he doesn't shift mid-speech. */
+  #keeperSpeech{min-height:96px;display:flex;flex-direction:column;justify-content:flex-end;pointer-events:none;
+    font-style:italic;font-size:15px;letter-spacing:.3em;text-indent:.3em;text-align:center;line-height:1.7;max-width:100%;
+    color:var(--bone);text-shadow:0 0 16px rgba(255,210,61,.8),0 0 4px rgba(255,210,61,.5);
+    opacity:0;transition:opacity .4s}
+  #keeperSpeech.on{opacity:1}
+  #keeperSpeech.deny{color:var(--blood);text-shadow:0 0 16px rgba(255,77,94,.8)}
+  #keeperSpeech small{display:block;font-style:normal;font-size:8px;letter-spacing:.25em;text-indent:.25em;
+    color:var(--dim);text-shadow:none;margin-top:4px}
+  /* the shelf tabs */
+  .vault-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
+  .vtab{flex:1 1 40%;font-size:10px;padding:8px 4px;letter-spacing:.18em;text-indent:.18em;margin-top:0}
+  .vtab.on{border-color:var(--gold);color:#fff;box-shadow:0 0 14px rgba(255,210,61,.35)}
+  /* a refused card shakes its head along with him */
+  @keyframes cardDeny{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-4px)}40%,80%{transform:translateX(4px)}}
+  .card.deny{animation:cardDeny .4s;border-color:var(--blood);box-shadow:0 0 12px rgba(255,77,94,.55)}
+  .vault-locked-note{font-size:9px;letter-spacing:.2em;color:var(--dim);margin-top:8px;max-width:82vw;text-align:center;line-height:1.6}
+  .glossary-tabs{display:flex;gap:8px;margin:0 0 14px}
+  .gloss-tab{flex:1}
+  .gloss-tab.on{border-color:var(--arcane);color:#fff;box-shadow:0 0 16px rgba(157,107,255,.4)}
+  /* custom leaderboard rows (THE RECKONING) */
+  .lb-list{display:flex;flex-direction:column;gap:4px;min-height:120px}
+  .lb-row{display:grid;grid-template-columns:44px 1fr auto;gap:10px;align-items:center;
+    padding:8px 12px;border:1px solid var(--line);background:rgba(7,5,16,.4);font-size:12px;letter-spacing:.12em}
+  .lb-row .lb-rank{color:var(--dim);text-align:right;font-variant-numeric:tabular-nums}
+  .lb-row .lb-name{color:var(--bone);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lb-row .lb-score{color:var(--gold);font-variant-numeric:tabular-nums}
+  .lb-row.me{border-color:var(--arcane);box-shadow:0 0 14px rgba(157,107,255,.35);background:rgba(157,107,255,.08)}
+  .lb-row.me .lb-name{color:#fff}
+  .lb-empty{color:var(--dim);font-size:11px;text-align:center;padding:26px 8px;letter-spacing:.2em}
+  /* hard-mode reckoning — runs red */
+  .lb-mode-tabs{margin-bottom:8px}
+  .gloss-tab.hard.on{border-color:var(--blood);color:#fff;box-shadow:0 0 16px rgba(255,77,94,.4)}
+  .lb-list.hard .lb-row .lb-score{color:var(--blood)}
+  .lb-list.hard .lb-row.me{border-color:var(--blood);box-shadow:0 0 14px rgba(255,77,94,.35);background:rgba(255,77,94,.08)}
+  /* a foretold reckoning — score submitted, not yet tallied by Play Games */
+  @keyframes lbPendingPulse{0%,100%{opacity:.6}50%{opacity:1}}
+  .lb-row.pending{border-style:dashed;animation:lbPendingPulse 1.6s ease-in-out infinite}
+  .lb-row.pending .lb-rank{color:var(--gold)}
+  .lb-list.hard .lb-row.pending .lb-rank{color:var(--blood)}
+  .lb-hint{color:var(--dim);font-size:9px;text-align:center;padding:8px 4px 0;letter-spacing:.2em;line-height:1.7}
+  .gun-line{text-align:center;font-size:10px;letter-spacing:.2em;color:var(--dim);margin-bottom:10px;line-height:1.9}
+  .gun-line span{color:var(--bone)}
+  /* PAUSED — two columns: controls (left) · loadout: runes + companion (right) */
+  #pause .pause-cols{display:flex;gap:20px;align-items:stretch;width:min(940px,96vw);
+    max-height:calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px)}
+  #pause .pause-left{flex:0 0 auto;width:min(300px,40vw);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+  #pause .pause-left .rule{width:82%;margin:16px 0}
+  #pause .pause-right{flex:1 1 0;min-width:0;min-height:0;overflow-y:auto;text-align:left;
+    background:var(--panel);border:1px solid var(--line);padding:16px}
+  #pause .pause-right h3{font-size:11px;letter-spacing:.35em;color:var(--dim);
+    margin:16px 0 8px;border-bottom:1px solid var(--line);padding-bottom:5px}
+  #pause .pause-right h3:first-of-type{margin-top:2px}
+  #gunLinePause{text-align:left;margin-bottom:6px}
+  #heldGridPause{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+  #petPause .ds{padding-top:4px}
+  @media (max-width:600px){
+    #pause .pause-cols{flex-direction:column;align-items:center;overflow-y:auto;gap:14px}
+    #pause .pause-left,#pause .pause-right{width:min(440px,94vw)}
+    #pause .pause-right{max-height:none}
+  }
+
+  /* rune choice modal — 3-card layout */
+  #rcCards{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+  .rc-rune-card{flex:1;min-width:148px;max-width:210px;border:1px solid var(--line);
+    background:rgba(0,0,0,.4);padding:14px 12px;text-align:center;transition:border-color .12s;display:flex;flex-direction:column}
+  .rc-rune-card:hover{border-color:currentColor;box-shadow:0 0 12px currentColor}
+  body.compactRuneCards .rc-rune-card{height:165px;min-height:165px}
+  body.compactRuneCards.advancedNumbers .rc-rune-card{height:220px;min-height:220px}
+  body.compactRuneCards .rc-rune-card{padding:8px 8px}
+  body.compactRuneCards .rc-glyph{font-size:36px;margin-bottom:2px}
+  body.compactRuneCards .rc-nm{font-size:11px;margin-bottom:2px}
+  body.compactRuneCards .rc-own{font-size:8px;letter-spacing:.08em;line-height:1.3;margin-bottom:4px}
+  body.compactRuneCards .rc-rune-card .menu-btn{padding:7px 6px;font-size:9px;letter-spacing:.16em;line-height:1.2}
+  body.compactRuneCards .rc-rune-card .menu-btn+.menu-btn{margin-top:4px}
+  body.compactRuneCards .rc-rune-card .rc-ds{display:none}
+  .rc-glyph{font-size:50px;text-shadow:0 0 22px currentColor;margin-bottom:6px}
+  .rc-nm{font-size:12px;letter-spacing:.32em;color:var(--bone);margin-bottom:4px}
+  .rc-own{font-size:9px;letter-spacing:.18em;color:var(--gold);margin-bottom:8px;min-height:1.2em}
+  .rc-ds{font-size:9px;line-height:1.65;color:var(--dim);margin-bottom:10px;flex:1}
+  .rc-advanced{font-size:7px;line-height:1.4;letter-spacing:0;text-align:left;color:var(--bone);font-variant-numeric:tabular-nums;margin:0 0 8px;overflow-wrap:anywhere}
+  body.compactRuneCards .rc-rune-card .rc-advanced{flex:1}
+  .rc-rune-card .menu-btn{width:100%;margin-top:auto;padding:10px 8px;font-size:11px;letter-spacing:.25em}
+  .rc-rune-card .menu-btn+.menu-btn{margin-top:6px}
+  .choice-row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:18px}
+  .menu-btn:disabled{opacity:.35;cursor:default;box-shadow:none;border-color:var(--line);color:var(--dim)}
+
+  /* boss choice */
+  .big-choice{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-top:18px}
+  .bc-card{width:min(250px,80vw);border:1px solid var(--line);background:rgba(0,0,0,.4);padding:18px;cursor:pointer;text-align:center;transition:all .15s}
+  .bc-card:hover{border-color:currentColor;box-shadow:0 0 16px currentColor}
+  .bc-card .ic{font-size:40px;text-shadow:0 0 16px currentColor}
+  .bc-card .nm{font-size:13px;letter-spacing:.3em;margin-top:10px;color:var(--bone)}
+  .bc-card .ds{font-size:10px;line-height:1.8;color:var(--dim);margin-top:8px}
+  /* descent mode chooser — HARD runs red; sealed until the Event Horizon has fallen once.
+     Near-opaque backdrop: unlike bossChoice this modal opens OVER the still-lit main menu
+     (classList toggle, not setState), whose glowing title would bleed through the stock .9 */
+  #modeChoice{background:rgba(7,6,14,.97)}
+  #modeChoice .bc-card.locked{opacity:.45;cursor:default;filter:grayscale(.6)}
+  #modeChoice .bc-card.locked:hover{border-color:var(--line);box-shadow:none}
+  #modeChoice .bc-card.locked:active{transform:none}
+  #modeChoice .bc-card.deny{animation:cardDeny .4s}
+  .mc-best{font-size:9px;letter-spacing:.2em;color:var(--blood);margin-top:8px}
+  /* three descents share one row on a landscape phone; a narrow portrait screen stacks them */
+  #modeChoice .bc-card{width:min(250px,calc((100vw - 120px) / 4))}
+  @media (max-width:600px){ #modeChoice .bc-card{width:min(250px,80vw)} }
+  /* run-end HARD banner */
+  .hard-tag{margin-top:8px;font-size:11px;letter-spacing:.4em;text-indent:.4em;color:var(--blood);
+    text-shadow:0 0 12px rgba(255,77,94,.7)}
+  .chaos-tag{color:#ff6bd6;text-shadow:0 0 12px rgba(255,107,214,.7)}
+  /* ---------- void ending ---------- */
+  #voidChoice{background:transparent;pointer-events:none}
+  #voidChoice .void-panel{opacity:0;transform:translateY(22px);transition:opacity 1s ease,transform 1s ease;
+    display:flex;flex-direction:column;align-items:center;pointer-events:none}
+  #voidChoice.reveal .void-panel{opacity:1;transform:none;pointer-events:auto}
+  #voidChoice .title{font-size:clamp(20px,5vw,44px)}
+  #voidChoice .subtitle{text-shadow:0 1px 8px rgba(0,0,0,.95)}
+  #ascend .title{background:linear-gradient(180deg,#fff 25%,var(--gold));-webkit-background-clip:text;background-clip:text;
+    filter:drop-shadow(0 0 18px rgba(255,210,61,.5))}
+  #ascendRunes{display:flex;gap:8px;margin-top:6px;font-size:20px;flex-wrap:wrap;justify-content:center;max-width:80vw}
+  /* ---------- juice: HUD & overlay feedback ---------- */
+  /* overlays ease in instead of hard-cutting between display:none/flex */
+  @keyframes overlayIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .overlay.on{animation:overlayIn .22s ease}
+  /* buttons physically press */
+  .menu-btn:active{transform:translateY(1px) scale(.98)}
+  .bc-card:active{transform:scale(.97)}
+  /* HP bar: a pale chip lags behind the red fill to show the bite taken */
+  .hp-fill{position:relative}
+  .hp-chip{position:absolute;left:0;top:0;height:100%;width:100%;background:rgba(255,236,210,.8);transition:width .5s ease .18s}
+  @keyframes hpHurt{0%{box-shadow:0 0 0 1px var(--blood),0 0 18px var(--blood)}100%{box-shadow:none}}
+  .hp-bar.hurt{animation:hpHurt .4s ease-out}
+  /* The pulse rides a ::after carrying a STATIC shadow, breathing via opacity —
+     a composited property. Animating box-shadow itself repainted the bar every
+     frame, over the canvas, at exactly the moment (low HP) the GPU was already
+     busiest. Living on its own element, it also can't fight the .hurt flash. */
+  .hp-bar::after{content:"";position:absolute;inset:-1px;pointer-events:none;opacity:0;
+    box-shadow:0 0 16px rgba(255,77,94,.9),0 0 4px rgba(255,77,94,.5);will-change:opacity}
+  @keyframes lowPulse{0%,100%{opacity:.3}50%{opacity:1}}
+  .hp-wrap.low .hp-bar::after{animation:lowPulse 1s ease-in-out infinite}
+  /* souls counter pops on every gain */
+  @keyframes scoreBump{0%{transform:scale(1)}35%{transform:scale(1.18);text-shadow:0 0 14px rgba(255,210,61,.9)}100%{transform:scale(1)}}
+  #score{display:inline-block}
+  #score.bump{animation:scoreBump .3s ease-out}
+  /* kill-streak meter: the ×N payout rate, and the 0.6s window draining under it.
+     The height is RESERVED permanently rather than collapsing — 22px of HUD space
+     buys the guarantee that #rerolls and #pauseBtn never reflow mid-fight. */
+  .combo-wrap{height:22px;opacity:0;transition:opacity .12s linear;pointer-events:none;
+    display:flex;flex-direction:column;align-items:flex-end;--combo-col:var(--gold)}
+  .score-wrap.streak .combo-wrap{opacity:1}
+  .combo-line{display:flex;align-items:baseline;gap:6px;line-height:13px}
+  #comboRate{font-size:9px;letter-spacing:.18em;color:var(--dim)}
+  #comboMult{font-size:14px;letter-spacing:.1em;color:var(--combo-col);text-shadow:0 0 8px var(--combo-col)}
+  .combo-track{width:74px;height:3px;margin-top:4px;overflow:hidden;background:rgba(0,0,0,.55);border:1px solid var(--line)}
+  /* transform-only drain: a compositor write that never forces layout, so it is
+     safe to set every frame during combat */
+  .combo-fill{height:100%;width:100%;transform-origin:right center;transform:scaleX(0);
+    background:linear-gradient(90deg,var(--ember,#ff8a3d),var(--combo-col));will-change:transform}
+  @keyframes comboLost{0%{transform:scale(1);opacity:1}100%{transform:scale(.7);opacity:0}}
+  #comboMult.lost{animation:comboLost .22s ease-out}
+  /* center-screen WAVE banner */
+  #waveBanner{position:fixed;top:34%;left:50%;transform:translate(-50%,-50%);font-size:clamp(28px,7vw,64px);
+    letter-spacing:.4em;text-indent:.4em;font-weight:bold;color:var(--bone);
+    text-shadow:0 0 24px rgba(157,107,255,.8),0 2px 10px rgba(0,0,0,.9);opacity:0;pointer-events:none;white-space:nowrap}
+  @keyframes waveIn{0%{opacity:0;transform:translate(-50%,-50%) scale(1.45)}12%{opacity:1;transform:translate(-50%,-50%) scale(1)}70%{opacity:1}100%{opacity:0}}
+  #waveBanner.show{animation:waveIn 1.6s ease-out}
+  /* boss arrival: name card + cinematic letterbox (bars sit UNDER the HUD, z4 < hud z5) */
+  #bossTitle{position:fixed;top:26%;left:50%;transform:translate(-50%,-50%);font-size:clamp(22px,6vw,52px);
+    letter-spacing:.35em;text-indent:.35em;font-weight:bold;color:var(--blood);
+    text-shadow:0 0 26px var(--blood),0 2px 10px rgba(0,0,0,.9);opacity:0;pointer-events:none;white-space:nowrap}
+  @keyframes bossTitleIn{0%{opacity:0;transform:translate(-50%,-50%) scale(1.3)}10%{opacity:1;transform:translate(-50%,-50%) scale(1)}75%{opacity:1}100%{opacity:0}}
+  #bossTitle.show{animation:bossTitleIn 2.6s ease-out}
+  .lbar{position:fixed;left:0;right:0;height:0;background:#000;z-index:4;transition:height .6s ease;pointer-events:none}
+  #lbTop{top:0}
+  #lbBottom{bottom:0}
+  body.bossOn .lbar{height:6vh}
+  body.unkTalk .lbar{height:12vh}   /* THE UNKNOWN speaks: the bars close in further */
+  /* rune choice: cards deal in staggered; hover lifts; the carve lands */
+  @keyframes rcCardIn{from{opacity:0;transform:translateY(24px) scale(.94)}to{opacity:1;transform:none}}
+  .rc-rune-card{animation:rcCardIn .4s ease-out backwards;transition:border-color .12s,transform .12s,box-shadow .12s}
+  .rc-rune-card:hover{transform:translateY(-4px) scale(1.02)}
+  /* run-end: gold pulse under a new personal best */
+  /* a static glow breathing via opacity — the text-shadow animation it replaces
+     repainted the line every frame for as long as the death screen stayed up */
+  @keyframes recordPulse{0%,100%{opacity:.68}50%{opacity:1}}
+  .best-line.record{color:var(--gold);text-shadow:0 0 14px rgba(255,210,61,.85);
+    animation:recordPulse 1.4s ease-in-out infinite}
+  /* run-end: projected global rank while Play Games still tallies (static —
+     the record line above already pulses; two pulses would fight) */
+  .best-line.foretold{color:var(--gold)}
+
+  /* the settings choice is authoritative even where the OS disagrees */
+  body.juiceOff .combo-wrap{display:none}
+  /* Respect the OS motion switch. Note the two keyframe REDEFINITIONS: #waveBanner and
+     #bossTitle sit at opacity:0 by default, so a blanket animation:none would hide the
+     only announcement that a wave or a warden arrived. Soften the slam, keep the signal. */
+  @media (prefers-reduced-motion: reduce){
+    .overlay.on{animation:none}
+    #score.bump{animation:none}
+    #comboMult{text-shadow:none}
+    #comboMult.lost{animation:none}
+    .combo-wrap{transition:none}
+    .curse{animation:none;opacity:.85}
+    .hp-wrap.low .hp-bar::after{animation:none;opacity:0}
+    .hp-wrap.low .hp-bar.hurt{animation:none}
+    .rc-rune-card{animation:none}
+    .rc-rune-card:hover{transform:none}
+    @keyframes waveIn{0%,100%{opacity:0}12%,70%{opacity:1}}
+    @keyframes bossTitleIn{0%,100%{opacity:0}10%,75%{opacity:1}}
+  }
+
+  @media (max-width:640px){
+    .hp-wrap{width:36vw}
+    #runeStrip{max-width:42vw}
+    .chip{font-size:11px}
+  }
+/* ---------- co-op lobby ---------- */
+/* Sits under the heading on EVERY stage of the lobby (entry, host, join,
+   ready) rather than inside one view — a player who lands straight on the
+   keypad should still see it. Ember, not blood: a caution, not an error. */
+.coop-experimental {
+  font-size: 10px; letter-spacing: 0.22em; text-align: center;
+  color: var(--ember); border: 1px dashed var(--ember);
+  background: rgba(255, 138, 61, 0.07);
+  padding: 6px 10px; margin: 0 auto 10px; max-width: 92%;
+  line-height: 1.6;
+}
+.coop-code {
+  font-family: monospace; font-weight: bold; text-align: center;
+  font-size: clamp(34px, 7vw, 56px); letter-spacing: 0.35em;
+  color: var(--gold); text-shadow: 0 0 18px var(--gold);
+  margin: 14px 0 6px; user-select: text; -webkit-user-select: text;
+}
+.coop-pad {
+  display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px;
+  max-width: 460px; margin: 10px auto 0;
+}
+.coop-pad button {
+  font-family: monospace; font-weight: bold; font-size: 15px;
+  padding: 9px 0; background: rgba(20, 18, 34, 0.85); color: var(--fg, #e8e2d0);
+  border: 1px solid #3a3654; border-radius: 6px; cursor: pointer;
+}
+.coop-pad button:active { background: #2a2744; }
+.coop-pad button.wide { grid-column: span 4; color: var(--gold); border-color: var(--gold); }
+.coop-wardens { display: flex; gap: 14px; justify-content: center; margin: 12px 0; flex-wrap: wrap; }
+.coop-warden {
+  min-width: 150px; padding: 12px 16px; border: 1px solid #3a3654; border-radius: 8px;
+  font-family: monospace; text-align: center; background: rgba(14, 12, 26, 0.8);
+}
+.coop-warden .cw-glyph { font-size: 30px; margin-bottom: 4px; }
+.coop-warden .cw-name { font-weight: bold; letter-spacing: 0.08em; }
+.coop-warden .cw-sub { font-size: 10px; color: var(--dim, #6a6584); margin-top: 4px; }
+.coop-warden.ready { border-color: #7dff5e; box-shadow: 0 0 12px rgba(125, 255, 94, 0.35); }
+
+/* ---------- THE SINGULAR's blackjack table (scenes/blackjack.js) ----------
+   The felt and the cards are painted on the game canvas; this layer only holds the
+   buttons. It spans the screen so a tap can't reach the movement stick underneath. */
+#blackjack{position:fixed;inset:0;display:none;z-index:10;pointer-events:auto}
+#blackjack.on{display:block}
+#bjPanel{position:absolute;left:50%;bottom:max(12px,env(safe-area-inset-bottom));transform:translateX(-50%);
+  width:min(600px,calc(100vw - 24px));display:flex;flex-direction:column;align-items:center;gap:8px}
+.bj-row{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap}
+.bj-btn{font-family:inherit;font-size:12px;letter-spacing:.22em;color:var(--bone);background:rgba(14,13,26,.88);
+  border:1px solid var(--line);padding:0 16px;min-height:40px;cursor:pointer;transition:border-color .12s,color .12s}
+.bj-btn:focus-visible{border-color:#f2b36d;color:#f2b36d;outline:none}
+/* real hover only: a phone's tap leaves :hover stuck on, and a lit − or + reads as switched on */
+@media (hover:hover){.bj-btn:hover:not(:disabled){border-color:#f2b36d;color:#f2b36d}}
+.bj-btn:active:not(:disabled){background:rgba(242,179,109,.18)}
+.bj-btn:disabled{opacity:.35;cursor:default}
+.bj-main{border-color:#f2b36d;color:#f2b36d;min-width:104px}
+.bj-step{width:40px;padding:0;font-size:18px;letter-spacing:0}
+.bj-lbl{font-size:10px;letter-spacing:.3em;color:var(--dim)}
+#bjBet{min-width:84px;text-align:center;font-size:20px;letter-spacing:.08em;color:var(--gold);font-variant-numeric:tabular-nums}
+#bjBet::after{content:" SOULS";font-size:9px;letter-spacing:.2em;color:var(--dim)}
+/* at the table only the souls counter stays up; the rest of the HUD and the touch controls step aside */
+body.bjOn .hp-wrap,body.bjOn .wave-wrap,body.bjOn #rerolls,body.bjOn .combo-wrap,body.bjOn #pauseBtn,
+body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{display:none!important}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <div class="hp-wrap">
+    <div class="hp-label"><span>VITALITY</span><span id="hpNum"></span></div>
+    <div class="hp-bar"><div class="hp-chip" id="hpChip"></div><div class="hp-fill" id="hpFill"></div><div class="hp-tick"></div></div>
+    <div id="partnerHp" style="display:none">
+      <div class="hp-label" style="font-size:9px;margin-top:4px"><span id="partnerName">PARTNER</span><span id="partnerHpNum"></span></div>
+      <div class="hp-bar" style="height:6px"><div class="hp-fill" id="partnerHpFill"></div></div>
+    </div>
+    <div id="runeStrip"></div>
+    <div id="curseStrip"></div>
+    <div id="drunkHud"><div id="drunkName"></div><div id="drunkBar"><div id="drunkFill"></div></div><div id="drunkTime"></div></div>
+  </div>
+  <div class="wave-wrap">
+    <div id="waveNum">I</div>
+    <div id="mapName">THE CATACOMB</div>
+    <div id="sealCount">SEALS 0 / 4</div>
+    <div id="vitalCount">VITALS 2 / 2</div>
+    <div id="runTimer"><div id="runClock">0:00.000</div><div id="runBest"></div></div>
+  </div>
+  <div class="score-wrap" id="scoreWrap">
+    <div id="score">0</div><div class="score-label">SOULS</div>
+    <div class="combo-wrap">
+      <div class="combo-line"><span id="comboRate"></span><span id="comboMult">×0</span></div>
+      <div class="combo-track"><div class="combo-fill" id="comboFill"></div></div>
+    </div>
+    <div id="rerolls">REROLLS ×3</div>
+    <button id="pauseBtn">‖ PAUSE</button>
+  </div>
+  <div id="bossBar"><div id="bossName"></div><div class="boss-track"><div id="bossFill"></div><i class="notch" style="left:50%"></i><i class="notch" style="left:25%"></i></div></div>
+  <!-- THE UNKNOWN's challenge rounds: the two returned wardens, side by side over its own bar -->
+  <div id="echoBars"><div class="echo"><div class="en"></div><div class="et"><div class="ef"></div></div></div><div class="echo"><div class="en"></div><div class="et"><div class="ef"></div></div></div></div>
+  <div id="interactHint">[ E ] BREAK THE SEAL</div>
+  <div id="toast"></div>
+  <div id="waveBanner"></div>
+  <div id="bossTitle"></div>
+</div>
+<div class="lbar" id="lbTop"></div>
+<div class="lbar" id="lbBottom"></div>
+
+<div class="stick" id="stickL"><div class="base"></div><div class="nub"></div></div>
+<div class="stick" id="stickR"><div class="base"></div><div class="nub"></div></div>
+<div class="tbtns">
+  <button class="tbtn" id="btnDash">DASH</button>
+  <button class="tbtn" id="btnUse">SEAL</button>
+</div>
+<button id="btnTutSkip">SKIP ▸▸</button>
+
+<!-- MAIN MENU -->
+<div class="overlay on" id="menu">
+  <div class="menu-spacer"></div>
+  <div class="title">RUNEGUN</div>
+  <div class="subtitle">CATACOMB OF THE GUNSMITH</div>
+  <div class="omen">THE HORIZON HAS OPENED · EVEN YOUR BULLETS BELONG TO IT</div>
+  <div class="rule"></div>
+  <button class="menu-btn" id="btnStart">ᛞ &nbsp;DESCEND&nbsp; ᛞ</button>
+  <div class="menu-row">
+    <button class="menu-btn small" id="btnCoop">CO-OP</button>
+    <button class="menu-btn small" id="btnVault">THE VAULT</button>
+    <button class="menu-btn small" id="btnGlossary">THE GLOSSARY</button>
+    <button class="menu-btn small" id="btnLeaderboard" style="display:none">LEADERBOARDS</button>
+    <button class="menu-btn small" id="btnSettings">SETTINGS</button>
+    <button class="menu-btn small" id="btnDev" style="display:none;border-color:var(--gold);color:var(--gold)">TEST TOOLS</button>
+    <!-- desktop (Electron) build only — shown by systems/native.js when the shell's quit bridge exists -->
+    <button class="menu-btn small" id="btnQuitDesktop" style="display:none;border-color:#5e2230;color:var(--blood)">QUIT TO DESKTOP</button>
+  </div>
+  <div class="vault-locked-note" id="vaultLockNote" style="display:none">⛓ THE VAULT IS SEALED IN THE WARDEN'S CHAINS — CLEAR THE FIRST FLOOR TO UNSEAL IT</div>
+  <div class="bank-line">VAULT: <span id="bankMenu">0</span> SOULS</div>
+</div>
+
+<!-- THE SINGULAR's blackjack table: the buttons (the felt is painted on the canvas, scenes/blackjack.js) -->
+<div id="blackjack" aria-label="Blackjack table">
+  <div id="bjPanel">
+    <div class="bj-row" id="bjBetRow">
+      <span class="bj-lbl">WAGER</span>
+      <button class="bj-btn bj-step" id="bjLess" aria-label="Wager less">&minus;</button>
+      <span id="bjBet">10</span>
+      <button class="bj-btn bj-step" id="bjMore" aria-label="Wager more">+</button>
+      <button class="bj-btn" id="bjAll">ALL IN</button>
+    </div>
+    <div class="bj-row" id="bjBetActs">
+      <button class="bj-btn bj-main" id="bjDeal">DEAL</button>
+      <button class="bj-btn" id="bjLeave">LEAVE TABLE</button>
+    </div>
+    <div class="bj-row" id="bjPlayActs" style="display:none">
+      <button class="bj-btn bj-main" id="bjHit">HIT</button>
+      <button class="bj-btn bj-main" id="bjStand">STAND</button>
+      <button class="bj-btn" id="bjDouble">DOUBLE</button>
+    </div>
+  </div>
+</div>
+
+<!-- DESCENT MODE — normal, hard or chaos; only the menu DESCEND opens this (retry repeats the last mode) -->
+<div class="overlay" id="modeChoice" style="z-index:20">
+  <div class="title" style="font-size:clamp(22px,5vw,44px)">THE DESCENT</div>
+  <div class="subtitle">CHOOSE HOW MUCH THE CATACOMB MAY TAKE</div>
+  <div class="big-choice">
+    <div class="bc-card" id="mcNormal" style="color:var(--arcane)">
+      <div class="ic">ᛞ</div><div class="nm">NORMAL</div>
+      <div class="ds">The catacomb as it has always hungered.</div>
+    </div>
+    <div class="bc-card" id="mcClassic" style="color:#5ee6ff">
+      <div class="ic">◆</div><div class="nm">CLASSIC</div>
+      <div class="ds">The descent as it used to end — collapse THE EVENT HORIZON and walk away. No deep, no unknown.</div>
+      <div class="mc-best" id="mcClassicBest" style="display:none;color:#5ee6ff"></div>
+    </div>
+    <div class="bc-card" id="mcHard" style="color:var(--blood)">
+      <div class="ic">☠</div><div class="nm">HARD</div>
+      <div class="ds" id="mcHardDesc">Every horror and warden carries half again the vitality. A reckoning of its own.</div>
+      <div class="mc-best" id="mcHardBest" style="display:none"></div>
+    </div>
+    <div class="bc-card" id="mcChaos" style="color:#ff6bd6;display:none">
+      <div class="ic">✸</div><div class="nm">CHAOS</div>
+      <div class="ds" id="mcChaosDesc">No seal on the gun. Every rune answers, all at once — and every fallen wave leaves another.</div>
+      <div class="mc-best" id="mcChaosBest" style="display:none;color:#ff6bd6"></div>
+    </div>
+  </div>
+  <button class="menu-btn small" id="modeChoiceBack" style="margin-top:18px">RETURN</button>
+</div>
+
+<!-- VAULT — the Keeper's own store; it only opens once he is freed.
+     He floats on the left quarter of the screen (tap him — he talks); the shelves are tabs. -->
+<div class="overlay" id="vault">
+  <div class="keeper-side" id="vaultKeeper" style="display:none">
+    <div id="keeperSpeech"></div>
+    <canvas id="keeperCanvas"></canvas>
+    <div class="keeper-name">THE KEEPER · PROPRIETOR</div>
+  </div>
+  <div class="panel">
+    <h2>THE VAULT</h2>
+    <div class="hint">he trades in souls banked at descent's end · all sales are final · <span style="color:var(--gold)">your purse: <span id="bankVault">0</span> SOULS</span></div>
+    <div class="vault-tabs">
+      <button class="menu-btn small vtab" id="vtabChars">GUNSLINGERS</button>
+      <button class="menu-btn small vtab" id="vtabSkins">WARPAINT</button>
+      <button class="menu-btn small vtab" id="vtabBuffs">RERUN BUFFS</button>
+      <button class="menu-btn small vtab" id="vtabPets">PETS</button>
+    </div>
+    <div class="card-grid" id="vaultGrid"></div>
+    <button class="menu-btn small" id="vaultClose" style="width:100%;margin-top:16px">RETURN</button>
+  </div>
+</div>
+
+<!-- GLOSSARY -->
+<div class="overlay" id="glossary">
+  <div class="panel">
+    <h2>THE GLOSSARY</h2>
+    <div class="hint">a record of all you have faced and forged · <span style="color:var(--gold)" id="glossProgress">0 / 0</span></div>
+    <div class="glossary-tabs">
+      <button class="menu-btn small gloss-tab on" id="tabBestiary">BESTIARY</button>
+      <button class="menu-btn small gloss-tab" id="tabRunes">RUNES</button>
+    </div>
+    <div id="glossPageBestiary">
+      <h3>OMENS · MARKS A HORROR MAY RISE WEARING</h3>
+      <div class="card-grid" id="bestOmenGrid"></div>
+      <h3>HORRORS OF THE DEEP</h3>
+      <div class="card-grid" id="bestEnemyGrid"></div>
+      <h3>THE WARDENS</h3>
+      <div class="card-grid" id="bestBossGrid"></div>
+    </div>
+    <div id="glossPageRunes" style="display:none">
+      <h3>RUNES YOU HAVE CARVED</h3>
+      <div class="card-grid" id="glossRuneGrid"></div>
+    </div>
+    <button class="menu-btn small" id="glossaryClose" style="width:100%;margin-top:16px">RETURN</button>
+  </div>
+</div>
+
+<!-- LEADERBOARD (custom, in-game — reads Play Games, renders our own UI) -->
+<div class="overlay" id="leaderboardScreen">
+  <div class="panel">
+    <h2>THE RECKONING</h2>
+    <div class="hint">souls hoarded by all who descend · <span style="color:var(--gold)" id="lbSubtitle">GLOBAL TOP</span></div>
+    <div class="glossary-tabs lb-mode-tabs">
+      <button class="menu-btn small gloss-tab on" id="lbModeNormal">NORMAL</button>
+      <button class="menu-btn small gloss-tab hard" id="lbModeHard">HARD</button>
+    </div>
+    <div class="glossary-tabs">
+      <button class="menu-btn small gloss-tab on" id="lbTabGlobal">GLOBAL TOP</button>
+      <button class="menu-btn small gloss-tab" id="lbTabNearby">AROUND YOU</button>
+    </div>
+    <div class="lb-list" id="lbList"></div>
+    <button class="menu-btn small" id="lbNativeView" style="width:100%;margin-top:10px;border-color:var(--frost);color:var(--frost)">OPEN GOOGLE VIEW</button>
+    <button class="menu-btn small" id="leaderboardClose" style="width:100%;margin-top:8px">RETURN</button>
+  </div>
+</div>
+
+<!-- CO-OP LOBBY — host a room code or join with one; both wardens ready up -->
+<div class="overlay" id="coopLobby">
+  <div class="panel">
+    <h2>DESCEND TOGETHER</h2>
+    <div class="coop-experimental">⚠ EXPERIMENTAL — CO-OP IS NEW AND MAY BE BUGGY</div>
+    <div class="hint" id="coopHint">two wardens, one catacomb · choose your warden in THE VAULT before you gather</div>
+    <div id="coopEntry">
+      <div class="big-choice">
+        <div class="bc-card" id="coopHostCard" style="color:var(--arcane)">
+          <div class="ic">ᛝ</div><div class="nm">HOST</div>
+          <div class="ds">Forge a five-mark code and hold the gate open for your partner.</div>
+        </div>
+        <div class="bc-card" id="coopJoinCard" style="color:var(--gold)">
+          <div class="ic">ᛟ</div><div class="nm">JOIN</div>
+          <div class="ds">Speak the five-mark code your partner holds.</div>
+        </div>
+      </div>
+    </div>
+    <div id="coopHostView" style="display:none">
+      <div class="coop-code" id="coopCode">·····</div>
+      <div class="hint" id="coopHostStatus">FORGING THE GATE…</div>
+    </div>
+    <div id="coopJoinView" style="display:none">
+      <div class="coop-code" id="coopCodeEntry">─────</div>
+      <div class="coop-pad" id="coopPad"></div>
+      <div class="hint" id="coopJoinStatus" style="margin-top:8px"></div>
+    </div>
+    <div id="coopReadyView" style="display:none">
+      <div class="coop-wardens">
+        <div class="coop-warden" id="coopCardSelf"></div>
+        <div class="coop-warden" id="coopCardPeer"></div>
+      </div>
+      <div class="hint" id="coopPing"></div>
+      <button class="menu-btn" id="coopReadyBtn" style="margin-top:8px">READY</button>
+      <div class="hint" id="coopReadyStatus" style="margin-top:6px"></div>
+    </div>
+    <button class="menu-btn small" id="coopBack" style="width:100%;margin-top:14px">RETURN</button>
+  </div>
+</div>
+
+<!-- CO-OP WAIT — the sim is frozen on the other screen (partner choosing / host paused) -->
+<div class="overlay" id="partnerWait">
+  <div class="panel" style="text-align:center">
+    <h2 id="waitTitle">YOUR PARTNER IS CHOOSING</h2>
+    <div class="hint">the descent holds its breath</div>
+    <button class="menu-btn small" id="waitLeave" style="margin-top:18px;border-color:var(--blood);color:var(--blood)">ABANDON THE RUN</button>
+  </div>
+</div>
+
+<!-- PAUSE -->
+<div class="overlay" id="pause">
+  <div class="pause-cols">
+    <div class="pause-left">
+      <div class="title" style="font-size:clamp(26px,6vw,52px)">PAUSED</div>
+      <div class="subtitle">THE CATACOMB WAITS</div>
+      <div class="rule"></div>
+      <button class="menu-btn" id="btnResume">RESUME</button>
+      <button class="menu-btn small" id="btnSettingsPause">SETTINGS</button>
+      <button class="menu-btn small" id="btnDevPause" style="display:none;border-color:var(--gold);color:var(--gold)">TEST TOOLS</button>
+      <button class="menu-btn small" id="btnQuit" style="border-color:#5e2230;color:var(--blood)">ABANDON — EXIT TO MENU</button>
+      <div class="howto" style="margin-top:14px">abandoning still banks your souls</div>
+    </div>
+    <div class="pause-right">
+      <div class="gun-line" id="gunLinePause"></div>
+      <h3>RUNES CARVED</h3>
+      <div class="card-grid" id="heldGridPause"></div>
+      <h3>COMPANION</h3>
+      <div class="card-grid" id="petPause"></div>
+    </div>
+  </div>
+</div>
+
+<!-- RUNES HELD (read-only) -->
+<div class="overlay" id="runesHeld">
+  <div class="panel">
+    <h2>RUNES CARVED INTO YOUR GUN</h2>
+    <div class="hint">live contribution of each rune at its current stacks — every rune applies at once</div>
+    <div class="gun-line" id="gunLine"></div>
+    <div class="card-grid" id="heldGrid"></div>
+    <button class="menu-btn small" id="heldClose" style="width:100%;margin-top:16px">RETURN TO THE FIGHT</button>
+  </div>
+</div>
+
+<!-- RUNE CHOICE -->
+<div class="overlay" id="runeChoice">
+  <div class="panel" style="width:min(720px,96vw)">
+    <h2>CHOOSE YOUR RUNE</h2>
+    <div id="rcCards"></div>
+    <div id="rcLockNote" style="display:none;margin-top:14px;font-size:10px;letter-spacing:.2em;color:var(--gold);text-align:center;line-height:1.8"></div>
+  </div>
+</div>
+
+<!-- BOSS REWARD CHOICE -->
+<div class="overlay" id="bossChoice">
+  <div class="title" style="font-size:clamp(22px,5vw,44px)" id="bcTitle">THE WARDEN FALLS</div>
+  <div class="subtitle">CLAIM YOUR TOLL — THE PORTAL OPENS AFTER</div>
+  <div class="big-choice">
+    <div class="bc-card" id="bcHeal" style="color:var(--blood)">
+      <div class="ic">♥</div><div class="nm">MEND FLESH</div>
+      <div class="ds" id="bcHealDesc">Restore half your maximum vitality.</div>
+    </div>
+    <div class="bc-card" id="bcRune" style="color:var(--arcane)">
+      <div class="ic">ᛟ</div><div class="nm">CARVE A RUNE</div>
+      <div class="ds">A random rune is carved into your gun, stacking with what you hold.</div>
+    </div>
+  </div>
+</div>
+
+<!-- VOID ENDING — the run's only real question -->
+<div class="overlay" id="voidChoice">
+  <div class="void-panel">
+    <div class="title" id="vcTitle">THE UNKNOWN FALLS</div>
+    <div class="subtitle" id="vcSub">EVERY RUNE EVER CARVED ANSWERS IN CHORUS — CHOOSE</div>
+    <div class="big-choice">
+      <div class="bc-card" id="vcExit" style="color:var(--gold)">
+        <div class="ic">☀</div><div class="nm">RIDE INTO THE LIGHT</div>
+        <div class="ds">You took back what was yours. The way out ran through the unknown — your legend is tallied.</div>
+      </div>
+      <div class="bc-card" id="vcDeeper" style="color:var(--arcane)">
+        <div class="ic">∅</div><div class="nm">BACK INTO THE DARK</div>
+        <div class="ds">The catacomb waits below. The descent loops without end — and it only gets hungrier.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ASCENSION — victory tally -->
+<div class="overlay" id="ascend">
+  <div class="title" style="font-size:clamp(28px,7vw,60px)">ASCENDED</div>
+  <div class="subtitle" id="aSub">YOU WALKED OUT UNDER THE LAST LIVING STAR</div>
+  <div class="hard-tag" id="aHardTag" style="display:none">☠ HARD DESCENT ☠</div>
+  <div class="hard-tag chaos-tag" id="aChaosTag" style="display:none">✸ CHAOS DESCENT ✸</div>
+  <div class="hard-tag" id="aClassicTag" style="display:none;color:#5ee6ff;border-color:#5ee6ff">◆ CLASSIC DESCENT ◆</div>
+  <div class="rule"></div>
+  <div class="stat-row">
+    <div class="stat"><div class="v" id="aWave">I</div><div class="l">WAVE</div></div>
+    <div class="stat"><div class="v" id="aDepth">1</div><div class="l">FLOOR</div></div>
+    <div class="stat"><div class="v" id="aScore">0</div><div class="l">SOULS</div></div>
+    <div class="stat"><div class="v" id="aKills">0</div><div class="l">KILLS</div></div>
+    <div class="stat"><div class="v" id="aTime">0:00</div><div class="l">TIME</div></div>
+  </div>
+  <div class="l" style="font-size:9px;letter-spacing:.3em;color:var(--dim)">RUNES CARVED THIS RUN</div>
+  <div id="ascendRunes"></div>
+  <div class="bank-line" id="aBankedLine">+0 SOULS BANKED</div>
+  <div class="best-line" id="aBestLine"></div>
+  <div class="best-line foretold" id="aRankLine" style="display:none"></div>
+  <button class="menu-btn" id="btnAscendAgain">DESCEND AGAIN</button>
+  <button class="menu-btn small" id="btnAscendMenu">MAIN MENU</button>
+</div>
+
+<!-- DEATH -->
+<div class="overlay" id="death">
+  <div class="title" style="font-size:clamp(28px,7vw,60px)">SLAIN</div>
+  <div class="subtitle">THE CATACOMB KEEPS YOUR BONES</div>
+  <div class="hard-tag" id="dHardTag" style="display:none">☠ HARD DESCENT ☠</div>
+  <div class="hard-tag chaos-tag" id="dChaosTag" style="display:none">✸ CHAOS DESCENT ✸</div>
+  <div class="hard-tag" id="dClassicTag" style="display:none;color:#5ee6ff;border-color:#5ee6ff">◆ CLASSIC DESCENT ◆</div>
+  <div class="rule"></div>
+  <div class="stat-row">
+    <div class="stat"><div class="v" id="dWave">I</div><div class="l">WAVE</div></div>
+    <div class="stat"><div class="v" id="dDepth">1</div><div class="l">FLOOR</div></div>
+    <div class="stat"><div class="v" id="dScore">0</div><div class="l">SOULS</div></div>
+    <div class="stat"><div class="v" id="dKills">0</div><div class="l">KILLS</div></div>
+    <div class="stat"><div class="v" id="dTime">0:00</div><div class="l">TIME</div></div>
+  </div>
+  <div class="l" style="font-size:9px;letter-spacing:.3em;color:var(--dim)">RUNES CARRIED</div>
+  <div id="deathRunes"></div>
+  <div class="bank-line" id="bankedLine">+0 SOULS BANKED</div>
+  <div class="best-line" id="dBestLine"></div>
+  <div class="best-line foretold" id="dRankLine" style="display:none"></div>
+  <button class="menu-btn" id="btnRetry">DESCEND AGAIN</button>
+  <button class="menu-btn small" id="btnDeathMenu">MAIN MENU</button>
+</div>
+
+<!-- CONTINUE -->
+<div class="overlay" id="continueScreen">
+  <div class="title" style="font-size:clamp(28px,7vw,60px)">CONTINUE?</div>
+  <div class="subtitle">DEATH NEED NOT BE THE END</div>
+  <div class="rule"></div>
+  <div class="bank-line" id="contStatLine"></div>
+  <button class="menu-btn" id="btnContSoul">SACRIFICE 1500 SOULS</button>
+  <button class="menu-btn small" id="btnContDecline">ACCEPT DEATH</button>
+</div>
+
+<!-- RESUME — the beat between a revive being paid for and the fight taking you back -->
+<div class="overlay" id="resumeScreen">
+  <div class="title" style="font-size:clamp(28px,7vw,60px)">YOU RISE</div>
+  <div class="subtitle">THE CATACOMB LOOSENS ITS GRIP</div>
+  <div class="rule"></div>
+  <div class="bank-line" id="resumeStatLine"></div>
+  <div class="ward-line" id="resumeWardLine"></div>
+  <button class="menu-btn" id="btnResumeRun">RETURN TO THE FIGHT</button>
+  <div class="howto" style="margin-top:14px">take your bearings — nothing moves until you say so</div>
+</div>
+
+<!-- SETTINGS -->
+<div class="overlay" id="settings" style="z-index:20">
+  <div class="panel" style="width:min(360px,90vw)">
+    <h2>SETTINGS</h2>
+    <div class="rule" style="margin:14px 0"></div>
+    <div class="vol-row" style="justify-content:center">
+      <label>VOLUME</label>
+      <input type="range" id="volSettings" min="0" max="100" value="80">
+    </div>
+    <!-- desktop (Electron) build only — shown by systems/native.js when the shell's bridge exists -->
+    <div class="aim-mode-row" id="displayRow" style="margin-top:18px;display:none">
+      <label style="font-size:10px;letter-spacing:.3em;color:var(--dim)">DISPLAY</label>
+      <button class="menu-btn small" id="btnDisplayMode" style="border-color:var(--frost);color:var(--frost);margin-top:8px">DISPLAY: FULLSCREEN</button>
+      <div class="aim-mode-note">f11 or alt+enter switches at any time</div>
+    </div>
+    <div class="aim-mode-row" id="hapticsRow" style="margin-top:18px">
+      <label style="font-size:10px;letter-spacing:.3em;color:var(--dim)">FEEDBACK</label>
+      <button class="menu-btn small" id="btnHaptics" style="border-color:var(--frost);color:var(--frost);margin-top:8px">VIBRATION: ON</button>
+    </div>
+    <!-- every build, phone and PC: not an .aim-mode-row, which is touch-only -->
+    <div id="shakeRow" style="margin-top:18px;display:flex;flex-direction:column;align-items:center">
+      <label style="font-size:10px;letter-spacing:.3em;color:var(--dim)">SCREEN SHAKE</label>
+      <button class="menu-btn small" id="btnShake" style="border-color:var(--frost);color:var(--frost);margin-top:8px">SCREEN SHAKE: ON</button>
+    </div>
+    <div id="numbersRow" style="margin-top:18px;display:flex;flex-direction:column;align-items:center">
+      <label style="font-size:10px;letter-spacing:.3em;color:var(--dim)">STAT DETAIL</label>
+      <button class="menu-btn small" id="btnAdvancedNumbers" style="border-color:var(--frost);color:var(--frost);margin-top:8px">ADVANCED NUMBERS: OFF</button>
+      <div class="aim-mode-note" id="advancedNumbersNote">show exact character stats and each rune’s current contribution, including stacks beyond three</div>
+    </div>
+    <div id="runeDescriptionsRow" style="margin-top:18px;display:flex;flex-direction:column;align-items:center">
+      <label style="font-size:10px;letter-spacing:.3em;color:var(--dim)">RUNE CHOICE CARDS</label>
+      <button class="menu-btn small" id="btnRuneDescriptions" style="border-color:var(--frost);color:var(--frost);margin-top:8px">RUNE DESCRIPTIONS: ON</button>
+      <div class="aim-mode-note">hide rune prose and use equally sized cards for a quicker pick</div>
+    </div>
+    <div id="glowRow" style="margin-top:18px;display:flex;flex-direction:column;align-items:center">
+      <label style="font-size:10px;letter-spacing:.3em;color:var(--dim)">GLOW</label>
+      <button class="menu-btn small" id="btnGlow" style="border-color:var(--frost);color:var(--frost);margin-top:8px">GLOW: FULL</button>
+      <div class="aim-mode-note" id="glowNote">the intended look — every halo at full strength</div>
+    </div>
+    <div id="juiceRow" style="margin-top:18px;display:flex;flex-direction:column;align-items:center">
+      <label style="font-size:10px;letter-spacing:.3em;color:var(--dim)">KILL FEEDBACK</label>
+      <button class="menu-btn small" id="btnJuice" style="border-color:var(--frost);color:var(--frost);margin-top:8px">KILL FEEDBACK: FULL</button>
+      <div class="aim-mode-note" id="juiceNote">streak callouts, soul motes and screen flashes — the intended feel</div>
+    </div>
+    <div id="hiddenRunesRow" style="margin-top:18px;display:flex;flex-direction:column;align-items:center">
+      <label style="font-size:10px;letter-spacing:.3em;color:var(--dim)">EASTER EGGS</label>
+      <button class="menu-btn small" id="btnHiddenRunes" style="border-color:var(--frost);color:var(--frost);margin-top:8px">HIDDEN RUNES: OFF</button>
+      <div class="aim-mode-note" id="hiddenRunesNote">off by default — only hidden wardens see them when on</div>
+    </div>
+    <div id="runTimerRow" style="margin-top:18px;display:flex;flex-direction:column;align-items:center">
+      <label style="font-size:10px;letter-spacing:.3em;color:var(--dim)">SPEEDRUN</label>
+      <button class="menu-btn small" id="btnRunTimer" style="border-color:var(--frost);color:var(--frost);margin-top:8px">RUN TIMER: ON</button>
+      <div class="aim-mode-note" id="runTimerNote">millisecond run clock · pauses with the game · keeps your fastest clear per warden</div>
+    </div>
+    <div id="deskCtrlRow" style="margin-top:18px;display:flex;flex-direction:column;align-items:center;gap:8px">
+      <label style="font-size:10px;letter-spacing:.3em;color:var(--dim)">AIMING &amp; FIRING</label>
+      <button class="menu-btn small" id="btnDeskMode" style="border-color:var(--frost);color:var(--frost)">HOLD TO FIRE</button>
+      <div class="aim-mode-note" id="deskModeNote" style="display:block">aim with cursor · hold mouse to fire</div>
+    </div>
+    <!-- PC builds only — shown by systems/controls.js -->
+    <div id="controlsRow" style="margin-top:18px;display:none;flex-direction:column;align-items:center;gap:8px">
+      <label style="font-size:10px;letter-spacing:.3em;color:var(--dim)">CONTROLS</label>
+      <button class="menu-btn small" id="btnControls" style="border-color:var(--frost);color:var(--frost)">KEYS &amp; CONTROLLER</button>
+    </div>
+    <div class="aim-mode-row" id="mobileAimRow" style="margin-top:18px">
+      <label style="font-size:10px;letter-spacing:.3em;color:var(--dim)">AIMING</label>
+      <button class="menu-btn small" id="btnAimModeSettings" style="margin-top:8px">CONTROLS: AUTO-AIM</button>
+      <div class="aim-mode-note" id="aimModeNoteSettings">one thumb — left moves, gun aims &amp; fires itself</div>
+    </div>
+    <div class="aim-mode-row" id="ctrlSchemeRow" style="margin-top:18px">
+      <label style="font-size:10px;letter-spacing:.3em;color:var(--dim)">ON-SCREEN CONTROLS</label>
+      <button class="menu-btn small" id="btnCtrlScheme" style="border-color:var(--frost);color:var(--frost);margin-top:8px">CONTROLS: BUTTONS</button>
+      <div id="touchCtrlRow" style="display:none;flex-direction:column;align-items:center;margin-top:8px">
+        <button class="menu-btn small" id="btnCustomizeCtrl" style="border-color:var(--arcane);color:var(--arcane)">CUSTOMIZE LAYOUT</button>
+        <div class="aim-mode-note">drag the DASH &amp; SEAL buttons where your thumbs rest</div>
+        <button class="menu-btn small" id="btnBtnSize" style="border-color:var(--frost);color:var(--frost);margin-top:8px">BUTTON SIZE: MEDIUM</button>
+      </div>
+      <div id="gestureRow" style="display:none;flex-direction:column;align-items:center;margin-top:8px">
+        <button class="menu-btn small" id="btnGestureSwap" style="border-color:var(--frost);color:var(--frost)">TAP: SEAL · 2× DASH</button>
+        <div class="aim-mode-note" id="gestureNote">tap the screen to seal · double-tap to dash · best with auto-aim</div>
+      </div>
+    </div>
+    <!-- Shown only where UMP reports the privacy-options entry point is REQUIRED
+         (EEA/UK). Google mandates a persistent way to change ad consent. -->
+    <button class="menu-btn small" id="btnPrivacyOptions" style="width:100%;margin-top:24px;display:none">AD PRIVACY OPTIONS</button>
+    <button class="menu-btn small" id="btnReplayCutscene" style="width:100%;margin-top:24px">REPLAY OPENING</button>
+    <button class="menu-btn small" id="btnHowToPlay" style="width:100%;margin-top:10px">HOW TO PLAY</button>
+    <button class="menu-btn small" id="settingsClose" style="width:100%;margin-top:10px">CLOSE</button>
+  </div>
+</div>
+
+<!-- CONTROL LAYOUT EDITOR -->
+<!-- CONTROLS — PC builds only, opened from settings (systems/controls.js builds the grid) -->
+<div class="overlay" id="controls" style="z-index:25">
+  <div class="panel" style="width:min(640px,94vw)">
+    <h2>CONTROLS</h2>
+    <div class="rule" style="margin:14px 0"></div>
+    <div class="aim-mode-note" id="padStatus">NO CONTROLLER — CONNECT ONE AND PRESS ANY BUTTON</div>
+    <div class="bind-grid" id="bindGrid"></div>
+    <div class="aim-mode-note" id="bindHint" style="margin-top:16px">click a binding, then press the new key or button</div>
+    <div class="menu-row" style="margin-top:18px">
+      <button class="menu-btn small" id="bindReset">RESET DEFAULTS</button>
+      <button class="menu-btn small" id="controlsClose" style="border-color:var(--arcane);color:var(--arcane)">BACK</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="ctrlEdit" style="z-index:40;background:rgba(7,6,14,.72)">
+  <div style="position:absolute;top:12%;left:50%;transform:translateX(-50%);text-align:center;padding:0 18px">
+    <div class="subtitle">DRAG DASH &amp; SEAL WHERE YOU WANT THEM</div>
+  </div>
+  <div style="position:absolute;bottom:8%;left:50%;transform:translateX(-50%);display:flex;gap:12px">
+    <button class="menu-btn small" id="ctrlEditReset">RESET</button>
+    <button class="menu-btn small" id="ctrlEditDone" style="border-color:var(--arcane);color:var(--arcane)">DONE</button>
+  </div>
+</div>
+
+<!-- RUNEGUN — loaded as ordered classic scripts that share one global scope.
+     Order matches the original game.js top-to-bottom, so nothing changes at runtime;
+     the code is just split by concern. See src/ for the module map. -->
+<script src="src/core/crash.js"></script>
+<script src="src/core/canvas.js"></script>
+<script src="src/core/helpers.js"></script>
+<script src="src/data/save.js"></script>
+<script src="src/data/characters.js"></script>
+<script src="src/systems/audio.js"></script>
+<script src="src/systems/input.js"></script>
+<script src="src/data/runes.js"></script>
+<script src="src/data/curses.js"></script>
+<script src="src/data/floors.js"></script>
+<script src="src/data/bestiary.js"></script>
+<script src="src/core/state.js"></script>
+<script src="src/core/world.js"></script>
+<script src="src/entities/spawning.js"></script>
+<script src="src/entities/enemies.js"></script>
+<script src="src/entities/bosses.js"></script>
+<script src="src/entities/deep.js"></script>
+<script src="src/entities/unknown.js"></script>
+<script src="src/entities/unknown-runes.js"></script>
+<script src="src/entities/combat.js"></script>
+<script src="src/entities/pets.js"></script>
+<script src="src/game/update.js"></script>
+<script src="src/render/draw.js"></script>
+<script src="src/render/draw-deep.js"></script>
+<script src="src/render/draw-unknown.js"></script>
+<script src="src/render/cards.js"></script>
+<script src="src/systems/juice.js"></script>
+<script src="src/systems/speedrun.js"></script>
+<script src="src/ui/hud.js"></script>
+<script src="src/scenes/ending.js"></script>
+<script src="src/scenes/rift.js"></script>
+<script src="src/scenes/saloon.js"></script>
+<script src="src/scenes/blackjack.js"></script>
+<script src="src/systems/consent.js"></script>
+<script src="src/systems/ads.js"></script>
+<script src="src/systems/leaderboard.js"></script>
+<script src="src/systems/continue.js"></script>
+<script src="src/ui/overlays.js"></script>
+<script src="src/systems/devtools.js"></script>
+<script src="src/systems/controls.js"></script>
+<script src="src/scenes/cutscene.js"></script>
+<script src="src/scenes/tutorial.js"></script>
+<script src="src/scenes/cutscene-vault.js"></script>
+<script src="src/scenes/menu-bg.js"></script>
+<script src="src/lib/firebase-app-compat.js"></script>
+<script src="src/lib/firebase-database-compat.js"></script>
+<script src="src/net/firebase-config.js"></script>
+<script src="src/net/turn-config.js"></script>
+<script src="src/net/signal.js"></script>
+<script src="src/net/net.js"></script>
+<script src="src/net/protocol.js"></script>
+<script src="src/net/coop.js"></script>
+<script src="src/net/lobby.js"></script>
+<script src="src/systems/native.js"></script>
+<script src="src/debug/console.js"></script>
+<script src="src/main.js"></script>
+
+</body>
+</html>
