@@ -945,6 +945,9 @@ function applyTextSizeUI() {
   document.documentElement.style.setProperty("--text-scale", String(TEXT_SIZE_SCALE[key]));
   const b = $("btnTextSize");
   if (b) b.textContent = "TEXT SIZE: " + key.toUpperCase();
+  /* the title-screen echo: same value, so nobody has to open SETTINGS to find it */
+  const m = $("btnMenuTextSize");
+  if (m) m.textContent = "TEXT SIZE: " + key.toUpperCase() + " ›";
 }
 function cycleTextSize() {
   const i = TEXT_SIZE_ORDER.indexOf(textSizeKey());
@@ -954,6 +957,7 @@ function cycleTextSize() {
   AudioFX.equip();
 }
 $("btnTextSize").addEventListener("click", cycleTextSize);
+$("btnMenuTextSize").addEventListener("click", cycleTextSize);
 
 /* ---------- haptics (mobile vibration on combat beats) ---------- */
 function applyHapticsUI() {
