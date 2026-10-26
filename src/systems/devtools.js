@@ -1,7 +1,7 @@
 /* =========================================================
    RUNEGUN · Test tools — jump anywhere, carve anything
-   A play-testing panel. Open it from the main menu (TEST TOOLS), the pause
-   menu, or the ` key on a keyboard.
+   A play-testing panel. Once the run console turns it on (`devtools on`), it
+   opens from the main menu or the pause menu (TEST TOOLS). Off by default.
 
    START A TEST RUN: any gunslinger, normal, hard or chaos, any lap and wave, straight
    to any floor (optionally with its warden already awake), the floor I rift,
@@ -16,12 +16,15 @@
    no souls banked, no records, no bestiary or achievements, no leaderboard
    post, no interstitial. (Settings changed during a test run are not kept.)
 
-   DEV_TOOLS = false hides every trace. `npm run build:release` refuses to
-   package a build with DEV_TOOLS = true (scripts/build-web.js).
+   TEST TOOLS ARE OFF BY DEFAULT. The run console is the only door:
+     F9 / ` → devtools on     (devtools off hides them again)
+   The choice lives in its own localStorage key, never in the save, so a build
+   handed to a player starts with no TEST TOOLS button anywhere.
    ========================================================= */
 "use strict";
 
-const DEV_TOOLS = true;
+const DEV_FLAG_KEY = "runegun.devtools.v1";
+let DEV_TOOLS = (() => { try { return localStorage.getItem(DEV_FLAG_KEY) === "1"; } catch (e) { return false; } })();
 
 /* the hooks the rest of the game reads (inert unless a test run turns them on) */
 const Dev = { god: false, dmgMul: 1, snap: null, prevHard: false, prevChaos: false, prevClassic: false, built: false, from: "menu", cfg: null };
@@ -406,17 +409,23 @@ function devIsOpen() { const el = $("devPanel"); return !!(el && el.classList.co
 
 /* ---------- wiring ---------- */
 Dev.cfg = devLoadCfg();
-if (DEV_TOOLS) {
-  for (const [id, from] of [["btnDev", "menu"], ["btnDevPause", "pause"]]) {
+function devToolsOn() { return DEV_TOOLS; }
+function devSyncEntryPoints() {
+  for (const id of ["btnDev", "btnDevPause"]) {
     const b = $(id);
-    if (b) { b.style.display = ""; b.addEventListener("click", () => devOpen(from)); }
+    if (b) b.style.display = DEV_TOOLS ? "" : "none";
   }
-  /* the ` key: open from anywhere a run or the menu is showing */
-  window.addEventListener("keydown", e => {
-    if (e.code !== "Backquote" || e.repeat) return;
-    if (devIsOpen()) { devClose(); return; }
-    if (Game.state === "play") { openPausePanel(); setState("pause"); devOpen("pause"); }
-    else if (Game.state === "pause") devOpen("pause");
-    else if (Game.state === "menu") devOpen("menu");
-  });
+}
+/* the console's `devtools` command flips this; nothing else does */
+function devSetTools(on) {
+  DEV_TOOLS = !!on;
+  try { localStorage.setItem(DEV_FLAG_KEY, DEV_TOOLS ? "1" : "0"); } catch (e) {}
+  devSyncEntryPoints();
+  if (!DEV_TOOLS) devClose();
+  return DEV_TOOLS;
+}
+devSyncEntryPoints();
+for (const [id, from] of [["btnDev", "menu"], ["btnDevPause", "pause"]]) {
+  const b = $(id);
+  if (b) b.addEventListener("click", () => { if (DEV_TOOLS) devOpen(from); });
 }

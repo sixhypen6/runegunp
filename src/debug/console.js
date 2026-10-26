@@ -1,7 +1,8 @@
 /* =========================================================
    RUNEGUN · Local run console
    F9 / backtick opens a small, allowlisted command console.
-   Commands edit only the current local run; no arbitrary JS is evaluated.
+   Commands edit the current local run and — for `vault` / `unlock` — the save;
+   no arbitrary JS is evaluated. `devtools on` reveals the TEST TOOLS panel.
    ========================================================= */
 "use strict";
 
@@ -44,7 +45,7 @@ const RunegunConsole = {
     box.innerHTML = `<div class="rg-head"><span>LOCAL RUN CONSOLE · F9 / BACKTICK</span><span class="rg-actions"><button type="button" id="rgClear">CLEAR</button><button type="button" id="rgToggleView">VIEW: CMD</button><button type="button" id="rgClose">CLOSE</button></span></div>
       <div class="rg-output" id="rgOutput" role="log" aria-live="polite"></div>
       <form class="rg-input" id="rgForm"><span>&gt;</span><input id="rgCommand" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Console command"></form>
-      <div class="rg-help">Commands: help · status · souls &lt;amount&gt; · runes · list · enemies · spawn &lt;enemy&gt; [count] · floors · unknown · cast &lt;rune&gt; · tp &lt;floor number or name&gt; · add &lt;rune&gt; [stacks] · set &lt;rune&gt; &lt;stacks&gt; · remove &lt;rune&gt; [stacks] · clear · heal · char &lt;id&gt;</div>`;
+      <div class="rg-help">Type help for the full command list · VIEW toggles commands / event log · devtools on reveals TEST TOOLS</div>`;
     document.body.appendChild(box);
     this.box = box;
     this.input = box.querySelector("#rgCommand");
@@ -85,7 +86,7 @@ const RunegunConsole = {
         this.toggle();
       }
     });
-    this.log("Ready. Type help for supported commands.");
+    this.log("Ready. Type help for every command · devtools on reveals TEST TOOLS.");
   },
 
   toggle(force) {
@@ -198,6 +199,68 @@ const RunegunConsole = {
     this.log("Spawned " + count + " " + type + (count === 1 ? "" : "s") + " near the player.");
   },
 
+  /* Vault edits must outlive the screen they're made on — and a TEST RUN restores
+     the Meta snapshot it took when it ends, so fold the change into that snapshot
+     too (otherwise an unlock made mid-test would vanish with the run). The console
+     is the one thing allowed to write through a test run's silence. */
+  metaKeep() {
+    if (typeof Game !== "undefined" && Game.devRun && typeof Dev !== "undefined" && Dev.snap) {
+      try { Dev.snap = JSON.stringify(Meta); localStorage.setItem(SAVE_KEY, Dev.snap); } catch (e) {}
+    } else metaSave();
+    if (typeof refreshMenu === "function") refreshMenu();
+    if (Game.state === "vault" && typeof renderVault === "function") renderVault();
+  },
+
+  /* every shelf entry the Vault can sell, in Vault order; `max` = stackable level */
+  vaultCatalog() {
+    const out = [];
+    for (const k in CHARS)
+      out.push({ key: "char:" + k, name: CHARS[k].name, group: "WARDENS", cost: CHARS[k].cost, max: 0 });
+    for (const k in SKINS)
+      out.push({ key: "skin:" + k, name: SKINS[k].name, group: "WARPAINT", cost: SKINS[k].cost, max: 0 });
+    for (const k in PTYPES) {
+      out.push({ key: "pet:" + k, name: PTYPES[k].name, group: "PETS", cost: PTYPES[k].cost, max: 0 });
+      const ups = PTYPES[k].upgrades || {};
+      for (const u in ups)
+        out.push({ key: "petbuff:" + k + ":" + u, name: PTYPES[k].name + " · " + ups[u].name,
+          group: "PET UPGRADES", cost: ups[u].cost, max: ups[u].once ? 1 : ups[u].max });
+    }
+    out.push({ key: "buff:rerolls", name: "EXTRA RE-ROLLS", group: "BUFFS", cost: 4000, max: 10 });
+    out.push({ key: "npc:keeper", name: "THE VAULT KEEPER", group: "THE VAULT", cost: 0, max: 0 });
+    return out;
+  },
+
+  /* one source for the help command, so the list can't fall behind the code */
+  helpText() {
+    return [
+      "RUN CONSOLE — every command",
+      "  help                          this list",
+      "  status                        current warden, vitality, rune count",
+      "  runes                         runes held in this run",
+      "  list                          every carvable rune id",
+      "  add <rune> [n]                carve n more stacks (default 1)",
+      "  set <rune> <n>                set a rune to an exact stack count",
+      "  remove <rune> [n]             take n stacks away",
+      "  clear                         drop every rune this run",
+      "  heal                          restore the run's vitality",
+      "  souls <n>                     add souls to THIS RUN's score",
+      "  char <id>                     swap the current run's warden",
+      "  floors                        every floor, numbered",
+      "  tp <floor number or name>     jump to a floor (alias: teleport)",
+      "  enemies                       every horror type",
+      "  spawn <enemy> [n]             put horrors around you (max 20)",
+      "  unknown                       THE UNKNOWN's attack runes (alias: unkrunes)",
+      "  cast <rune>                   force THE UNKNOWN to cast one now",
+      "  vault                         show the vault bank",
+      "  vault <n> · +n · -n           set / add to / take from the bank",
+      "  unlock <key>                  unlock one vault entry (stackables to max)",
+      "  unlock all                    unlock every vault entry",
+      "  unlock list                   every unlock key, by shelf",
+      "  devtools [on|off]             show / hide TEST TOOLS (off by default)",
+      "  log · events                  event log view / dump recent events",
+    ].join("\n");
+  },
+
   execute(line) {
     const raw = String(line || "").trim();
     if (!raw) return;
@@ -213,7 +276,16 @@ const RunegunConsole = {
     };
     try {
       if (command === "help") {
-        this.log("help · status · souls <amount> · runes · list · enemies · spawn <enemy> [count] · floors · unknown · cast <rune> · tp <floor number or name> · add <rune> [stacks] · set <rune> <stacks> · remove <rune> [stacks] · clear · heal · char <id>");
+        this.log(this.helpText());
+      } else if (command === "devtools" || command === "testtools") {
+        const mode = args[0];
+        if (mode !== undefined && mode !== "on" && mode !== "off")
+          throw new Error("Usage: devtools [on|off]. No argument flips it.");
+        if (typeof devSetTools !== "function") throw new Error("Test tools are not loaded in this build.");
+        const on = devSetTools(mode === undefined ? !devToolsOn() : mode === "on");
+        this.log(on
+          ? "TEST TOOLS ON · TEST TOOLS buttons now show in the menu and the pause screen (remembered between sessions)."
+          : "TEST TOOLS OFF · every trace hidden. Type devtools on to bring them back.");
       } else if (command === "runes") {
         const p = this.currentPlayer();
         const held = Object.keys(p.runes).filter(id => p.runes[id] > 0);
@@ -254,6 +326,60 @@ const RunegunConsole = {
         Game.score += gained;
         updateScore();
         this.log("Added " + gained.toLocaleString() + " souls to this run · run total " + Game.score.toLocaleString() + ".");
+      } else if (command === "vault" || command === "bank") {
+        const raw = args[0];
+        if (raw === undefined) {
+          this.log("VAULT BANK · " + Meta.bank.toLocaleString() + " souls" +
+            (keeperUnlocked() ? "" : " · the Keeper is still chained — unlock npc:keeper to open the Vault"));
+        } else {
+          const hit = /^([+-]?)(\d+)$/.exec(raw);
+          if (!hit) throw new Error("Usage: vault [amount] · vault +N adds · vault -N takes away · vault N sets.");
+          const n = Number(hit[2]);
+          if (!Number.isSafeInteger(n) || n > 100000000) throw new Error("Amount must be from 0 to 100,000,000.");
+          const before = Meta.bank;
+          Meta.bank = hit[1] === "+" ? before + n : hit[1] === "-" ? Math.max(0, before - n) : n;
+          this.metaKeep();
+          this.log("VAULT BANK · " + before.toLocaleString() + " → " + Meta.bank.toLocaleString() + " souls.");
+        }
+      } else if (command === "unlock") {
+        const what = args[0];
+        if (!what) throw new Error("Usage: unlock <key|all|list>. Try unlock list.");
+        const catalog = this.vaultCatalog();
+        if (what === "list") {
+          const groups = [];
+          for (const item of catalog) {
+            let g = groups.find(x => x.name === item.group);
+            if (!g) groups.push(g = { name: item.group, items: [] });
+            g.items.push(item.key + (item.max ? " (max ×" + item.max + ")" : item.cost ? " (" + item.cost.toLocaleString() + " ◆)" : ""));
+          }
+          this.log("UNLOCK KEYS — bare ids also work when unambiguous\n" +
+            groups.map(g => g.name + "\n  " + g.items.join("\n  ")).join("\n"));
+        } else if (what === "all") {
+          let changed = 0;
+          for (const item of catalog) {
+            const cur = Meta.unlocked[item.key];
+            const done = item.max ? (cur || 0) >= item.max : !!cur;
+            if (done) continue;
+            Meta.unlocked[item.key] = item.max ? item.max : true;
+            changed++;
+          }
+          this.metaKeep();
+          this.log(changed
+            ? "UNLOCKED " + changed + " vault " + (changed === 1 ? "entry" : "entries") + " · the shelves are yours."
+            : "Nothing was still locked — the whole Vault is already open.");
+        } else {
+          let item = catalog.find(x => x.key === what);
+          if (!item) {
+            const matches = catalog.filter(x => x.key.slice(x.key.lastIndexOf(":") + 1) === what);
+            if (matches.length > 1)
+              throw new Error("'" + what + "' is ambiguous — " + matches.map(m => m.key).join(" · "));
+            item = matches[0];
+          }
+          if (!item) throw new Error("No vault entry named '" + what + "'. Try unlock list.");
+          Meta.unlocked[item.key] = item.max ? item.max : true;
+          this.metaKeep();
+          this.log(item.group + " · " + item.name + " UNLOCKED" + (item.max ? " (×" + item.max + ")" : "") + ".");
+        }
       } else if (command === "add" || command === "set" || command === "remove") {
         if (!args[0]) throw new Error("Specify a rune id. Use runes to list held runes.");
         this.editRune(command, args[0], amount(args[1], command === "set" ? undefined : 1));

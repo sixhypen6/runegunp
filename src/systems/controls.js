@@ -288,8 +288,8 @@ const BIND_ROWS = [
   ["up", "MOVE UP"], ["down", "MOVE DOWN"], ["left", "MOVE LEFT"], ["right", "MOVE RIGHT"],
   ["fire", "FIRE"], ["dash", "DASH"], ["use", "SEAL / INTERACT"], ["runes", "RUNES HELD"],
 ];
-/* never bindable: pause (Escape / P), the OS key, fullscreen, the test-tools hotkey */
-const RESERVED_KEYS = ["Escape", "KeyP", "MetaLeft", "MetaRight", "F11"];
+/* never bindable: pause (Escape / P), the OS key, fullscreen, the console's F9 / ` */
+const RESERVED_KEYS = ["Escape", "KeyP", "MetaLeft", "MetaRight", "F11", "F9", "Backquote"];
 /* the d-pad moves; MENU pauses; HOME belongs to the OS / Steam */
 const RESERVED_PAD = [9, 12, 13, 14, 15, 16];
 const BIND_HINT = "click a binding, then press the new key or button";
@@ -357,7 +357,7 @@ function bindCaptureKey(e) {
   if (e.code === "Escape") { endCapture(); return true; }
   if (BindCap.kind !== "key") return true;
   if (e.code === "Backspace" || e.code === "Delete") { setKeyBind(BindCap.act, BindCap.slot, null); return true; }
-  if (RESERVED_KEYS.includes(e.code) || (e.code === "Backquote" && typeof DEV_TOOLS !== "undefined" && DEV_TOOLS)) {
+  if (RESERVED_KEYS.includes(e.code)) {
     $("bindHint").textContent = keyName(e.code) + " is reserved — press another key · esc cancels";
     return true;
   }
