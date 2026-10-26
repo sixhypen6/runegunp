@@ -16,6 +16,7 @@ function renderHeld(gunEl = "gunLine", gridEl = "heldGrid", petEl = null) {
     (m.sawDmg ? " · SAW <span>" + Math.round(m.sawDmg * (m.rate / 5) * (m.shredDmgMul || 1)) + "</span>" : "") +
     (m.moveMul > 1 ? " · SPEED <span>+" + Math.round((m.moveMul - 1) * 100) + "%</span>" : "") +
     (m.shieldMax ? " · SHIELD <span>" + m.shieldMax + "× / " + m.shieldDmg + "</span>" : "") +
+    (m.reprieveStacks ? " · SAVE <span>" + ((p.reprieveCd || 0) > 0 ? Math.ceil(p.reprieveCd) + "s" : "READY") + "</span>" : "") +
     (m.execute ? " · REAP <span>&lt;" + Math.round(m.execute * 100) + "%</span>" : "") +
     (m.midas ? " · SOULS <span>+" + Math.round(m.midas * 100) + "%</span>" : "") +
     (Game.chaosMode ? "<br><span style='color:" + CHAOS_COLOR + "'>CHAOS — no seal; every rune keeps answering</span>"

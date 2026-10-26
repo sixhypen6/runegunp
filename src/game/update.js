@@ -136,6 +136,10 @@ function updatePlayer(p, inp, dt) {
   const mx = inp.mx, my = inp.my;
   p.dashCd -= dt;
   p.iframes -= dt;
+  /* REPRIEVE: the cooldown between saves, and the hold that keeps the horde still
+     (the hold is read by the enemy loop below; bosses only take the slow) */
+  p.reprieveCd = Math.max(0, (p.reprieveCd || 0) - dt);
+  p.reprieveFreezeT = Math.max(0, (p.reprieveFreezeT || 0) - dt);
   p.kickT = Math.max(0, (p.kickT || 0) - dt);
   /* DOWNED: a slow crawl toward help — no dash, no gun, no interactions */
   if (p.downed) {
@@ -505,10 +509,13 @@ function update(dt) {
   }
 
   /* --- enemies --- */
+  /* REPRIEVE: a saved warden's breath stops the horde with them — the same hard
+     hold as the stopped hour (bosses are only slowed, set when the save fires) */
+  const reprieved = players.some(pl => pl.hp > 0 && (pl.reprieveFreezeT || 0) > 0);
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
     if (e.dead) { enemies.splice(i, 1); continue; }
-    if (still && !e.boss) continue;   // the stopped hour: every horror freezes mid-step
+    if ((still || reprieved) && !e.boss) continue;
     if (e.spawnT > 0) {
       e.spawnT -= dt;
       if (e.boss) {                                  // a warden tearing its way in

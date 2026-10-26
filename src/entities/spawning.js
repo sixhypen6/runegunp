@@ -24,7 +24,9 @@ function makePlayer(cfg, idx) {
     rerolls: c.rerolls + (cfg.rerollBuff || 0),
     maxHpMul: 1, bonusRuneSlots: 0,
     /* downed / revive (co-op): crawling, waiting on a partner's hands */
-    downed: false, reviveT: 0 };
+    downed: false, reviveT: 0,
+    /* REPRIEVE: the save's cooldown and the horde-hold it leaves behind */
+    reprieveCd: 0, reprieveFreezeT: 0 };
 }
 function localPlayerCfg() {
   return { char: Meta.char, skin: Meta.skin, gunSkin: Meta.gunSkin, pet: Meta.pet,

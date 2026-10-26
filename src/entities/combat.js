@@ -715,6 +715,41 @@ function hurtPlayer(p, dmg, src) {
   if (p.mods.dr) dmg *= 1 - p.mods.dr;
   p.hp -= dmg;
   Game.flawless = false;                               // the run is scarred — no FLAWLESS bounty from here on
+  /* REPRIEVE: a lethal blow is refused. The hour holds its breath — the horde
+     freezes mid-step, the wound closes, and a brief ward keeps the next hit from
+     following you home. One save per cooldown. */
+  if (p.hp <= 0 && p.mods.reprieveStacks > 0 && (p.reprieveCd || 0) <= 0) {
+    const n = p.mods.reprieveStacks;
+    const freeze = reprieveFreezeSecs(n);
+    p.hp = Math.max(1, Math.round(p.maxHp * reprieveHealFrac(n)));
+    p.reprieveCd = reprieveCooldown(n);
+    p.reprieveFreezeT = freeze;
+    p.iframes = Math.max(p.iframes, reprieveInvulSecs(n));
+    p.regenT = 0;                                      // the save is a wound, not a lull
+    /* the horde stops outright; a warden only wades slower, and its next attack
+       is pushed back by the same breath */
+    for (const e of enemies) {
+      if (e.dead) continue;
+      if (!e.boss) continue;
+      e.slowT = Math.max(e.slowT || 0, freeze);
+      if (e.at !== undefined) e.at += freeze;
+    }
+    shockwaves.push({ x: p.x, y: p.y, r: 8, max: 240, speed: 520, dmg: 0,
+      hostile: false, color: "#bcd0ff", hitSet: new Set() });
+    for (let i = 0; i < 18; i++) {
+      const a = i / 18 * TAU;
+      particles.push({ x: p.x, y: p.y, vx: Math.cos(a) * rnd(120, 280), vy: Math.sin(a) * rnd(120, 280),
+        t: 0, life: rnd(0.35, 0.7), r: rnd(2, 4), color: pick(["#bcd0ff", "#e8f0ff", "#7ad7ff"]) });
+    }
+    if (p === localPlayer()) { screenFlash(0.3, "188,208,255"); haptic(80); }
+    Game.shake = Math.max(Game.shake, 12);
+    const saveName = (runeDefFor(p, "reprieve") || RUNES.reprieve).name;
+    floatText(p.x, p.y - 30, saveName, "#bcd0ff", 20);
+    toast(p === localPlayer() ? saveName + " — THE HOUR HOLDS ITS BREATH" : "YOUR PARTNER IS SAVED");
+    AudioFX.chest();
+    updateHp();
+    return;
+  }
   p.iframes = 0.9;
   p.regenT = 0;                                        // MEND: a hit stalls the mending
   /* RIMEBOUND horrors — and their bolts — leave the chill in your legs (WEIGHT hex) */

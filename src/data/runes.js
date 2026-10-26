@@ -34,6 +34,29 @@ const TAPERED_RUNES = new Set(["scatter", "heavy", "rapid", "venom", "ember", "t
   "mend", "dread", "prickle", "slime"]);
 
 /* =========================================================
+   REPRIEVE — the death-save's tuning
+   One source for the save itself (entities/combat.js), the hold in the
+   enemy loop (game/update.js), the rune card and the held codex.
+   A lethal blow is refused; more stacks heal deeper, hold the horde
+   longer, ward you longer, and shorten the wait before it can save again.
+   ========================================================= */
+const REPRIEVE_HEAL = 0.5;            // share of max vitality restored by the save
+const REPRIEVE_HEAL_PER_STACK = 0.01;
+const REPRIEVE_HEAL_CAP = 0.8;
+const REPRIEVE_FREEZE = 1;            // seconds the horde holds still, per stack
+const REPRIEVE_FREEZE_CAP = 3;        // 7.0's cap: a hold this long already wins the fight
+const REPRIEVE_INVUL = 0.67;          // seconds of untouchability per stack
+const REPRIEVE_INVUL_FLOOR = 0.9;     // never less than a normal hit's grace
+const REPRIEVE_INVUL_CAP = 2;
+const REPRIEVE_CD = 18;               // seconds before it can save you again
+const REPRIEVE_CD_PER_STACK = 1.5;    // each stack past the first
+const REPRIEVE_CD_FLOOR = 10;
+function reprieveHealFrac(n) { return Math.min(REPRIEVE_HEAL_CAP, REPRIEVE_HEAL + REPRIEVE_HEAL_PER_STACK * n); }
+function reprieveFreezeSecs(n) { return Math.min(REPRIEVE_FREEZE_CAP, REPRIEVE_FREEZE * n); }
+function reprieveInvulSecs(n) { return Math.min(REPRIEVE_INVUL_CAP, Math.max(REPRIEVE_INVUL_FLOOR, REPRIEVE_INVUL * n)); }
+function reprieveCooldown(n) { return Math.max(REPRIEVE_CD_FLOOR, REPRIEVE_CD - REPRIEVE_CD_PER_STACK * (n - 1)); }
+
+/* =========================================================
    RUNES — every rune stacks: mod(m, n) where n = stacks held
    ========================================================= */
 const RUNES = {
@@ -139,6 +162,9 @@ const RUNES = {
   mend: { name: "MEND", glyph: "ᚧ", color: "#8effb0",
     desc: "Your wounds knit closed when you go untouched. Each stack mends a little faster and shortens the lull before the mending begins. Taking a hit stalls it.",
     mod: (m, n) => { m.regen += 0.35 * stackCurve(n); m.regenDelay = Math.max(1.8, 3 - 0.3 * n); } },
+  reprieve: { name: "REPRIEVE", glyph: "ᛤ", color: "#bcd0ff",
+    desc: "When a blow would end you, the hour holds its breath: the horde freezes, your wounds close, and a ward keeps the next hit from following you home. One save per cooldown — stacks heal deeper, hold longer, ward longer and return sooner.",
+    mod: (m, n) => { m.reprieveStacks = n; } },
   maelstrom: { name: "MAELSTROM", glyph: "ᚳ", color: "#8a6bff",
     desc: "Some slain foes tear open a brief gravity well that gently gathers the living into a knot. It deals no damage — it only sets the table for whatever you bring next. Stacks make wells form more often and reach wider.",
     mod: (m, n) => { m.vortex = Math.min(4, m.vortex + n); } },
@@ -261,6 +287,9 @@ const UNK_PLAYER_RUNES = {
   mend: { name: "THE KNITTING", glyph: "ᚧ", color: "#8effb0",
     desc: "Your wounds knit closed when you go untouched. Each stack mends a little faster and shortens the lull before the mending begins. Taking a hit stalls it.",
     mod: (m, n) => { m.regen += 0.35 * stackCurve(n); m.regenDelay = Math.max(1.8, 3 - 0.3 * n); } },
+  reprieve: { name: "THE STAY", glyph: "ᛤ", color: "#bcd0ff",
+    desc: "Death reaches for you — and the dark says not yet. A lethal blow lands, the horde stops where it stands, and you are returned to yourself with the wound closed. One stay per cooldown; stacks deepen it and shorten the wait.",
+    mod: (m, n) => { m.reprieveStacks = n; } },
   maelstrom: { name: "THE WELL", glyph: "ᚳ", color: "#8a6bff",
     desc: "Some slain foes tear open a brief gravity well that gently gathers the living into a knot. It deals no damage — it only sets the table for whatever you bring next. Stacks make wells form more often and reach wider.",
     mod: (m, n) => { m.vortex = Math.min(4, m.vortex + n); } },
@@ -368,7 +397,7 @@ function buildWeaponModsFrom(runes, p) {
     prey: 1, crit: 0, critMul: 2.2, wrath: 0, dr: 0, thorns: 0,
     regen: 0, regenDelay: 3, vortex: 0, fear: 0, fearDur: 0,
     timeField: 0, timeR: 0, timeMul: 0, prickle: 0, prickleR: 0, slime: 0,
-    scatterSplit: 1, sawDmg: 0 };
+    scatterSplit: 1, sawDmg: 0, reprieveStacks: 0 };
   /* a character may reshape the bare gun before any rune speaks (JUGGERNAUT's massive slow slug) */
   const wb = CHARS[p.char] && CHARS[p.char].weaponBase;
   if (wb) Object.assign(m, wb);
@@ -476,6 +505,12 @@ function runeStatLines(p, id) {
   if (full.timeField !== w.timeField) L.push("TIME-SLOW AURA, RADIUS " + Math.round(full.timeR));
   if (full.prickle !== w.prickle) L.push("THORN AURA, RADIUS " + Math.round(full.prickleR));
   if (full.slime !== w.slime) L.push("CAUSTIC SLIME TRAIL " + Math.round(2 + full.slime) + " DMG / TICK");
+  if (full.reprieveStacks !== w.reprieveStacks) {
+    const rn = full.reprieveStacks;
+    L.push("DEATH SAVE — RESTORES " + Math.round(reprieveHealFrac(rn) * 100) + "% VITALITY");
+    L.push("HOLDS THE HORDE " + reprieveFreezeSecs(rn).toFixed(1) + "s · INVULN " + reprieveInvulSecs(rn).toFixed(1) + "s (BOSSES ONLY SLOWED)");
+    L.push("COOLDOWN " + reprieveCooldown(rn).toFixed(1) + "s");
+  }
   if (full.exterminate !== w.exterminate) {
     const x = full.exterminate;
     L.push("EXTERMINATE · DMG ×" + Math.pow(1.35, x).toFixed(2));
