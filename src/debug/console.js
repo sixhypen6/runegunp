@@ -254,7 +254,8 @@ const RunegunConsole = {
       "  vault                         show the vault bank",
       "  vault <n> · +n · -n           set / add to / take from the bank",
       "  unlock <key>                  unlock one vault entry (stackables to max)",
-      "  unlock all                    unlock every vault entry",
+      "  unlock hard | chaos           open a descent without felling its warden",
+      "  unlock all                    unlock every vault entry and both descents",
       "  unlock list                   every unlock key, by shelf",
       "  devtools [on|off]             show / hide TEST TOOLS (off by default)",
       "  log · events                  event log view / dump recent events",
@@ -353,7 +354,8 @@ const RunegunConsole = {
             g.items.push(item.key + (item.max ? " (max ×" + item.max + ")" : item.cost ? " (" + item.cost.toLocaleString() + " ◆)" : ""));
           }
           this.log("UNLOCK KEYS — bare ids also work when unambiguous\n" +
-            groups.map(g => g.name + "\n  " + g.items.join("\n  ")).join("\n"));
+            groups.map(g => g.name + "\n  " + g.items.join("\n  ")).join("\n") +
+            "\nDESCENTS\n  hard · chaos   (both are also opened by unlock all)");
         } else if (what === "all") {
           let changed = 0;
           for (const item of catalog) {
@@ -363,10 +365,27 @@ const RunegunConsole = {
             Meta.unlocked[item.key] = item.max ? item.max : true;
             changed++;
           }
+          /* HARD and CHAOS are not Vault entries: their gates are the two felled
+             wardens in Meta.slain. "unlock all" means ALL — including those. */
+          const opened = [];
+          for (const [key, name] of [["boss:4", "HARD"], ["boss:" + UNK_KIND, "CHAOS"]]) {
+            if (Meta.slain[key]) continue;
+            Meta.slain[key] = true; opened.push(name);
+          }
           this.metaKeep();
-          this.log(changed
+          this.log((changed
             ? "UNLOCKED " + changed + " vault " + (changed === 1 ? "entry" : "entries") + " · the shelves are yours."
-            : "Nothing was still locked — the whole Vault is already open.");
+            : "Nothing was still locked — the whole Vault is already open.")
+            + (opened.length ? " DESCENTS OPEN: " + opened.join(" · ") + "." : ""));
+        } else if (what === "hard" || what === "chaos") {
+          const key = what === "hard" ? "boss:4" : "boss:" + UNK_KIND;
+          const label = what === "hard" ? "HARD DESCENT" : "CHAOS DESCENT";
+          if (Meta.slain[key]) this.log(label + " is already open.");
+          else {
+            Meta.slain[key] = true;
+            this.metaKeep();
+            this.log(label + " UNLOCKED.");
+          }
         } else {
           let item = catalog.find(x => x.key === what);
           if (!item) {
