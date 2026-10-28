@@ -16,6 +16,7 @@ const RunegunConsole = {
   eventLog: [],
   maxEventLines: 200,
   viewMode: "cmd",
+  lastDigest: "",
 
   init() {
     const style = document.createElement("style");
@@ -27,10 +28,11 @@ const RunegunConsole = {
       #runegunConsole.on{display:flex}
       #runegunConsole .rg-head{display:flex;align-items:center;justify-content:space-between;gap:8px;
         padding-bottom:8px;border-bottom:1px solid #2c2a45;color:#c9b8ff}
-      #runegunConsole .rg-actions{display:flex;gap:6px}
+      #runegunConsole .rg-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
       #runegunConsole button{padding:5px 9px;border:1px solid #45415f;background:#171426;color:#e8e2d0;
         font:10px "Courier New",monospace;letter-spacing:.1em}
       #runegunConsole button:active{border-color:#9d6bff}
+      #runegunConsole button[disabled]{opacity:.38}
       #runegunConsole .rg-output{flex:1;min-height:120px;overflow:auto;padding:8px 2px;white-space:pre-wrap;
         overflow-wrap:anywhere;color:#c8c4d6;line-height:1.5}
       #runegunConsole .rg-input{display:flex;gap:8px;align-items:center;border-top:1px solid #2c2a45;padding-top:8px;color:#7dff5e}
@@ -42,7 +44,7 @@ const RunegunConsole = {
     const box = document.createElement("section");
     box.id = "runegunConsole";
     box.setAttribute("aria-label", "Runegun run console");
-    box.innerHTML = `<div class="rg-head"><span>LOCAL RUN CONSOLE · F9 / BACKTICK</span><span class="rg-actions"><button type="button" id="rgClear">CLEAR</button><button type="button" id="rgToggleView">VIEW: CMD</button><button type="button" id="rgClose">CLOSE</button></span></div>
+    box.innerHTML = `<div class="rg-head"><span>LOCAL RUN CONSOLE · F9 / BACKTICK</span><span class="rg-actions"><button type="button" id="rgCopy" disabled title="Copy the last SHA-256 digest">COPY DIGEST</button><button type="button" id="rgClear">CLEAR</button><button type="button" id="rgToggleView">VIEW: CMD</button><button type="button" id="rgClose">CLOSE</button></span></div>
       <div class="rg-output" id="rgOutput" role="log" aria-live="polite"></div>
       <form class="rg-input" id="rgForm"><span>&gt;</span><input id="rgCommand" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Console command"></form>
       <div class="rg-help">Type help for the full command list · VIEW toggles commands / event log · devtools on reveals TEST TOOLS</div>`;
@@ -50,7 +52,9 @@ const RunegunConsole = {
     this.box = box;
     this.input = box.querySelector("#rgCommand");
     this.outputEl = box.querySelector("#rgOutput");
+    this.copyBtn = box.querySelector("#rgCopy");
     box.querySelector("#rgClose").addEventListener("click", () => this.toggle(false));
+    box.querySelector("#rgCopy").addEventListener("click", () => this.copyDigest());
     box.querySelector("#rgClear").addEventListener("click", () => { this.output = []; this.render(); });
     box.querySelector("#rgToggleView").addEventListener("click", () => {
       this.viewMode = this.viewMode === "cmd" ? "events" : "cmd";
@@ -115,6 +119,60 @@ const RunegunConsole = {
     this.eventLog.push(line);
     if (this.eventLog.length > this.maxEventLines) this.eventLog.shift();
     this.render();
+  },
+
+  /* The digest is the one console output a player must move into another
+     window, and the output pane is re-rendered on every log line — a text
+     selection there is fragile. Copy it outright: the async Clipboard API
+     where the browser allows it, a hidden textarea + execCommand where it
+     does not (an older Android WebView). */
+  async copyText(text) {
+    const value = String(text || "");
+    if (!value) return false;
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      try {
+        await navigator.clipboard.writeText(value);
+        return true;
+      } catch (e) { /* fall through to the selection copy */ }
+    }
+    let ta = null;
+    try {
+      ta = document.createElement("textarea");
+      ta.value = value;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      ta.style.top = "0";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, value.length);
+      const ok = document.execCommand("copy");
+      return !!ok;
+    } catch (e) {
+      return false;
+    } finally {
+      if (ta && ta.parentNode) ta.parentNode.removeChild(ta);
+      if (this.open && this.input) this.input.focus();
+    }
+  },
+
+  rememberDigest(digest) {
+    this.lastDigest = digest || "";
+    if (this.copyBtn) this.copyBtn.disabled = !this.lastDigest;
+  },
+
+  async copyDigest() {
+    if (!this.lastDigest) {
+      this.log("No digest yet — run `auth hash <code>` first.");
+      return false;
+    }
+    const copied = await this.copyText(this.lastDigest);
+    this.log(copied
+      ? "DIGEST COPIED TO THE CLIPBOARD · paste it as a String at /console/coop in Firebase."
+      : "The clipboard is locked in this browser — select the digest above and copy it by hand, or use COPY DIGEST.");
+    return copied;
   },
 
   render() {
@@ -185,8 +243,10 @@ const RunegunConsole = {
         return;
       }
       const digest = await ConsoleGate.hashOf(target);
+      this.rememberDigest(digest);
       this.log("SHA-256 · " + digest +
         "\nCodes are case-insensitive. Paste the digest as a string at /console/coop.");
+      await this.copyDigest();
       return;
     }
     this.log("CHECKING THE GATE…");
@@ -330,6 +390,7 @@ const RunegunConsole = {
       "  auth <code>                   open the shared-run console (host only)",
       "  auth hash <code>              print the SHA-256 to store in Firebase",
       "  auth off                      seal the shared-run console again",
+      "  copy                          copy the last SHA-256 digest",
       "  log · events                  event log view / dump recent events",
     ].join("\n");
   },
@@ -364,6 +425,8 @@ const RunegunConsole = {
       } else if (command === "auth") {
         /* fire and forget: the database answer arrives a beat later */
         this.authCode(rawArgs.join(" "));
+      } else if (command === "copy") {
+        this.copyDigest();
       } else if (command === "devtools" || command === "testtools") {
         this.coopLock();
         const mode = args[0];
