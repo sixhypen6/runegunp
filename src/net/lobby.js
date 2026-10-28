@@ -8,6 +8,7 @@
 
 const Lobby = {
   view: "entry",           // entry | host | join | ready
+  mode: "normal",          // shared descent mode (COOP_MODES) — the host chooses
   code: "",                // join view: what's been typed
   selfReady: false, peerReady: false,
   _pingTimer: 0, _connectTimer: 0,
@@ -24,7 +25,7 @@ const Lobby = {
 
   reset() {
     Net.hangUp();
-    this.view = "entry"; this.code = "";
+    this.view = "entry"; this.code = ""; this.mode = "normal";
     this.selfReady = this.peerReady = false;
     clearInterval(this._pingTimer); this._pingTimer = 0;
     clearInterval(this._linkTimer); this._linkTimer = 0;
@@ -212,6 +213,30 @@ const Lobby = {
     $("coopReadyBtn").textContent = this.selfReady ? "READY ✓" : "READY";
     $("coopReadyStatus").textContent =
       this.selfReady && !this.peerReady ? "WAITING ON YOUR PARTNER…" : "";
+    this.renderModes();
+  },
+  /* the descent's rules — only the host taps them; the guest is told what was chosen */
+  renderModes() {
+    const host = Net.role === "host";
+    for (const b of document.querySelectorAll("#coopModes .coop-mode")) {
+      b.classList.toggle("on", b.getAttribute("data-mode") === this.mode);
+      b.disabled = !host;
+    }
+    const hint = $("coopModeHint");
+    if (hint) hint.textContent = host
+      ? (COOP_MODE_DESC[this.mode] || "")
+      : "YOUR PARTNER'S DESCENT · " + (COOP_MODE_LABEL[this.mode] || "NORMAL");
+  },
+  setMode(id) {
+    if (this.view !== "ready" || Net.role !== "host") return;
+    if (!COOP_MODES.includes(id) || id === this.mode) return;
+    this.mode = id;
+    /* a mode change must be re-confirmed: drop the host's own READY so the pair
+       can't launch with one hand still raised on the old rules */
+    this.selfReady = false;
+    Net.sendR({ t: "lobbyMode", mode: id });
+    Net.sendR({ t: "lobbyReady", ready: false });
+    this.renderReady();
   },
   toggleReady() {
     if (this.view !== "ready") return;
@@ -222,14 +247,18 @@ const Lobby = {
   },
   _msg(m) {
     if (m.t === "lobbyReady") { this.peerReady = m.ready; this.renderReady(); this._maybeStart(); }
-    else if (m.t === "start" && Net.role === "guest") Coop.beginGuest(m.cfgs);
+    else if (m.t === "lobbyMode") {
+      this.mode = COOP_MODES.includes(m.mode) ? m.mode : "normal";
+      this.renderReady();
+    }
+    else if (m.t === "start" && Net.role === "guest") Coop.beginGuest(m.cfgs, m.mode);
   },
   _maybeStart() {
     /* the HOST fires the descent once both hands are raised */
     if (Net.role !== "host" || !this.selfReady || !this.peerReady) return;
     const cfgs = [localPlayerCfg(), Net.peerCfg];
-    Net.sendR({ t: "start", cfgs });
-    Coop.beginHost(cfgs);
+    Net.sendR({ t: "start", cfgs, mode: this.mode });
+    Coop.beginHost(cfgs, this.mode);
   },
 };
 
@@ -238,6 +267,8 @@ $("coopHostCard").addEventListener("click", () => { if (Lobby.view === "entry") 
 $("coopJoinCard").addEventListener("click", () => { if (Lobby.view === "entry") Lobby.join(); });
 $("coopReadyBtn").addEventListener("click", () => Lobby.toggleReady());
 $("coopBack").addEventListener("click", () => Lobby.close());
+for (const b of document.querySelectorAll("#coopModes .coop-mode"))
+  b.addEventListener("click", () => Lobby.setMode(b.getAttribute("data-mode")));
 
 /* keypad: the code alphabet + DEL, no <input>, no soft keyboard */
 {

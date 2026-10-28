@@ -45,7 +45,8 @@ const FLOORS = [
     rocks: 28, hazards: 0, hazardType: "sun", newEnemy: "drifter" },
 ];
 /* how many floors a lap runs before the Catacomb returns. A co-op descent keeps the
-   original five for now: the saloon and floors VI–VIII have no guest-side sync yet. */
+   original five whatever the lobby's mode: the saloon and floors VI–VIII have no
+   guest-side sync yet. */
 const loopLen = () => (typeof Net !== "undefined" && Net.active) ? 5 : FLOORS.length;
 /* THE SINGULAR — not a floor of the loop but the saloon stage past the Event Horizon
    (scenes/saloon.js). floorDef() hands it out while Game.inSaloon, so the shared

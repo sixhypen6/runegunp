@@ -64,9 +64,13 @@ const Game = {
                           // chooser; NOT reset in resetRun() so DESCEND/ASCEND AGAIN repeats the mode.
   classicMode: false,     // CLASSIC descent: the run ends at THE EVENT HORIZON, as it did before
                           // the deep floors and THE UNKNOWN were added. Also kept across resetRun().
+  classicLoop: false,     // CLASSIC rune rules with NO horizon ending — co-op's endless lap.
+                          // Only classicMode decides the rules; this only suppresses the ending.
   chaosMode: false,       // CHAOS descent: the rune seal never closes and every cleared wave drops
                           // an orb. Set only by the mode chooser (unlocked by felling THE UNKNOWN),
                           // never alongside hardMode; its records keep to Meta.bestsChaos.
   challenge: null,        // CHAOS modifier id (src/data/challenges.js) — null on a standard chaos run.
                           // Kept across resetRun(), like the mode flags; chosen with the descent.
+  coopVictory: false,     // co-op CLASSIC: THE EVENT HORIZON fell and the shared descent is complete.
+                          // Only read by the death screen (it changes the title), never by the sim.
 };

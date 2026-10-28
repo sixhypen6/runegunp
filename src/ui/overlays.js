@@ -1272,6 +1272,15 @@ function doGameOver() {
   const banked = bankSouls();
   haptic(120);
   setState("dead");
+  /* a shared CLASSIC descent ends on the same tally, but it is a completion, not a death */
+  const victory = coop && Game.coopVictory;
+  if (!coop) Game.coopVictory = false;
+  $("dTitle").textContent = victory ? "THE DESCENT IS COMPLETE" : "SLAIN";
+  $("dTitle").style.color = victory ? "#ffd23d" : "";
+  $("dTitle").style.textShadow = victory ? "0 0 22px rgba(255,210,61,.55)" : "";
+  $("dSub").textContent = victory
+    ? "THE HORIZON IS BEHIND YOU — THE LEDGERS KEEP NO RECORD"
+    : "THE CATACOMB KEEPS YOUR BONES";
   $("dCoopTag") && ($("dCoopTag").style.display = coop ? "" : "none");
   $("dHardTag").style.display = Game.hardMode ? "" : "none";
   $("dChaosTag").style.display = Game.chaosMode ? "" : "none";
@@ -1380,12 +1389,12 @@ function openModeChoice() {
 function closeModeChoice() { $("modeChoice").classList.remove("on"); }
 $("mcNormal").addEventListener("click", () => {
   if (!modeChoiceArmed()) return;
-  Game.hardMode = false; Game.chaosMode = false; Game.classicMode = false; Game.challenge = null;
+  Game.hardMode = false; Game.chaosMode = false; Game.classicMode = false; Game.classicLoop = false; Game.challenge = null;
   closeModeChoice(); startGame();
 });
 $("mcClassic").addEventListener("click", () => {
   if (!modeChoiceArmed()) return;
-  Game.hardMode = false; Game.chaosMode = false; Game.classicMode = true; Game.challenge = null;
+  Game.hardMode = false; Game.chaosMode = false; Game.classicMode = true; Game.classicLoop = false; Game.challenge = null;
   closeModeChoice(); startGame();
 });
 $("mcHard").addEventListener("click", () => {
@@ -1395,7 +1404,7 @@ $("mcHard").addEventListener("click", () => {
     c.classList.remove("deny"); void c.offsetWidth; c.classList.add("deny");
     return;
   }
-  Game.hardMode = true; Game.chaosMode = false; Game.classicMode = false; Game.challenge = null;
+  Game.hardMode = true; Game.chaosMode = false; Game.classicMode = false; Game.classicLoop = false; Game.challenge = null;
   closeModeChoice(); startGame();
 });
 $("mcChaos").addEventListener("click", () => {
@@ -1420,7 +1429,7 @@ function openChallengeChoice() {
 function closeChallengeChoice() { $("challengeChoice").classList.remove("on"); }
 function pickChallenge(id) {
   if (!challengeArmed()) return;
-  Game.hardMode = false; Game.chaosMode = true; Game.classicMode = false;
+  Game.hardMode = false; Game.chaosMode = true; Game.classicMode = false; Game.classicLoop = false;
   Game.challenge = id || null;
   closeChallengeChoice();
   startGame();
@@ -1447,7 +1456,7 @@ function startGame() {
 }
 $("btnStart").addEventListener("click", openModeChoice);   // menu DESCEND asks the mode first
 $("btnRetry").addEventListener("click", () => {
-  /* co-op: descend again TOGETHER, and co-op is normal mode only — no chooser.
+  /* co-op: descend again TOGETHER in the mode the host chose — no chooser.
      Coop.retry returns false only if the link has already died, in which case
      this falls through to a solo run. */
   if (typeof Net !== "undefined" && Net.active && Coop.retry()) return;
