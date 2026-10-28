@@ -66,6 +66,12 @@ function inputFrameFor(p) {
    Extracted verbatim from the old single-player block; `p` is
    the warden, `inp` their input frame for this tick.
    ========================================================= */
+/* The blade bites every 0.1s. Poisoning every bite would blanket the room in
+   pools, so a VENOM saw plants one every SAW_VENOM_EVERY bites on the SAME
+   horror — roughly three pools a second on a foe held in the grind, which is
+   what a bullet build gets from a steady stream of venom shot. */
+const SAW_VENOM_EVERY = 3;
+
 function updateShredderSaw(p, dt) {
   if (p.char !== "shredder") { p.sawHitTarget = null; return; }
   const m = p.mods;
@@ -112,10 +118,22 @@ function updateShredderSaw(p, dt) {
   if (p.sawT > 0) return;
   p.sawT = 0.1;
   const damage = (m.sawDmg || m.dmg) * (m.rate / 5) * (m.shredDmgMul || 1) * (p.dashT > 0 ? 2.5 : 1);
+  /* GUEST: damageEnemy is cosmetic there (the host owns every point), so the
+     guest must not seed pools the host never made */
+  const venom = (typeof Net === "undefined" || Net.role !== "guest") ? (m.venom || 0) : 0;
   for (const e of enemies) {
     if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p") continue;
     if (dist2(p.x, p.y, e.x, e.y) >= (reach + e.r) ** 2) continue;
     damageEnemy(e, damage, { owner: p, x: p.x, y: p.y, knock: m.knock * 0.4, melee: true });
+    /* VENOM on the blade itself — without this a saw build had no way to
+       poison anything the debris wasn't aimed at */
+    if (venom && !e.dead) {
+      e.sawVenomBites = (e.sawVenomBites || 0) + 1;
+      if (e.sawVenomBites >= SAW_VENOM_EVERY) {
+        e.sawVenomBites = 0;
+        dropVenomPool(e.x, e.y, venom, p);
+      }
+    }
     if (particles.length < 480) particles.push({ x: (p.x + e.x) / 2, y: (p.y + e.y) / 2,
       vx: rnd(-120, 120), vy: rnd(-120, 120), t: 0, life: 0.12, r: rnd(1.5, 3), color: "#fff3c8" });
   }
@@ -778,25 +796,9 @@ function update(dt) {
        array mid-loop, so the frame must stop here, not at the guard below */
     if (Game.state !== "play") return;
     if (dead) {
-      if (b.venom) {
-        /* RAPID+TWIN can land 100+ venom bullets/sec on one spot — a fresh pool
-           per death piles up hundreds of alpha-blended discs and OOM-kills the
-           WebView on low-RAM phones. A pool that mostly overlaps an existing one
-           refreshes it instead, and brand-new pools respect the shared cap. */
-        let near = null;
-        for (const pu of puddles) {
-          if (pu.team === "p" && !pu.lava && !pu.vortex && !pu.phase && !pu.slime &&
-              dist2(b.x, b.y, pu.x, pu.y) < (pu.r * 0.5) ** 2) { near = pu; break; }
-        }
-        if (near) {
-          near.t = Math.min(near.t, 0.3); near.life = 4;
-          near.r = Math.max(near.r, 26 + 14 * b.venom);
-          near.dmg = Math.max(near.dmg, 3 + 2 * b.venom);
-        } else if (puddles.length < 140) {
-          puddles.push({ x: b.x, y: b.y, r: 26 + 14 * b.venom, t: 0, life: 4,
-            team: "p", dmg: 3 + 2 * b.venom, color: "#7dff5e", tickMap: {}, owner: b.owner });
-        }
-      }
+      /* VENOM blooms where the shot died — one shared pool rule for every
+         weapon (entities/combat.js dropVenomPool) */
+      if (b.venom) dropVenomPool(b.x, b.y, b.venom, b.owner);
       if (!b.shard) for (let k = 0; k < 3; k++) particles.push({ x: b.x, y: b.y, vx: rnd(-90, 90), vy: rnd(-90, 90), t: 0, life: 0.2, r: 2, color: b.venom ? "#7dff5e" : "#e8e2d0" });
       bullets.splice(i, 1);
     }
