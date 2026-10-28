@@ -62,6 +62,9 @@ const Game = {
   devRun: false,          // a TEST TOOLS run (systems/devtools.js): nothing it does reaches the save
   hardMode: false,        // HARD descent: +50% enemy & warden HP. Set only by the menu mode
                           // chooser; NOT reset in resetRun() so DESCEND/ASCEND AGAIN repeats the mode.
+  coopLap: false,         // this run began as a shared descent: it keeps the five-floor lap even
+                          // if the partner leaves (frozen at run start by resetRun). Deep floors,
+                          // the saloon and THE UNKNOWN stay solo-only for the whole run.
   classicMode: false,     // CLASSIC descent: the run ends at THE EVENT HORIZON, as it did before
                           // the deep floors and THE UNKNOWN were added. Also kept across resetRun().
   classicLoop: false,     // CLASSIC rune rules with NO horizon ending — co-op's endless lap.
