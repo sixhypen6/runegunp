@@ -53,6 +53,12 @@ const SAL_SHELF = { x: 760, y: 470, w: 860, h: 30 };     // the rune bottles
 const SAL_KEEP = { x: 1190, y: 528 };                    // behind the counter
 const SAL_DOOR = { x: 1760, y: 600 };                    // the portal at the bar's right end
 const SAL_SPAWN = { x: 1300, y: 1270 };                  // just inside the swinging doors
+/* the front wall is split around this gap; a solid "door" barrier fills it
+   while you are inside, and is lifted once you are out in the void so the
+   way back in never needs another dash. */
+const SAL_DOORWAY = { x: 1220, y: 1330, w: 200, h: 40 };
+/* the cameo waiting beyond the doors — pure lore, no fight, no reward */
+const SAL_UNKNOWN = { x: 1300, y: 1560 };
 const SAL_PIANO = { x: 600, y: 1240, w: 210, h: 90 };
 const SAL_TABLES = [
   { x: 700, y: 830, w: 180, h: 110, felt: true },        // the blackjack table (scenes/blackjack.js)
@@ -103,6 +109,33 @@ const SAL_IDLE = [
   "No tab. You'd only run it up again.",
   "You look like me on a bad day. So, any day.",
   "Door's there when you want it."];
+
+/* ---------- what waits outside the walls ----------
+   THE UNKNOWN has no fight out here and gives nothing: it only answers.
+   The lines change with what the run has already cost you. */
+function salUnknownLines(me) {
+  const beaten = !!(Meta.slain && Meta.slain["boss:" + UNK_KIND]) ||
+                 !!(Game.unknownConquered);
+  if (me && me.char === "theUnknown") return [
+    "You're wearing my face. Put it back.",
+    "I let you win once. I wanted to see what you'd do with it.",
+    "Go back inside. The drink is kinder than I am.",
+    "When you meet me below, don't hesitate. I won't.",
+  ];
+  if (beaten) return [
+    "You killed me. Or you will. Out here the tenses don't agree.",
+    "You took my face as a prize. Wear it better than I did.",
+    "There's a door in the wall behind you. Use it. I don't entertain.",
+    "The wall was meant to hold. You were not meant to be fast.",
+  ];
+  return [
+    "You're not supposed to be out here.",
+    "The wall was meant to hold. You were not meant to be fast.",
+    "Go back inside. The drink is better than the truth.",
+    "I'm not the one you'll meet below. I'm the one who waits after.",
+    "When you meet me down there, don't hesitate. I won't.",
+  ];
+}
 
 /* ---------- the regulars: every one of them is you, on a different Vault character ---------- */
 const SAL_REGULARS = [
@@ -168,6 +201,25 @@ const SAL_NOHINT = { hint: null, act: null };
 /* the saloon follows the Horizon only in a solo descent — co-op has no stage sync for it yet */
 function saloonAvailable() { return !(Game.coopLap || (typeof Net !== "undefined" && Net.active)); }
 
+/* fully inside the four walls (not standing in a doorway or a wall gap) */
+function saloonInsideRoom(p) {
+  return p.x > SAL_ROOM.x + p.r && p.x < SAL_ROOM.x + SAL_ROOM.w - p.r &&
+         p.y > SAL_ROOM.y + p.r && p.y < SAL_ROOM.y + SAL_ROOM.h - p.r;
+}
+
+/* the middle of the front wall: solid while you're in the room, lifted while
+   you're out in the void so a fast dash is a one-way ticket you can walk back
+   from. The swinging doors stay painted either way. */
+function salSetDoor(open) {
+  const has = MAP.rocks.some(rc => rc.sal === "door");
+  if (open) {
+    if (has) MAP.rocks = MAP.rocks.filter(rc => rc.sal !== "door");
+  } else if (!has) {
+    MAP.rocks.push(assignId({ x: SAL_DOORWAY.x, y: SAL_DOORWAY.y, w: SAL_DOORWAY.w, h: SAL_DOORWAY.h,
+      tone: 0.5, sal: "door" }));
+  }
+}
+
 /* a player-shaped record drawWarden() can paint, never added to players[] */
 function salFolk(char, skin, x, y, aim) {
   return { x, y, r: 13, char, skin, gunSkin: null, pet: null, runes: {}, mods: {},
@@ -181,7 +233,9 @@ function saloonRocks() {
   const R = (x, y, w, h, sal) => assignId({ x, y, w, h, tone: 0.5, sal });
   const rocks = [
     R(560, 380, 1480, 90, "wall"),                            // back wall: the wanted posters
-    R(560, 1330, 1480, 40, "wall"),                           // front wall: the swinging doors
+    R(560, 1330, 660, 40, "wall"),                            // front wall, left of the swinging doors
+    R(1420, 1330, 620, 40, "wall"),                           // front wall, right of them
+    R(SAL_DOORWAY.x, SAL_DOORWAY.y, SAL_DOORWAY.w, SAL_DOORWAY.h, "door"),   // the closed doors
     R(560, 470, 40, 860, "wall"),
     R(2000, 470, 40, 860, "wall"),
     R(SAL_SHELF.x, SAL_SHELF.y, SAL_SHELF.w, SAL_SHELF.h, "shelf"),
@@ -214,10 +268,16 @@ function makeSaloon(hello) {
     const a = rnd(0, Math.PI * 2), d = rnd(24, 52);
     thralls.push({ x: 1500 + Math.cos(a) * d, y: 700 + Math.sin(a) * d, r: rnd(6, 9) });
   }
+  /* the thing beyond the doors: bigger than a warden, quieter than the piano */
+  const unk = salFolk("theUnknown", "voidt", SAL_UNKNOWN.x, SAL_UNKNOWN.y, -Math.PI / 2);
+  unk.r = 17; unk.voice = 96;
 
   return { t: 0, keep, regs, thralls, speech: [], hello, greet: 0, greetT: 0.9, talk: null, asked: 0, rounds: 0, roundT: 0, capI: 0, calledT: 4.5, bj: null,
     idleT: 9, idleI: 0, chatT: 2.0, holsterT: 0, scoldT: 0, warnedDoor: false,
-    pianoT: 1.2, pianoI: 0, blinkT: 3 };
+    pianoT: 1.2, pianoI: 0, blinkT: 3,
+    /* the void behind the saloon */
+    unk, unkSeen: false, unkIdx: 0, unkSpoke: false,
+    outside: false, murmurT: 0 };
 }
 
 /* the Horizon's way down opens onto the saloon instead of the next floor */
@@ -265,6 +325,15 @@ function salSay(who, txt, life) {
   for (let i = S.speech.length - 1; i >= 0; i--) if (S.speech[i].who === who) S.speech.splice(i, 1);
   S.speech.push({ who, txt, t: 0, life: life || 3.0 });
   AudioFX.murmur(who.voice || 200, Math.min(9, 3 + Math.floor(txt.length / 7)));
+}
+
+/* [ E ] outside: the thing that waits behind the saloon answers, one line at a time */
+function salUnknownTalk() {
+  const S = Game.saloon; if (!S || !S.unk) return;
+  const lines = salUnknownLines(localPlayer());
+  S.unkSeen = true;
+  salSay(S.unk, lines[S.unkIdx++ % lines.length], 3.6);
+  AudioFX.click();
 }
 
 /* [ E ] at the bar: ask the next question, or hurry the current answer along */
@@ -513,6 +582,43 @@ function updateSaloon(dt) {
   if (!Game.inSaloon || !S) return SAL_NOHINT;
   S.t += dt;
   const me = localPlayer();
+
+  /* --- beyond the walls ---------------------------------------------------
+     A fast enough dash can carry you through any of the four walls or the
+     closed doors. Out there the middle of the front wall is lifted so the way
+     back in is a walk, not a second trick; step fully inside and the doors
+     seal again. A dash that is still in progress does not count — it may end
+     with the body shoved back out of the wall. */
+  const inside = saloonInsideRoom(me);
+  const settled = me.dashT <= 0;
+  if (settled && !inside && !S.outside) {
+    S.outside = true;
+    salSetDoor(true);
+    if (!S.unkSeen) {
+      S.unkSeen = true;
+      S.murmurT = 10;
+      toast("THE VOID BEHIND THE SINGULAR — THE AIR IS THINNER OUT HERE");
+      AudioFX.murmur(92, 6);
+    }
+  } else if (settled && inside && S.outside) {
+    S.outside = false;
+    salSetDoor(false);
+    toast("THE SINGULAR'S DOORS SWING SHUT BEHIND YOU");
+    AudioFX.click();
+  }
+  if (S.outside) {
+    S.murmurT -= dt;
+    if (S.murmurT <= 0) { S.murmurT = rnd(8, 14); AudioFX.murmur(86 + rnd(0, 16), 3); }
+  }
+  if (S.unk) S.unk.aim = angTo(S.unk.x, S.unk.y, me.x, me.y);
+  const nearUnk = !!(S.unk && S.outside && dist2(me.x, me.y, S.unk.x, S.unk.y) < 240 * 240);
+  if (nearUnk && !S.unkSpoke) {
+    /* it notices you first — the prompt is only for the rest */
+    S.unkSpoke = true;
+    S.unkIdx = 1;
+    salSay(S.unk, salUnknownLines(me)[0], 3.8);
+  }
+
   S.holsterT -= dt; S.scoldT -= dt; S.roundT -= dt;
   for (let i = S.speech.length - 1; i >= 0; i--) { const s = S.speech[i]; s.t += dt; if (s.t >= s.life) S.speech.splice(i, 1); }
 
@@ -598,6 +704,7 @@ function updateSaloon(dt) {
 
   salPianoTick(dt);
 
+  if (nearUnk) return { hint: "[ E ] THE UNKNOWN", act: salUnknownTalk };
   if (bjNearSeat(me)) return { hint: "[ E ] SIT DOWN · BLACKJACK", act: openBlackjack };
   if (atBar && S.greet === 2) {
     const hint = S.talk ? "[ E ] GO ON"
@@ -667,6 +774,14 @@ function drawSaloonUnder() {
     if (rc.sal !== "wall") continue;
     cx.fillStyle = "#2a1a12"; cx.fillRect(rc.x, rc.y, rc.w, rc.h);
     cx.strokeStyle = "#4c3020"; cx.lineWidth = 3; cx.strokeRect(rc.x + 1.5, rc.y + 1.5, rc.w - 3, rc.h - 3);
+  }
+  /* the closed middle of the front wall — drawn only while it is actually
+     there, so an escaped warden sees an open doorway instead */
+  for (const rc of MAP.rocks) {
+    if (rc.sal !== "door") continue;
+    cx.fillStyle = "#24170f"; cx.fillRect(rc.x, rc.y, rc.w, rc.h);
+    cx.strokeStyle = "#4c3020"; cx.lineWidth = 3; cx.strokeRect(rc.x + 1.5, rc.y + 1.5, rc.w - 3, rc.h - 3);
+    cx.fillStyle = "#3a2418"; cx.fillRect(rc.x + rc.w / 2 - 2, rc.y + 4, 4, rc.h - 8);
   }
   /* windows onto the void, set in the side walls: purple spills across the planks */
   const spill = salSpillSprite();
@@ -795,6 +910,18 @@ function drawSaloonFolk() {
     cx.restore();
   }
   drawBjSeatSign();
+  /* the cameo outside: a shape the room has no business having */
+  if (S.unkSeen && S.unk) {
+    const pulse = 0.5 + 0.5 * Math.sin(Game.time * 1.6);
+    cx.save();
+    cx.globalAlpha = 0.16 + 0.12 * pulse;
+    cx.strokeStyle = "#c9b8ff"; cx.lineWidth = 2;
+    cx.beginPath(); cx.arc(S.unk.x, S.unk.y, 30 + 6 * pulse, 0, TAU); cx.stroke();
+    cx.globalAlpha = 0.1;
+    cx.beginPath(); cx.arc(S.unk.x, S.unk.y, 48 + 9 * pulse, 0, TAU); cx.stroke();
+    cx.restore();
+    drawWarden(S.unk);
+  }
   const K = S.keep;
   drawWarden(K);
   /* the apron */

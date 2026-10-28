@@ -29,11 +29,54 @@ function circleRect(px, py, r, rc) {
   const cxp = clamp(px, rc.x, rc.x + rc.w), cyp = clamp(py, rc.y, rc.y + rc.h);
   return dist2(px, py, cxp, cyp) < r * r;
 }
+/* The saloon's walls are hand-thin, and a dash fast enough to cover a body
+   length in one 60Hz frame can slip between their faces — the way out to THE
+   UNKNOWN. Judge that by SPEED rather than by this frame's step: the old
+   accidental version only worked on 60Hz screens, and only on the sides where
+   the fallback shoved a body outward. Furniture and the arena's thick stone
+   never phase. */
+function dashPhasesWalls(e) {
+  return !!(typeof Game !== "undefined" && Game.inSaloon && e.char && e.dashT > 0 &&
+            (e.dashSpeed || 720) / 60 > e.r + 0.5);
+}
 function collideWorld(e) {
   e.x = clamp(e.x, 30 + e.r, MAP.w - 30 - e.r);
   e.y = clamp(e.y, 30 + e.r, MAP.h - 30 - e.r);
+  const phaseWalls = dashPhasesWalls(e);
   for (const rc of MAP.rocks) {
     if (!circleRect(e.x, e.y, e.r, rc)) continue;
+    if (rc.sal === "wall" || rc.sal === "door") {
+      if (phaseWalls) continue;               // a fast dash crosses outright
+      const cxp = clamp(e.x, rc.x, rc.x + rc.w), cyp = clamp(e.y, rc.y, rc.y + rc.h);
+      if (cxp === e.x && cyp === e.y) {
+        /* The centre is inside the wall. Turn a warden back the way the dash
+           was travelling, and push out from the FACE — the generic fallback
+           below always shoves rightward, which is why one side wall could be
+           escaped while the other held. */
+        let nx = 0, ny = 0;
+        if (e.char && typeof e.dashAng === "number") {
+          const ax = Math.cos(e.dashAng), ay = Math.sin(e.dashAng);
+          if (Math.abs(ax) >= Math.abs(ay)) nx = ax > 0 ? -1 : 1;
+          else ny = ay > 0 ? -1 : 1;
+        } else {
+          const left = e.x - rc.x, right = rc.x + rc.w - e.x;
+          const top = e.y - rc.y, bottom = rc.y + rc.h - e.y;
+          const m = Math.min(left, right, top, bottom);
+          if (m === left) nx = -1; else if (m === right) nx = 1;
+          else if (m === top) ny = -1; else ny = 1;
+        }
+        if (nx < 0) e.x = rc.x - e.r - 0.5;
+        else if (nx > 0) e.x = rc.x + rc.w + e.r + 0.5;
+        else if (ny < 0) e.y = rc.y - e.r - 0.5;
+        else e.y = rc.y + rc.h + e.r + 0.5;
+      } else {
+        let dx = e.x - cxp, dy = e.y - cyp;
+        const d = Math.hypot(dx, dy) || 1;
+        e.x = cxp + dx / d * (e.r + 0.5);
+        e.y = cyp + dy / d * (e.r + 0.5);
+      }
+      continue;
+    }
     const cxp = clamp(e.x, rc.x, rc.x + rc.w), cyp = clamp(e.y, rc.y, rc.y + rc.h);
     let dx = e.x - cxp, dy = e.y - cyp;
     const d = Math.hypot(dx, dy) || 1;
