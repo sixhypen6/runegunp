@@ -186,7 +186,7 @@ function metaLoad() {
          above skip them — restore those explicitly, and only if they're sane */
       const loadTag = (src, dst) => {
         if (!src || typeof src !== "object") return;
-        if (typeof src.char === "string" && CHARS[src.char]) dst.char = src.char;
+        if (typeof src.char === "string" && typeof CHARS !== "undefined" && CHARS[src.char]) dst.char = src.char;
         if (typeof src.runes === "string") dst.runes = src.runes.slice(0, 96);
       };
       loadTag(d.bests, Meta.bests);
