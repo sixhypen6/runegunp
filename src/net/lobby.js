@@ -135,6 +135,16 @@ const Lobby = {
   /* The gate was found and the answer posted, but no route ever opened. That is
      a NETWORK failure, not a bad code — say so, and say which kind. */
   _routeFailText() {
+    /* Not one candidate gathered: the browser itself has no usable network
+       path for WebRTC. A firewall, a VPN, or a locked-down corporate network
+       is blocking it — and no relay can rescue that either. */
+    if (!Net.iceStats.gathered)
+      return "NO NETWORK ROUTE FOUND — A FIREWALL OR VPN IS BLOCKING THE GAME";
+    /* No relay configured at all (turn-config.js): same-machine and same-LAN
+       pairs still connect on host candidates, so a failure here means the two
+       sides are behind different NATs — which no amount of retrying fixes. */
+    if (!TURN_SERVERS.length)
+      return "FOUND YOUR PARTNER, BUT NO ROUTE OPENED — BOTH ON WI-FI, OR CONFIGURE A RELAY";
     if (!Net.iceStats.relay)
       return "FOUND YOUR PARTNER, BUT NO ROUTE OPENED — THE RELAY DID NOT ANSWER";
     return "FOUND YOUR PARTNER, BUT NO ROUTE OPENED — TRY AGAIN, OR BOTH ON WI-FI";
@@ -148,6 +158,9 @@ const Lobby = {
          one tap. The room itself survives — a guest never deletes it (signal.js
          cleanup), so the host's code keeps working. */
       Net.hangUp();
+      /* one line for a bug report: how many candidates we gathered, and of
+         which kind. `gathered: 0` is a different bug from `relay: 0`. */
+      try { console.warn("[co-op] no route — " + JSON.stringify(Net.iceStats)); } catch (e) {}
       if (this.view === "join") $("coopJoinStatus").textContent = this._routeFailText();
       else { $("coopHostStatus").textContent = this._routeFailText() + " — PRESS RETURN, THEN HOST AGAIN"; }
     }, 20000);
