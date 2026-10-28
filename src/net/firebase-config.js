@@ -6,13 +6,20 @@
 
    SETUP (project `runegunp`):
    1. Build → Realtime Database → Rules → paste firebase.rules.json (repo root).
-      That file is the complete tree: the co-op `rooms` block and the
-      leaderboard `scores` block. Nothing else in the database is used.
+      That file is the complete tree: the co-op `rooms` block, the leaderboard
+      `scores` block, and the `console/coop` digest the host-only console gate
+      reads. Nothing else in the database is used.
    2. Build → Authentication → Sign-in method → Anonymous → Enable.
       Without it sign-in fails with CONFIGURATION_NOT_FOUND and the
       LEADERBOARDS button simply never appears (everything else works).
    3. The config below is already live for `runegunp`. These values are public
       identifiers, not secrets — shipping them in source is normal.
+   4. CO-OP CONSOLE: create `/console/coop` as a string holding the SHA-256
+      (64 lowercase hex characters) of the access code. In the game's console
+      run `auth hash <code>` to print the digest; nobody ever types the code
+      into this repo. Until the node exists, `auth` reports that no gate is set.
+      The gate reads Firebase each time it is asked, so the database must be
+      online for `auth` to work at all.
    ========================================================= */
 "use strict";
 

@@ -127,13 +127,79 @@ const RunegunConsole = {
     this.outputEl.scrollTop = this.outputEl.scrollHeight;
   },
 
+  /* A shared descent is driven by its host, and the console stays sealed
+     until that host authenticates. Read-only reference commands (help, list,
+     floors, enemies, unknown, log) stay available without it. */
+  coopLock() {
+    if (typeof Net === "undefined" || !Net.active) return;
+    if (typeof ConsoleGate === "undefined" || !ConsoleGate.granted())
+      throw new Error("The shared-run console is sealed. Authenticate first: auth <code>.");
+    if (Net.role !== "host")
+      throw new Error("Only the host may edit a shared descent — the guest sees the host's world.");
+  },
+
   currentPlayer() {
-    if (typeof Net !== "undefined" && Net.active) throw new Error("Console edits are disabled during co-op.");
+    this.coopLock();
     if (!["play", "pause", "rune", "wait", "held", "choice"].includes(Game.state))
       throw new Error("Start a run before using run-edit commands.");
     const p = localPlayer();
     if (!p || !p.runes) throw new Error("No active local player.");
     return p;
+  },
+
+  /* The host owns the sim, and a snapshot does not carry runes or the warden's
+     identity. After a host edit that changes either, hand the guest the new
+     loadout immediately (net/coop.js resyncEdit). */
+  afterEdit() {
+    if (typeof Net !== "undefined" && Net.active && Net.role === "host" &&
+        typeof Coop !== "undefined" && Coop.running && typeof Coop.resyncEdit === "function")
+      Coop.resyncEdit();
+  },
+
+  /* `auth <code>` checks the typed code against the SHA-256 stored at
+     `console/coop`. `auth hash <code>` prints that digest for the Firebase
+     console; `auth off` seals the console again. Never logs the code. */
+  async authCode(input) {
+    if (typeof ConsoleGate === "undefined") {
+      this.log("ERROR: the console gate is not loaded in this build.");
+      return;
+    }
+    const code = String(input || "").trim();
+    if (!code) {
+      this.log("CO-OP CONSOLE · " + (ConsoleGate.granted() ? "OPEN" : "sealed") +
+        "\n  auth <code>        open it (host only)\n" +
+        "  auth hash <code>   print the SHA-256 to store in Firebase\n" +
+        "  auth off           seal it again");
+      return;
+    }
+    if (code.toLowerCase() === "off") {
+      ConsoleGate.revoke();
+      this.log("CO-OP CONSOLE SEALED · run edits are locked again.");
+      return;
+    }
+    const hashArg = /^hash(?:\s+([\s\S]+))?$/i.exec(code);
+    if (hashArg) {
+      const target = String(hashArg[1] || "").trim();
+      if (!target) {
+        this.log("Usage: auth hash <code> — prints the digest to store at /console/coop.");
+        return;
+      }
+      const digest = await ConsoleGate.hashOf(target);
+      this.log("SHA-256 · " + digest +
+        "\nCodes are case-insensitive. Paste the digest as a string at /console/coop.");
+      return;
+    }
+    this.log("CHECKING THE GATE…");
+    const r = await ConsoleGate.verify(code);
+    if (r.ok) {
+      this.log("CO-OP CONSOLE OPEN · host edits are live. The guest receives them through the host's world.");
+      return;
+    }
+    if (r.reason === "mismatch") this.log("ERROR: that code does not open the gate.");
+    else if (r.reason === "unset") this.log("ERROR: no digest is set at /console/coop yet — use `auth hash <code>` and paste it into Firebase.");
+    else if (r.reason === "malformed") this.log("ERROR: the value at /console/coop is not a SHA-256 digest (64 hex characters).");
+    else if (r.reason === "offline") this.log("ERROR: the gate could not be read — " + (r.error || "the void does not answer") + ".");
+    else this.log("ERROR: no code given.");
   },
 
   editRune(command, id, amount) {
@@ -149,11 +215,14 @@ const RunegunConsole = {
       if (!p.lockedRunes.length) p.lockedRunes = null;
     }
     recalc(p);
+    this.afterEdit();
     this.log(RUNES[id].name + " ×" + (p.runes[id] || 0) + " · stats recalculated");
   },
 
   teleportFloor(query) {
     this.currentPlayer();
+    if (typeof Net !== "undefined" && Net.active)
+      throw new Error("tp is solo-only — a shared descent has no floor sync for a console jump.");
     const value = String(query || "").trim();
     if (!value) throw new Error("Usage: tp <floor number or name>. Use floors to list floors.");
     let index = -1;
@@ -258,6 +327,9 @@ const RunegunConsole = {
       "  unlock all                    unlock every vault entry and both descents",
       "  unlock list                   every unlock key, by shelf",
       "  devtools [on|off]             show / hide TEST TOOLS (off by default)",
+      "  auth <code>                   open the shared-run console (host only)",
+      "  auth hash <code>              print the SHA-256 to store in Firebase",
+      "  auth off                      seal the shared-run console again",
       "  log · events                  event log view / dump recent events",
     ].join("\n");
   },
@@ -265,9 +337,20 @@ const RunegunConsole = {
   execute(line) {
     const raw = String(line || "").trim();
     if (!raw) return;
-    this.history.push(raw);
-    this.log("> " + raw);
-    const [command, ...args] = raw.toLowerCase().split(/\s+/);
+    /* commands are case-insensitive; arguments keep their case for `auth`
+       (the access code is normalised by ConsoleGate, never by the parser) */
+    const tokens = raw.split(/\s+/);
+    const command = tokens[0].toLowerCase();
+    const rawArgs = tokens.slice(1);
+    const args = rawArgs.map(a => a.toLowerCase());
+    /* never leave the access code in the visible log or the Up-arrow history */
+    let shown = raw;
+    if (command === "auth" && rawArgs.length) {
+      const sub = rawArgs[0].toLowerCase();
+      shown = sub === "off" ? "auth off" : sub === "hash" ? "auth hash <code>" : "auth <code>";
+    }
+    this.history.push(shown);
+    this.log("> " + shown);
     const amount = (value, fallback) => {
       if (value === undefined) return fallback;
       if (!/^\d+$/.test(value)) throw new Error("Stack count must be a whole number.");
@@ -278,7 +361,11 @@ const RunegunConsole = {
     try {
       if (command === "help") {
         this.log(this.helpText());
+      } else if (command === "auth") {
+        /* fire and forget: the database answer arrives a beat later */
+        this.authCode(rawArgs.join(" "));
       } else if (command === "devtools" || command === "testtools") {
+        this.coopLock();
         const mode = args[0];
         if (mode !== undefined && mode !== "on" && mode !== "off")
           throw new Error("Usage: devtools [on|off]. No argument flips it.");
@@ -329,6 +416,7 @@ const RunegunConsole = {
         this.log("Added " + gained.toLocaleString() + " souls to this run · run total " + Game.score.toLocaleString() + ".");
       } else if (command === "vault" || command === "bank") {
         const raw = args[0];
+        if (raw !== undefined) this.coopLock();
         if (raw === undefined) {
           this.log("VAULT BANK · " + Meta.bank.toLocaleString() + " souls" +
             (keeperUnlocked() ? "" : " · the Keeper is still chained — unlock npc:keeper to open the Vault"));
@@ -345,6 +433,7 @@ const RunegunConsole = {
       } else if (command === "unlock") {
         const what = args[0];
         if (!what) throw new Error("Usage: unlock <key|all|list>. Try unlock list.");
+        if (what !== "list") this.coopLock();
         const catalog = this.vaultCatalog();
         if (what === "list") {
           const groups = [];
@@ -405,6 +494,7 @@ const RunegunConsole = {
       } else if (command === "clear") {
         const p = this.currentPlayer();
         p.runes = {}; p.lockedRunes = null; recalc(p);
+        this.afterEdit();
         this.log("Runes cleared.");
       } else if (command === "heal") {
         const p = this.currentPlayer();
@@ -420,6 +510,7 @@ const RunegunConsole = {
         p.dashDur = CHARS[id].dashDur || 0.18;
         p.dashSpeed = CHARS[id].dashSpeed || 720;
         recalc(p);
+        this.afterEdit();
         this.log("Current run character: " + CHARS[id].name + ".");
       } else if (command === "log") {
         this.viewMode = "events";

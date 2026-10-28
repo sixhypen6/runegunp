@@ -345,6 +345,24 @@ const FirebaseBoard = (() => {
     return { player_score: Number(snap && snap.val && snap.val()) || 0 };
   }
 
+  /* Read the co-op console digest at `console/coop` (debug/console-gate.js).
+     It authenticates anonymously but deliberately does NOT call ensureRow():
+     typing `auth` must not hand a player a leaderboard row they never asked
+     for. The database rule lets any signed-in user read this one node. */
+  async function readGate(path = "console/coop") {
+    if (!boot()) throw new Error("board-unconfigured");
+    let user = auth.currentUser || await restoredUser();
+    if (!user) {
+      const cred = await guard(auth.signInAnonymously(), "auth");
+      user = (cred && cred.user) || auth.currentUser || (cred && cred.uid ? cred : null);
+    }
+    if (!user || !user.uid) throw new Error("board-no-user");
+    const snap = await guard(db.ref(String(path)).get(), "gate");
+    const value = snap && snap.val && snap.val();
+    if (typeof value === "string") return value;
+    return (value && typeof value.hash === "string") ? value.hash : "";
+  }
+
   /* No native overlay to open — THE RECKONING is the board. Present so the
      shared call sites stay provider-agnostic. */
   async function showLeaderboard() {}
@@ -360,6 +378,6 @@ const FirebaseBoard = (() => {
   }
 
   return { configured, signIn, submitScore, loadTopScores, loadPlayerCenteredScores,
-           getUserTotalScore, showLeaderboard, unlockAchievement, status,
+           getUserTotalScore, showLeaderboard, unlockAchievement, readGate, status,
            callsign: callsignOf, uid: () => uid };
 })();
