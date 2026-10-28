@@ -166,7 +166,7 @@ const SAL_TUNE = [[392, 0.28], [440, 0.28], [523, 0.28], [659, 0.56], [587, 0.28
 const SAL_NOHINT = { hint: null, act: null };
 
 /* the saloon follows the Horizon only in a solo descent — co-op has no stage sync for it yet */
-function saloonAvailable() { return !(typeof Net !== "undefined" && Net.active); }
+function saloonAvailable() { return !(Game.coopLap || (typeof Net !== "undefined" && Net.active)); }
 
 /* a player-shaped record drawWarden() can paint, never added to players[] */
 function salFolk(char, skin, x, y, aim) {

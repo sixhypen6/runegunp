@@ -38,6 +38,10 @@ function localPlayerCfg() {
 }
 
 function resetRun(cfgs) {
+  /* Freeze the run's flavour here: a descent that began as a shared one keeps
+     the five-floor lap even after the partner leaves, so the survivor never
+     wanders into the deep floors, the saloon or THE UNKNOWN mid-run. */
+  Game.coopLap = typeof Net !== "undefined" && Net.active;
   Game.mapIdx = 0; Game.loop = 0; Game.wave = 0;
   Game.score = 0; Game.kills = 0; Game.time = 0;
   if (typeof RunTimer !== "undefined") RunTimer.start();   // the speedrun clock starts with the descent

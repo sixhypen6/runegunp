@@ -44,10 +44,11 @@ const FLOORS = [
     rockA: "#2b1320", rockB: "#230f1a", rockTop: "#3e1c2e",
     rocks: 28, hazards: 0, hazardType: "sun", newEnemy: "drifter" },
 ];
-/* how many floors a lap runs before the Catacomb returns. A co-op descent keeps the
-   original five whatever the lobby's mode: the saloon and floors VI–VIII have no
-   guest-side sync yet. */
-const loopLen = () => (typeof Net !== "undefined" && Net.active) ? 5 : FLOORS.length;
+/* how many floors a lap runs before the Catacomb returns. A run that began as a
+   co-op descent keeps the original five for its whole length — Game.coopLap is
+   frozen at resetRun — even if the partner leaves: the saloon and floors VI–VIII
+   have no guest-side sync, so the survivor must not walk into them mid-run. */
+const loopLen = () => (Game.coopLap || (typeof Net !== "undefined" && Net.active)) ? 5 : FLOORS.length;
 /* THE SINGULAR — not a floor of the loop but the saloon stage past the Event Horizon
    (scenes/saloon.js). floorDef() hands it out while Game.inSaloon, so the shared
    renderer paints the void outside the saloon's walls; the room draws itself. */
