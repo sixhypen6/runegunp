@@ -12,45 +12,50 @@
    connect directly cost the relay nothing.
 
    ---------------------------------------------------------
-   NO RELAY IS CONFIGURED RIGHT NOW
+   RELAY: metered.ca (workspace `runegunp`, free 50GB/month)
    ---------------------------------------------------------
    The old default was the Open Relay Project. That free service is
    retired: `openrelay.metered.ca` now resolves to 192.0.2.1 / 100::1
-   (a blackhole), so every attempt to use it just burns the 20s connect
-   timeout and then fails. Listing it is worse than listing nothing —
-   with it gone, a LAN / same-machine pair connects directly on host
-   candidates alone.
+   (a blackhole), so every attempt to use it just burned the 20s connect
+   timeout and then failed. These credentials replace it.
 
-   Mobile-to-mobile co-op NEEDS a relay. Get a free triple from either:
-
-     · metered.ca      — free tier, 50GB/month relayed
-     · Cloudflare Calls — free tier TURN
-
-   Both hand you a urls/username/credential triple; drop it in below.
-   Nothing else in the codebase needs to change, and the lobby's failure
-   text switches back to "configure a relay / try again" automatically
-   once this array is non-empty.
+   The credential is STATIC and ships inside this public bundle, so
+   anyone who opens the page can read it. That is the cost of WebRTC
+   without a credential server; the damage is bounded by the free quota,
+   auto-reload being off, and relay only being used when a direct route
+   fails. To rotate: metered.ca dashboard → TURN Server → Credentials →
+   revoke, then paste the new triple here and ship.
 
    NOTE ON PORT 443: restrictive mobile/corporate networks often block
    UDP and non-standard ports outright. The `turns:` (TLS over 443)
    entries look like ordinary HTTPS and get through far more often, so
-   list them alongside the plain UDP/TCP ones.
+   all four transports are listed — UDP 80/443 first (fastest), TCP as
+   the fallback.
    ========================================================= */
 "use strict";
 
-/* Empty on purpose — see the note above. Add metered.ca credentials here:
-     {
-       urls: "turn:standard.relay.metered.ca:80",
-       username: "<your username>",
-       credential: "<your credential>",
-     },
-     {
-       urls: "turns:standard.relay.metered.ca:443",
-       username: "<your username>",
-       credential: "<your credential>",
-     },
-*/
-const TURN_SERVERS = [];
+const TURN_SERVERS = [
+  {
+    urls: "turn:global.relay.metered.ca:80",
+    username: "faf399314a0e11b711517cd5",
+    credential: "sCuDmJvFgww3acWZ",
+  },
+  {
+    urls: "turn:global.relay.metered.ca:443",
+    username: "faf399314a0e11b711517cd5",
+    credential: "sCuDmJvFgww3acWZ",
+  },
+  {
+    urls: "turn:global.relay.metered.ca:80?transport=tcp",
+    username: "faf399314a0e11b711517cd5",
+    credential: "sCuDmJvFgww3acWZ",
+  },
+  {
+    urls: "turns:global.relay.metered.ca:443?transport=tcp",
+    username: "faf399314a0e11b711517cd5",
+    credential: "sCuDmJvFgww3acWZ",
+  },
+];
 
 /* Public STUN is fine and free for the direct-route case. Cloudflare's
    resolver is fast and reachable on networks that choke on Google. */
