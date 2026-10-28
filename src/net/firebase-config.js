@@ -16,8 +16,9 @@
       identifiers, not secrets — shipping them in source is normal.
    4. CO-OP CONSOLE: create `/console/coop` as a string holding the SHA-256
       (64 lowercase hex characters) of the access code. In the game's console
-      run `auth hash <code>` to print the digest; nobody ever types the code
-      into this repo. Until the node exists, `auth` reports that no gate is set.
+      run `auth hash <code>` — it prints the digest and copies it to the
+      clipboard; nobody ever types the code into this repo. Until the node
+      exists, `auth` reports that no gate is set.
       The gate reads Firebase each time it is asked, so the database must be
       online for `auth` to work at all.
    ========================================================= */
