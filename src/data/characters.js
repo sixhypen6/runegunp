@@ -72,6 +72,9 @@ const SKINS = {
   sulfur:   { name: "SULFUR",    color: "#ccff00", cost: 16000, desc: "A violent, neon yellow-green that warns of imminent danger." },
   rainbow:   { name: "RAINBOW",    color: "#ffffff", cost: 25000, desc: "A shifting spectrum of colours that dances across the surface." },
 };
+
+//how does one make rainbow work :sob
+
 const skinFor = id => SKINS[id] || SKINS.bone;
 const skinColorById = id => SKINS[id] ? SKINS[id].color : "#e8e2d0";
 ;
