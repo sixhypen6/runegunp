@@ -19,13 +19,13 @@ function bossProfile(kind) {
     { r: 46, hpMul: 1.9,  spd: 30 },   // Event Horizon   — the end
   ][kind] || DEEP_PROF[kind - 5];       // VI–VIII: the Hourglass Saint, the Thousandfold, the Other Gunslingers (deep.js)
 }
-function spawnBoss() {
-  const F = floorDef();
-  const kind = Game.mapIdx;
-  const b = makeBoss(kind, SEAL.x, SEAL.y, 1);
+function spawnBoss(kind) {
+  const k = Number.isInteger(kind) ? clamp(kind, 0, FLOORS.length - 1) : Game.mapIdx;
+  const F = FLOORS[k] || floorDef();
+  const b = makeBoss(k, SEAL.x, SEAL.y, 1);
   enemies.push(b);
   Game.boss = b;
-  if (kind >= 5) deepBossInit(b);       // the deep wardens carry their own state (and the posse rides in)
+  if (k >= 5) deepBossInit(b);       // the deep wardens carry their own state (and the posse rides in)
   SEAL.state = "spent";
   $("bossName").textContent = F.boss + (Game.loop ? " +" + Game.loop : "");
   $("bossBar").classList.add("on");
@@ -37,12 +37,19 @@ function spawnBoss() {
   AudioFX.duck();
   Game.shake = 14;
   AudioFX.bossRoar();
-  const intro = ["THE CHAINED WARDEN WAKES — IT HUNGERS TO BIND YOU",
-                 "THE MARROW KING RISES — YOUR BONES ARE HIS BIRTHRIGHT",
-                 "THE FORGE TYRANT IGNITES — THE MOUNTAIN WALKS",
-                 "THE DROWNED MONARCH SURFACES — THE DEEP CLAIMS ITS OWN",
-                 "THE EVENT HORIZON OPENS — EVEN YOUR BULLETS BELONG TO IT"][kind] || DEEP_INTRO[kind - 5];
-  toast(intro);
+  toast(bossWakeLine(k));
+  return b;
+}
+
+/* the line a warden's arrival speaks — one source for the floor spawn, the
+   console's wake command and the co-op intro message */
+function bossWakeLine(kind) {
+  const line = ["THE CHAINED WARDEN WAKES — IT HUNGERS TO BIND YOU",
+                "THE MARROW KING RISES — YOUR BONES ARE HIS BIRTHRIGHT",
+                "THE FORGE TYRANT IGNITES — THE MOUNTAIN WALKS",
+                "THE DROWNED MONARCH SURFACES — THE DEEP CLAIMS ITS OWN",
+                "THE EVENT HORIZON OPENS — EVEN YOUR BULLETS BELONG TO IT"][kind];
+  return line || (typeof DEEP_INTRO !== "undefined" ? DEEP_INTRO[kind - 5] : "") || "A WARDEN WAKES";
 }
 
 /* one warden of `kind` at (x, y), its vitality scaled to the current depth. hpMul

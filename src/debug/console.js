@@ -17,6 +17,7 @@ const RunegunConsole = {
   maxEventLines: 200,
   viewMode: "cmd",
   lastDigest: "",
+  targetIdx: 0,
 
   init() {
     const style = document.createElement("style");
@@ -222,12 +223,67 @@ const RunegunConsole = {
   },
 
   currentPlayer() {
+    return this.targetPlayer();
+  },
+
+  /* Which warden a run-edit lands on. Solo has one; a shared descent has two,
+     and the host may address either by number. */
+  targetPlayer() {
     this.coopLock();
     if (!["play", "pause", "rune", "wait", "held", "choice"].includes(Game.state))
       throw new Error("Start a run before using run-edit commands.");
-    const p = localPlayer();
-    if (!p || !p.runes) throw new Error("No active local player.");
+    if (!players || !players.length) throw new Error("No active warden.");
+    if (this.targetIdx >= players.length) this.targetIdx = 0;
+    const p = players[this.targetIdx];
+    if (!p || !p.runes) throw new Error("No active warden at that slot.");
     return p;
+  },
+
+  targetTag(p) {
+    const idx = p && typeof p.idx === "number" ? p.idx : this.targetIdx;
+    const c = typeof CHARS !== "undefined" && CHARS[p.char] ? CHARS[p.char] : { name: p.char };
+    const role = (typeof Net !== "undefined" && Net.active)
+      ? (idx === Net.localIdx ? "YOU" : "PARTNER")
+      : "WARDEN";
+    return "P" + (idx + 1) + " · " + role + " · " + c.name;
+  },
+
+  /* log prefix, so a host can see which partner an edit touched */
+  editTag(p) {
+    return (typeof Net !== "undefined" && Net.active) ? this.targetTag(p) + " · " : "";
+  },
+
+  targetList() {
+    if (!players || !players.length) return "No wardens in this run.";
+    if (this.targetIdx >= players.length) this.targetIdx = 0;
+    const lines = players.map((p, i) =>
+      "  " + (i + 1) + " · " + this.targetTag(p) + " · HP " + Math.ceil(p.hp) + "/" + p.maxHp + (i === this.targetIdx ? "  ←" : ""));
+    return "TARGET: " + this.targetTag(players[this.targetIdx]) + "\n" + lines.join("\n") +
+      "\nUse target 1|2 (aliases p1, p2), target me, target partner.";
+  },
+
+  setTarget(arg) {
+    if (!players || !players.length) throw new Error("Start a run before choosing a target.");
+    const raw = String(arg || "").trim().toLowerCase();
+    if (!raw) { this.log(this.targetList()); return; }
+    const local = (typeof Net !== "undefined" && Net.active) ? Net.localIdx : 0;
+    let idx = -1;
+    if (raw === "me" || raw === "self" || raw === "host") idx = local;
+    else if (raw === "partner" || raw === "guest" || raw === "other") idx = players.length > 1 ? 1 - local : -1;
+    else if (/^\d+$/.test(raw)) idx = Number(raw) - 1;
+    else {
+      const matches = players.map((p, i) => ({ i, key: p.char }))
+        .filter(x => x.key === raw || (CHARS[x.key] && CHARS[x.key].name.toLowerCase() === raw));
+      if (matches.length === 1) idx = matches[0].i;
+      else if (matches.length > 1) throw new Error("More than one warden matches '" + arg + "'. Use target 1 or 2.");
+    }
+    if (idx < 0 || idx >= players.length) {
+      throw new Error(players.length > 1
+        ? "Usage: target 1|2, target me, target partner. This run has " + players.length + " wardens."
+        : "This run has only one warden — there is no partner to target.");
+    }
+    this.targetIdx = idx;
+    this.log("EDITS NOW LAND ON " + this.targetTag(players[idx]) + ".\n" + this.targetList());
   },
 
   /* The host owns the sim, and a snapshot does not carry runes or the warden's
@@ -301,7 +357,7 @@ const RunegunConsole = {
     }
     recalc(p);
     this.afterEdit();
-    this.log(RUNES[id].name + " ×" + (p.runes[id] || 0) + " · stats recalculated");
+    this.log(this.editTag(p) + RUNES[id].name + " ×" + (p.runes[id] || 0) + " · stats recalculated");
   },
 
   teleportFloor(query) {
@@ -353,6 +409,46 @@ const RunegunConsole = {
     this.log("Spawned " + count + " " + type + (count === 1 ? "" : "s") + " near the player.");
   },
 
+  /* Wake a warden without waiting for the seal. With an argument, any of the
+     eight may be called (a name or 1-based number); bare `boss` wakes the one
+     this floor keeps. The guest sees the intro through Coop's bossSpawn. */
+  spawnWarden(query) {
+    this.coopLock();
+    if (!["play", "pause"].includes(Game.state))
+      throw new Error("Start a run before waking a warden.");
+    if (Game.inSaloon || Game.inUnknown || Game.inRift)
+      throw new Error("No grand seal here — wake a warden on a descent floor.");
+    if (Game.boss && !Game.boss.dead)
+      throw new Error("A warden already walks this floor. Fell it first.");
+    const q = String(query || "").trim().toLowerCase();
+    if (q === "list") {
+      const lines = FLOORS.map((f, i) =>
+        "  " + (i + 1) + " · " + f.boss + " · " + f.name + (i === Game.mapIdx ? "  ←" : ""));
+      this.log("WARDENS\n" + lines.join("\n") + "\nUse boss <number|name>; bare boss wakes this floor's warden.");
+      return;
+    }
+    let kind = Game.mapIdx;
+    if (q) {
+      if (/^\d+$/.test(q)) kind = Number(q) - 1;
+      else {
+        const norm = s => s.toLowerCase().replace(/^the\s+/, "").replace(/[^a-z0-9]+/g, " ").trim();
+        const wanted = norm(q);
+        const matches = FLOORS.map((f, i) => ({ i, n: norm(f.boss) }))
+          .filter(f => f.n === wanted || f.n.includes(wanted));
+        if (matches.length === 1) kind = matches[0].i;
+        else if (matches.length > 1) throw new Error("That name is ambiguous — use a number (boss list).");
+      }
+      if (kind < 0 || kind >= FLOORS.length)
+        throw new Error("No warden matches '" + query + "'. Use boss list.");
+    }
+    if (typeof Net !== "undefined" && Net.active && kind > 4)
+      throw new Error("Co-op runs floors I–V only — deep wardens cannot be woken in a shared descent.");
+    Game.chestsOpened = Game.chestsTotal;
+    SEAL.state = "ready"; updateSeals();
+    spawnBoss(kind);
+    this.log("WARDEN WOKEN · " + FLOORS[kind].boss + " · " + FLOORS[kind].name + ".");
+  },
+
   /* Vault edits must outlive the screen they're made on — and a TEST RUN restores
      the Meta snapshot it took when it ends, so fold the change into that snapshot
      too (otherwise an unlock made mid-test would vanish with the run). The console
@@ -390,7 +486,8 @@ const RunegunConsole = {
       "RUN CONSOLE — every command",
       "  help                          this list",
       "  status                        current warden, vitality, rune count",
-      "  runes                         runes held in this run",
+      "  target [1|2|me|partner]       choose which warden edits apply to (p1, p2)",
+      "  runes                         runes held by the target",
       "  list                          every carvable rune id",
       "  add <rune> [n]                carve n more stacks (default 1)",
       "  set <rune> <n>                set a rune to an exact stack count",
@@ -403,6 +500,11 @@ const RunegunConsole = {
       "  tp <floor number or name>     jump to a floor (alias: teleport)",
       "  enemies                       every horror type",
       "  spawn <enemy> [n]             put horrors around you (max 20)",
+      "  boss [kind|name]              wake a warden now (no arg = this floor; boss list)",
+      "  pet [type|none]               swap the target's familiar (no arg lists them)",
+      "  skin [id]                     repaint the target (no arg lists warpaint)",
+      "  gunskin [id|none]             repaint the target's gun (no arg lists paint)",
+      "  rerolls [n]                   show / set the target's re-rolls",
       "  unknown                       THE UNKNOWN's attack runes (alias: unkrunes)",
       "  cast <rune>                   force THE UNKNOWN to cast one now",
       "  vault                         show the vault bank",
@@ -465,15 +567,20 @@ const RunegunConsole = {
       } else if (command === "runes") {
         const p = this.currentPlayer();
         const held = Object.keys(p.runes).filter(id => p.runes[id] > 0);
-        this.log(held.length ? held.map(id => { const R = runeDefFor(p, id); return R.glyph + " " + id + " ×" + p.runes[id]; }).join("\n") : "No runes held.");
+        this.log(held.length
+          ? this.editTag(p) + held.map(id => { const R = runeDefFor(p, id); return R.glyph + " " + id + " ×" + p.runes[id]; }).join("\n")
+          : this.editTag(p) + "No runes held.");
       } else if (command === "list") {
         this.log(RUNE_IDS.map(id => RUNES[id].glyph + " " + id).join("\n"));
       } else if (command === "enemies") {
         this.log(Object.keys(ETYPES).join("\n"));
       } else if (command === "spawn") {
-        if (!args[0]) throw new Error("Usage: spawn <enemy type> [count]. Use enemies to list valid types.");
+        if (!args[0]) throw new Error("Usage: spawn <enemy type> [count], or spawn boss [kind]. Use enemies to list valid types.");
+        if (args[0] === "boss" || args[0] === "warden") { this.spawnWarden(rawArgs.slice(1).join(" ")); return; }
         const count = args[1] === undefined ? 1 : amount(args[1], 1);
         this.spawnEnemies(args[0], count);
+      } else if (command === "boss" || command === "warden" || command === "spawnboss") {
+        this.spawnWarden(rawArgs.join(" "));
       } else if (command === "floors") {
         this.log(FLOORS.map((floor, i) => (i + 1) + ". " + floor.name).join("\n"));
       } else if (command === "unknown" || command === "unkrunes") {
@@ -492,8 +599,12 @@ const RunegunConsole = {
         this.teleportFloor(args.join(" "));
       } else if (command === "status") {
         const p = this.currentPlayer();
-        const c = typeof CHARS !== "undefined" && CHARS[p.char] ? CHARS[p.char] : { name: p.char };
-        this.log(c.name + " · HP " + Math.ceil(p.hp) + "/" + p.maxHp + " · " + Object.keys(p.runes).filter(id => p.runes[id] > 0).length + " runes");
+        const pet = p.pet && PTYPES[p.pet] ? " · " + PTYPES[p.pet].name : "";
+        this.log(this.targetTag(p) + " · HP " + Math.ceil(p.hp) + "/" + p.maxHp +
+          " · " + Object.keys(p.runes).filter(id => p.runes[id] > 0).length + " runes" +
+          " · " + p.rerolls + " rerolls" + pet);
+      } else if (command === "target" || command === "p1" || command === "p2") {
+        this.setTarget(command === "target" ? rawArgs.join(" ") : command.slice(1));
       } else if (command === "souls") {
         this.currentPlayer();
         if (!args[0] || !/^\d+$/.test(args[0])) throw new Error("Usage: souls <positive amount>.");
@@ -583,11 +694,11 @@ const RunegunConsole = {
         const p = this.currentPlayer();
         p.runes = {}; p.lockedRunes = null; recalc(p);
         this.afterEdit();
-        this.log("Runes cleared.");
+        this.log(this.editTag(p) + "Runes cleared.");
       } else if (command === "heal") {
         const p = this.currentPlayer();
         p.hp = p.maxHp; p.downed = false; updateHp();
-        this.log("Player healed to full.");
+        this.log(this.editTag(p) + "Healed to full.");
       } else if (command === "char") {
         const p = this.currentPlayer(), id = args[0];
         if (!id) throw new Error("Usage: char <id>.");
@@ -599,7 +710,66 @@ const RunegunConsole = {
         p.dashSpeed = CHARS[id].dashSpeed || 720;
         recalc(p);
         this.afterEdit();
-        this.log("Current run character: " + CHARS[id].name + ".");
+        this.log(this.editTag(p) + "Warden is now " + CHARS[id].name + ".");
+      } else if (command === "pet") {
+        const p = this.currentPlayer();
+        const what = String(rawArgs.join(" ") || "").trim().toLowerCase();
+        if (!what || what === "list") {
+          const lines = Object.keys(PTYPES).map(k =>
+            "  " + k + " · " + PTYPES[k].name + (p.pet === k ? "  ←" : ""));
+          this.log("PETS · bound: " + (p.pet && PTYPES[p.pet] ? PTYPES[p.pet].name : "none") +
+            "\n" + lines.join("\n") + "\nUse pet <id> or pet none.");
+          return;
+        }
+        if (what !== "none" && !Object.prototype.hasOwnProperty.call(PTYPES, what))
+          throw new Error("Unknown familiar '" + what + "'. Run pet with no argument to list them.");
+        const type = what === "none" ? null : what;
+        equipPet(p, type);
+        this.afterEdit();
+        this.log(this.editTag(p) + (type ? PTYPES[type].name + " BOUND" : "FAMILIAR RELEASED") + ".");
+      } else if (command === "skin") {
+        const p = this.currentPlayer();
+        const what = args[0];
+        if (!what || what === "list") {
+          const lines = Object.keys(SKINS).map(k =>
+            "  " + k + " · " + SKINS[k].name + (p.skin === k ? "  ←" : ""));
+          this.log("WARPAINT · wearing: " + (SKINS[p.skin] ? SKINS[p.skin].name : p.skin) +
+            "\n" + lines.join("\n") + "\nUse skin <id>.");
+          return;
+        }
+        if (!Object.prototype.hasOwnProperty.call(SKINS, what))
+          throw new Error("Unknown warpaint '" + what + "'. Run skin with no argument to list it.");
+        p.skin = what;
+        this.afterEdit();
+        this.log(this.editTag(p) + "Wearing " + SKINS[what].name + ".");
+      } else if (command === "gunskin") {
+        const p = this.currentPlayer();
+        const what = args[0];
+        if (!what || what === "list") {
+          const lines = Object.keys(SKINS).map(k =>
+            "  " + k + " · " + SKINS[k].name + (p.gunSkin === k ? "  ←" : ""));
+          this.log("GUN PAINT · wearing: " + (p.gunSkin && SKINS[p.gunSkin] ? SKINS[p.gunSkin].name : GUN_STOCK.name) +
+            "\n  none · " + GUN_STOCK.name + (p.gunSkin ? "  ←" : "") +
+            "\n" + lines.join("\n") + "\nUse gunskin <id> or gunskin none.");
+          return;
+        }
+        if (what !== "none" && what !== "stock" && !Object.prototype.hasOwnProperty.call(SKINS, what))
+          throw new Error("Unknown gun paint '" + what + "'. Run gunskin with no argument to list it.");
+        const type = what === "none" || what === "stock" ? null : what;
+        p.gunSkin = type;
+        this.afterEdit();
+        this.log(this.editTag(p) + (type ? "Gun painted " + SKINS[type].name : "Gun paint stripped") + ".");
+      } else if (command === "rerolls") {
+        const p = this.currentPlayer();
+        if (args[0] === undefined) {
+          this.log(this.targetTag(p) + " · " + p.rerolls + " re-roll" + (p.rerolls === 1 ? "" : "s") + " left.");
+          return;
+        }
+        const n = amount(rawArgs[0], undefined);
+        p.rerolls = n;
+        updateRerolls();
+        this.afterEdit();
+        this.log(this.editTag(p) + "Re-rolls set to " + n + ".");
       } else if (command === "log") {
         this.viewMode = "events";
         this.box.querySelector("#rgToggleView").textContent = "VIEW: EVENTS";
