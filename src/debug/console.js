@@ -84,6 +84,7 @@ const RunegunConsole = {
         e.preventDefault(); this.toggle(false);
       }
     });
+    this.input.addEventListener("paste", e => this.onPaste(e));
     window.addEventListener("keydown", e => {
       if (e.key === "F9" || e.code === "Backquote") {
         e.preventDefault();
@@ -161,6 +162,30 @@ const RunegunConsole = {
   rememberDigest(digest) {
     this.lastDigest = digest || "";
     if (this.copyBtn) this.copyBtn.disabled = !this.lastDigest;
+  },
+
+  /* A code can be a passage, not one word. An <input> strips the newlines out
+     of a paste outright ("line one" + "line two" → "line oneline two"), which
+     would change its hash. The gate treats any run of whitespace as one space,
+     so fold a multi-line paste to a single line BEFORE the browser strips it. */
+  insertPastedText(text) {
+    if (!this.input) return false;
+    const value = this.input.value;
+    const start = this.input.selectionStart == null ? value.length : this.input.selectionStart;
+    const end = this.input.selectionEnd == null ? start : this.input.selectionEnd;
+    this.input.value = value.slice(0, start) + text + value.slice(end);
+    const caret = start + text.length;
+    if (this.input.setSelectionRange) this.input.setSelectionRange(caret, caret);
+    return true;
+  },
+
+  onPaste(e) {
+    const data = e.clipboardData || (typeof window !== "undefined" ? window.clipboardData : null);
+    const text = data && data.getData ? data.getData("text") : "";
+    /* an ordinary single-line paste behaves exactly as it always has */
+    if (!text || !/[\r\n]/.test(text)) return;
+    e.preventDefault();
+    this.insertPastedText(text.replace(/\s+/g, " ").trim());
   },
 
   async copyDigest() {
