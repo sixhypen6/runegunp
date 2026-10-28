@@ -182,6 +182,18 @@ const Coop = {
     });
   },
 
+  /* The console edits runes / the warden mid-descent, and snapshots do not
+     carry either. The host sends this once after an edit so the guest's book
+     (and its body) matches the world the host is actually simulating. */
+  resyncEdit() {
+    if (!this.running || Net.role !== "host") return;
+    Net.sendR({ t: "edit", pl: players.map(p => ({
+      char: p.char, runes: p.runes, lockedRunes: p.lockedRunes,
+      hp: p.hp, maxHp: p.maxHp, rerolls: p.rerolls,
+      bonusRuneSlots: p.bonusRuneSlots || 0, dashDur: p.dashDur,
+    })) });
+  },
+
   /* ---------------- GUEST side ---------------- */
   updateGuest(dt) {
     if (!this.running) return;
@@ -500,6 +512,8 @@ const Coop = {
         this._applyHostState(m.state); this._starveCheck(m.state);
       } break;
       case "floor": if (Net.role === "guest") this._applyFloor(m); break;
+      /* a host console edit: new runes / warden, applied at once */
+      case "edit": if (Net.role === "guest") this._applyEdit(m); break;
       case "kill": if (Net.role === "guest") this._guestKill(m); break;
       case "chestOpen": if (Net.role === "guest") {
         AudioFX.chest(); AudioFX.pickup(); Game.shake = Math.max(Game.shake, 6);
@@ -624,6 +638,27 @@ const Coop = {
     bt.classList.remove("show"); void bt.offsetWidth; bt.classList.add("show");
     AudioFX.duck(); AudioFX.bossRoar();
     Game.shake = 14;
+  },
+
+  /* The host console edited the run. Rebuild each warden from the host's
+     authoritative loadout, then let recalc() derive the stats and the body. */
+  _applyEdit(m) {
+    if (!m || !Array.isArray(m.pl)) return;
+    for (let i = 0; i < m.pl.length && i < players.length; i++) {
+      const p = players[i], o = m.pl[i];
+      if (!p || !o) continue;
+      if (typeof o.char === "string" && CHARS[o.char]) p.char = o.char;
+      p.runes = o.runes || {};
+      p.lockedRunes = Array.isArray(o.lockedRunes) ? o.lockedRunes.slice() : null;
+      if (typeof o.bonusRuneSlots === "number") p.bonusRuneSlots = o.bonusRuneSlots;
+      if (typeof o.rerolls === "number") p.rerolls = o.rerolls;
+      if (typeof o.dashDur === "number") p.dashDur = o.dashDur;
+      recalc(p);
+      if (typeof o.maxHp === "number") p.maxHp = o.maxHp;
+      if (typeof o.hp === "number") p.hp = Math.max(0, Math.min(o.hp, p.maxHp));
+    }
+    updateHp(); updateRerolls(); refreshRuneStrip();
+    toast("THE HOST REWRITES THE RUN");
   },
 
   _applyFloor(m) {
