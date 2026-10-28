@@ -67,4 +67,6 @@ const Game = {
   chaosMode: false,       // CHAOS descent: the rune seal never closes and every cleared wave drops
                           // an orb. Set only by the mode chooser (unlocked by felling THE UNKNOWN),
                           // never alongside hardMode; its records keep to Meta.bestsChaos.
+  challenge: null,        // CHAOS modifier id (src/data/challenges.js) — null on a standard chaos run.
+                          // Kept across resetRun(), like the mode flags; chosen with the descent.
 };

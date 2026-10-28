@@ -158,6 +158,7 @@ function updatePlayer(p, inp, dt) {
      (the hold is read by the enemy loop below; bosses only take the slow) */
   p.reprieveCd = Math.max(0, (p.reprieveCd || 0) - dt);
   p.reprieveFreezeT = Math.max(0, (p.reprieveFreezeT || 0) - dt);
+  p.hasteT = Math.max(0, (p.hasteT || 0) - dt);
   p.kickT = Math.max(0, (p.kickT || 0) - dt);
   /* DOWNED: a slow crawl toward help — no dash, no gun, no interactions */
   if (p.downed) {
@@ -220,7 +221,9 @@ function updatePlayer(p, inp, dt) {
     /* the deep floors: the stopped hour and stasis fields drag at you; black ice keeps
        your momentum — steering grip falls to about a quarter, so you glide and overshoot */
     const dm = deepMoveMul(p.x, p.y);
-    let mvx = mx * p.speed * weightMul * wadeMul * dm, mvy = my * p.speed * weightMul * wadeMul * dm;
+    /* RUNELESS: a rune box's short stride */
+    const hasteMul = (p.hasteT || 0) > 0 ? RUNELESS_HASTE_MUL : 1;
+    let mvx = mx * p.speed * weightMul * wadeMul * dm * hasteMul, mvy = my * p.speed * weightMul * wadeMul * dm * hasteMul;
     if (onIce(p.x, p.y)) {
       const k = 1 - Math.exp(-2.4 * dt);
       p.ivx = (p.ivx || 0) + (mvx - (p.ivx || 0)) * k; p.ivy = (p.ivy || 0) + (mvy - (p.ivy || 0)) * k;
@@ -509,6 +512,12 @@ function update(dt) {
       const pk = pickups[i]; pk.t += dt;
       for (const p of alivePlayers()) {
         if (dist2(pk.x, pk.y, p.x, p.y) < (pk.r + p.r + 8) ** 2) {
+          /* RUNELESS: the orb is a boon, not a question — take it and keep moving */
+          if (Game.challenge === "runeless") {
+            pickups.splice(i, 1);
+            runelessBoon(p);
+            break;
+          }
           Game.pendingPickup = pk;
           Game.pendingPickupBy = p.idx;
           if (!pk.ids) pk.ids = genThreeRunes(p);

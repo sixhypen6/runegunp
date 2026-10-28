@@ -63,6 +63,7 @@ const Meta = {
        the defaults below and must not be labelled with them. */
     char: "gunsmith",       // CHARS key
     runes: "",              // comma-separated rune ids, acquisition order
+    challenge: "",          // CHAOS modifier id behind the record ("" = standard / not chaos)
     tag: false,             // true once this record's own run was captured
   },
   bestsHard: {        // personal records on HARD descents (lifetime void stats stay in bests above)
@@ -73,6 +74,7 @@ const Meta = {
     speedSec: 0,            // fastest completed hard descent, seconds
     char: "gunsmith",
     runes: "",
+    challenge: "",
     tag: false,
   },
   bestsClassic: {     // personal records on CLASSIC descents — the run ends at THE EVENT HORIZON
@@ -90,6 +92,7 @@ const Meta = {
     speedSec: 0,            // fastest completed chaos descent, seconds
     char: "gunsmith",
     runes: "",
+    challenge: "",
     tag: false,
   },
 };
@@ -193,6 +196,7 @@ function metaLoad() {
         if (!src || typeof src !== "object") return;
         if (typeof src.char === "string" && typeof CHARS !== "undefined" && CHARS[src.char]) dst.char = src.char;
         if (typeof src.runes === "string") dst.runes = src.runes.slice(0, 96);
+        if (typeof src.challenge === "string") dst.challenge = src.challenge.slice(0, 24);
         /* `tag` was added after the board first showed loadouts. A save written
            in between holds char/runes but no flag; runes on the record are proof
            the loadout was witnessed, so adopt it rather than discarding it. */
@@ -246,6 +250,7 @@ function recordBests() {
   if (improved.score) {
     b.char = (typeof CHARS !== "undefined" && CHARS[Meta.char]) ? Meta.char : "gunsmith";
     b.runes = heldRuneString(typeof localPlayer === "function" ? localPlayer() : null);
+    b.challenge = Game.challenge || "";
     b.tag = true;
   }
   bump("survivedSec", survived,   survived   > b.survivedSec);

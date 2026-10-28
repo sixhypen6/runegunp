@@ -27,6 +27,8 @@ function makePlayer(cfg, idx) {
     downed: false, reviveT: 0,
     /* REPRIEVE: the save's cooldown and the horde-hold it leaves behind */
     reprieveCd: 0, reprieveFreezeT: 0,
+    /* RUNELESS: seconds of stride left from a rune box */
+    hasteT: 0,
     /* SPEEDRUN: has this warden's first rune offer already shown WARD? */
     wardOffered: false };
 }
@@ -59,8 +61,21 @@ function resetRun(cfgs) {
   setupFloor(true);
   for (const p of players) {
     const c = CHARS[p.char];
-    if (c.startLoadout) for (const id of c.startLoadout) grantRune(p, id, true);
-    for (let i = 0; i < c.startRunes; i++) grantRune(p, pick(runePool(p)), true);
+    /* CHAOS challenges bend the starting build: RUNELESS grants nothing, ONE RUNE
+       grants only the first rune (which immediately seals the path to it). */
+    const runeless = Game.challenge === "runeless";
+    const oneRune = Game.challenge === "onerune";
+    let started = 0;
+    if (!runeless) {
+      if (c.startLoadout) for (const id of c.startLoadout) {
+        if (oneRune && started >= 1) break;
+        grantRune(p, id, true); started++;
+      }
+      for (let i = 0; i < (c.startRunes || 0); i++) {
+        if (oneRune && started >= 1) break;
+        grantRune(p, pick(runePool(p)), true); started++;
+      }
+    }
     recalc(p);
   }
   Game.intermission = 1.2;

@@ -414,13 +414,20 @@ function genThreeRunes(p) {
 const heldRuneIds = p => Object.keys(p.runes).filter(id => p.runes[id] > 0);
 /* how many distinct runes a character may carve before the gun seals (ALCHEMIST gets a fifth,
    and THE UNKNOWN grants one more on top of that) */
-function runeSlotCount(p) { return ((CHARS[p.char] && CHARS[p.char].runeSlots) || 4) + (p.bonusRuneSlots || 0); }
+function runeSlotCount(p) {
+  /* ONE RUNE: the whole descent answers with a single slot, whatever the warden
+     or the Unknown's usual bonuses would otherwise grant */
+  if (typeof Game !== "undefined" && Game.challenge === "onerune") return 1;
+  return ((CHARS[p.char] && CHARS[p.char].runeSlots) || 4) + (p.bonusRuneSlots || 0);
+}
 /* CHAOS descent's colour — the chooser card, the HUD chip, the run-end tag */
 const CHAOS_COLOR = "#ff6bd6";
 /* once that many DIFFERENT runes are carved, the gun seals to them for the rest of the descent.
    A CHAOS descent never seals: every rune keeps answering, all of them at once if you like. */
 function checkRuneLock(p) {
-  if (p.lockedRunes || Game.chaosMode) return;
+  if (p.lockedRunes) return;
+  /* CHAOS never seals — except ONE RUNE, whose whole point is that it does */
+  if (Game.chaosMode && Game.challenge !== "onerune") return;
   const slots = runeSlotCount(p);
   const distinct = heldRuneIds(p);
   if (distinct.length >= slots) {

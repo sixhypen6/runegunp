@@ -404,6 +404,11 @@
   /* three descents share one row on a landscape phone; a narrow portrait screen stacks them */
   #modeChoice .bc-card{width:min(250px,calc((100vw - 120px) / 4))}
   @media (max-width:600px){ #modeChoice .bc-card{width:min(250px,80vw)} }
+  /* the CHAOS challenge screen — same four-card row, opened from the chaos card */
+  #challengeChoice{background:rgba(7,6,14,.97)}
+  #challengeChoice .bc-card{width:min(250px,calc((100vw - 120px) / 4))}
+  @media (max-width:600px){ #challengeChoice .bc-card{width:min(250px,80vw)} }
+  .ch-mul{font-size:calc(10px * var(--text-scale, 1));letter-spacing:.24em;color:currentColor;margin-top:10px;text-shadow:0 0 12px currentColor}
   /* run-end HARD banner */
   .hard-tag{margin-top:8px;font-size:calc(11px * var(--text-scale, 1));letter-spacing:.4em;text-indent:.4em;color:var(--blood);
     text-shadow:0 0 12px rgba(255,77,94,.7)}
@@ -702,6 +707,35 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
   <button class="menu-btn small" id="modeChoiceBack" style="margin-top:18px">RETURN</button>
 </div>
 
+<!-- CHAOS CHALLENGE — the second screen behind the chaos card -->
+<div class="overlay" id="challengeChoice" style="z-index:20">
+  <div class="title" style="font-size:clamp(22px,5vw,44px)">THE CHAOS</div>
+  <div class="subtitle">CHOOSE WHAT ELSE THE DARK MAY TAKE</div>
+  <div class="big-choice">
+    <div class="bc-card" id="chStandard" data-challenge="" style="color:var(--arcane)">
+      <div class="ic">✸</div><div class="nm">STANDARD</div>
+      <div class="ds">Every rune answers, all at once. No further price, no further bounty.</div>
+      <div class="ch-mul">×1 SOULS</div>
+    </div>
+    <div class="bc-card" id="chOneHit" data-challenge="onehit" style="color:#ff4d5e">
+      <div class="ic">☠</div><div class="nm">ONE HIT</div>
+      <div class="ds">A single blow ends the descent. Reprieve and Bulwark still answer.</div>
+      <div class="ch-mul">×3 SOULS</div>
+    </div>
+    <div class="bc-card" id="chRuneless" data-challenge="runeless" style="color:#7ad7ff">
+      <div class="ic">⊘</div><div class="nm">RUNELESS</div>
+      <div class="ds">No rune will answer. Rune boxes mend and hasten instead.</div>
+      <div class="ch-mul">×1.5 SOULS</div>
+    </div>
+    <div class="bc-card" id="chOneRune" data-challenge="onerune" style="color:#ffd23d">
+      <div class="ic">ᚱ</div><div class="nm">ONE RUNE</div>
+      <div class="ds">One slot. The first rune you carve is the only one that answers — the rift pours two stacks of it.</div>
+      <div class="ch-mul">×1.25 SOULS</div>
+    </div>
+  </div>
+  <button class="menu-btn small" id="challengeBack" style="margin-top:18px">RETURN</button>
+</div>
+
 <!-- VAULT — the Keeper's own store; it only opens once he is freed.
      He floats on the left quarter of the screen (tap him — he talks); the shelves are tabs. -->
 <div class="overlay" id="vault">
@@ -925,6 +959,7 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
   <div class="subtitle">THE CATACOMB KEEPS YOUR BONES</div>
   <div class="hard-tag" id="dHardTag" style="display:none">☠ HARD DESCENT ☠</div>
   <div class="hard-tag chaos-tag" id="dChaosTag" style="display:none">✸ CHAOS DESCENT ✸</div>
+  <div class="hard-tag chaos-tag" id="dChallengeTag" style="display:none"></div>
   <div class="hard-tag" id="dClassicTag" style="display:none;color:#5ee6ff;border-color:#5ee6ff">◆ CLASSIC DESCENT ◆</div>
   <div class="rule"></div>
   <div class="stat-row">
@@ -1100,6 +1135,7 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
 <script src="src/core/helpers.js"></script>
 <script src="src/data/save.js"></script>
 <script src="src/data/characters.js"></script>
+<script src="src/data/challenges.js"></script>
 <script src="src/systems/audio.js"></script>
 <script src="src/systems/input.js"></script>
 <script src="src/data/runes.js"></script>

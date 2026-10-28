@@ -88,27 +88,50 @@ function setupRiftStage() {
 }
 
 /* the one pick: the rune is carved, the warden's path widens by two slots, the
-   other two runes gutter out and the way onward opens. */
+   other two runes gutter out and the way onward opens.
+   CHAOS challenges change what the hush pays:
+     RUNELESS — mend + a short stride (no rune answers anywhere)
+     ONE RUNE — two stacks of the one rune the warden already answers to */
 function riftTakePick(q) {
   const rp = Game.riftPicks, p = localPlayer();
   if (!rp || rp.chosen || !p || q.taken) return;
   rp.chosen = q; q.taken = true;
-  const R = runeDefFor(p, q.id);
-  /* widen the path BEFORE the carve: grantRune() re-seals, and it must seal at
-     the new, two-slot-wider count rather than shut the rune out */
-  p.bonusRuneSlots = (p.bonusRuneSlots || 0) + RIFT_PICK_SLOTS;
-  p.lockedRunes = null;
-  grantRune(p, q.id);
   rp.openT = 1.1;
   Game.shake = Math.max(Game.shake, 10);
   screenFlash(0.28); AudioFX.nova();
-  floatText(p.x, p.y - 36, R.name, R.color, 18);
-  floatText(p.x, p.y - 60, "+" + RIFT_PICK_SLOTS + " RUNE SLOTS", "#ffd23d", 15);
-  toast("THE RUNE IS YOURS — TWO SLOTS OPEN");
+  let col = "#ffd23d";
+
+  if (Game.challenge === "runeless") {
+    runelessBoon(p);
+    col = "#7ad7ff";
+    toast("THE HUSH GIVES WHAT IT CAN — VITALITY AND HASTE");
+  } else if (Game.challenge === "onerune") {
+    /* the pick is the warden's one rune; the hush pays it twice and no slots */
+    const id = (p.lockedRunes && p.lockedRunes[0]) || q.id;
+    const R = runeDefFor(p, id);
+    col = R.color;
+    p.lockedRunes = [id];
+    grantRune(p, id, true);
+    grantRune(p, id, true);
+    floatText(p.x, p.y - 36, R.name + " ×2", R.color, 18);
+    floatText(p.x, p.y - 60, "+2 STACKS", "#ffd23d", 15);
+    toast("THE RIFT POURS TWO STACKS INTO " + R.name);
+  } else {
+    const R = runeDefFor(p, q.id);
+    col = R.color;
+    /* widen the path BEFORE the carve: grantRune() re-seals, and it must seal at
+       the new, two-slot-wider count rather than shut the rune out */
+    p.bonusRuneSlots = (p.bonusRuneSlots || 0) + RIFT_PICK_SLOTS;
+    p.lockedRunes = null;
+    grantRune(p, q.id);
+    floatText(p.x, p.y - 36, R.name, R.color, 18);
+    floatText(p.x, p.y - 60, "+" + RIFT_PICK_SLOTS + " RUNE SLOTS", "#ffd23d", 15);
+    toast("THE RUNE IS YOURS — TWO SLOTS OPEN");
+  }
   for (let k = 0; k < 26; k++) {
     const aa = rnd(0, TAU);
     particles.push({ x: p.x, y: p.y, vx: Math.cos(aa) * rnd(120, 320), vy: Math.sin(aa) * rnd(120, 320),
-      t: 0, life: rnd(0.4, 0.8), r: rnd(2, 5), color: pick([R.color, "#ffd23d", "#fff"]) });
+      t: 0, life: rnd(0.4, 0.8), r: rnd(2, 5), color: pick([col, "#ffd23d", "#fff"]) });
   }
 }
 
@@ -121,8 +144,24 @@ function riftRitual() {
   floatText(rc.x, rc.y - rc.r - 18, "IT KNOWS YOU", "#c9b8ff");
 }
 
-/* the CHAOS rite: three runes the warden doesn't carry yet (stacks, once they carry them all) */
+/* the CHAOS rite: three runes the warden doesn't carry yet (stacks, once they carry them all).
+   Under a challenge it pays that challenge's price instead. */
 function riftChaosGift(p) {
+  if (Game.challenge === "runeless") {
+    runelessBoon(p);
+    toast("THE RIFT POURS IN — VITALITY AND HASTE");
+    return;
+  }
+  if (Game.challenge === "onerune") {
+    const id = (p.lockedRunes && p.lockedRunes[0]) || pick(runePool(p));
+    const R = runeDefFor(p, id);
+    p.lockedRunes = [id];
+    grantRune(p, id, true);
+    grantRune(p, id, true);
+    floatText(p.x, p.y - 34, R.name + " ×2", R.color, 18);
+    toast("THE RIFT POURS TWO STACKS INTO " + R.name);
+    return;
+  }
   const pool = RUNE_IDS.filter(id => !p.runes[id]);
   for (let i = 0; i < 3; i++) {
     const id = pool.length ? pool.splice(Math.floor(Math.random() * pool.length), 1)[0] : pick(RUNE_IDS);
@@ -160,7 +199,9 @@ function updateRift(dt) {
         if (d < (RIFT_PICK_R + me.r) ** 2 && d < bestD) { best = q; bestD = d; }
       }
       if (best && me) {
-        hint = runeDefFor(me, best.id).name + " — [ E ] TAKE THE RUNE";
+        hint = Game.challenge === "runeless"
+          ? "A WARMTH IN THE HUSH — [ E ] TAKE IT"
+          : runeDefFor(me, best.id).name + " — [ E ] TAKE THE RUNE";
         act = () => riftTakePick(best);
       }
       /* a slow drift of motes off the three glyphs (kept sparse for the phone) */
