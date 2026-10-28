@@ -188,7 +188,8 @@ const Coop = {
   resyncEdit() {
     if (!this.running || Net.role !== "host") return;
     Net.sendR({ t: "edit", pl: players.map(p => ({
-      char: p.char, runes: p.runes, lockedRunes: p.lockedRunes,
+      char: p.char, skin: p.skin, gunSkin: p.gunSkin, pet: p.pet,
+      runes: p.runes, lockedRunes: p.lockedRunes,
       hp: p.hp, maxHp: p.maxHp, rerolls: p.rerolls,
       bonusRuneSlots: p.bonusRuneSlots || 0, dashDur: p.dashDur,
     })) });
@@ -648,6 +649,8 @@ const Coop = {
       const p = players[i], o = m.pl[i];
       if (!p || !o) continue;
       if (typeof o.char === "string" && CHARS[o.char]) p.char = o.char;
+      if (typeof o.skin === "string" && SKINS[o.skin]) p.skin = o.skin;
+      if (o.gunSkin === null || (typeof o.gunSkin === "string" && SKINS[o.gunSkin])) p.gunSkin = o.gunSkin;
       p.runes = o.runes || {};
       p.lockedRunes = Array.isArray(o.lockedRunes) ? o.lockedRunes.slice() : null;
       if (typeof o.bonusRuneSlots === "number") p.bonusRuneSlots = o.bonusRuneSlots;
@@ -656,6 +659,10 @@ const Coop = {
       recalc(p);
       if (typeof o.maxHp === "number") p.maxHp = o.maxHp;
       if (typeof o.hp === "number") p.hp = Math.max(0, Math.min(o.hp, p.maxHp));
+      /* a familiar is an entity, not a stat: rebuild it only when the type
+         actually changed, so an unrelated edit does not re-poof every pet */
+      if (o.pet !== undefined && (o.pet || null) !== (p.pet || null))
+        equipPet(p, o.pet);
     }
     updateHp(); updateRerolls(); refreshRuneStrip();
     toast("THE HOST REWRITES THE RUN");
@@ -765,14 +772,12 @@ const Coop = {
 
   const _spawnBoss = spawnBoss;
   spawnBoss = function () {
-    _spawnBoss();
+    _spawnBoss.apply(this, arguments);
     if (Net.role === "host" && Coop.running) {
-      const intro = ["THE CHAINED WARDEN WAKES — IT HUNGERS TO BIND YOU",
-                     "THE MARROW KING RISES — YOUR BONES ARE HIS BIRTHRIGHT",
-                     "THE FORGE TYRANT IGNITES — THE MOUNTAIN WALKS",
-                     "THE DROWNED MONARCH SURFACES — THE DEEP CLAIMS ITS OWN",
-                     "THE EVENT HORIZON OPENS — EVEN YOUR BULLETS BELONG TO IT"][Game.mapIdx];
-      Net.sendR({ t: "bossSpawn", name: floorDef().boss + (Game.loop ? " +" + Game.loop : ""), intro });
+      const bk = Game.boss ? Game.boss.kind : Game.mapIdx;
+      const F = FLOORS[bk] || floorDef();
+      Net.sendR({ t: "bossSpawn", name: F.boss + (Game.loop ? " +" + Game.loop : ""),
+        intro: bossWakeLine(bk) });
     }
   };
 

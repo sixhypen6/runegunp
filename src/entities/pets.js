@@ -68,6 +68,18 @@ function spawnPet(type, owner) {
   return p;
 }
 
+/* Swap a warden's familiar mid-run: unbind the old one and bind the new.
+   Shared by the console and the co-op edit stream, so a host's change reaches
+   the guest's pet array as well as its owner record. */
+function equipPet(p, type) {
+  p.pet = type && PTYPES[type] ? type : null;
+  if (typeof pets !== "undefined" && Array.isArray(pets)) {
+    for (let i = pets.length - 1; i >= 0; i--) if (pets[i].owner === p) pets.splice(i, 1);
+    if (p.pet) pets.push(assignId(spawnPet(p.pet, p)));
+  }
+  return p.pet;
+}
+
 /* orbiter/hunter: grind every enemy currently in contact, on a short re-hit timer.
    With SOUL SIPHON, each horror the wispling slays restores a sliver of vitality. */
 function petContactDamage(pet, dt) {
