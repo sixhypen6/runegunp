@@ -26,7 +26,7 @@
     },
     "scores": {
       ".read": "auth != null",
-      ".indexOn": ["score", "hardScore"],
+      ".indexOn": ["score", "hardScore", "chaosScore"],
       "$uid": {
         ".write": "auth != null && auth.uid === $uid",
         ".validate": "newData.hasChildren(['name', 'score', 'hardScore'])",
@@ -39,8 +39,38 @@
         "hardScore": {
           ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000 && (!data.exists() || newData.val() >= data.val())"
         },
+        "chaosScore": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000 && (!data.exists() || newData.val() >= data.val())"
+        },
         "updatedAt": {
           ".validate": "newData.isNumber()"
+        },
+        "normal": {
+          ".validate": "newData.hasChildren(['char', 'runes'])",
+          "char": {
+            ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 24"
+          },
+          "runes": {
+            ".validate": "newData.isString() && newData.val().length <= 96"
+          }
+        },
+        "hard": {
+          ".validate": "newData.hasChildren(['char', 'runes'])",
+          "char": {
+            ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 24"
+          },
+          "runes": {
+            ".validate": "newData.isString() && newData.val().length <= 96"
+          }
+        },
+        "chaos": {
+          ".validate": "newData.hasChildren(['char', 'runes'])",
+          "char": {
+            ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 24"
+          },
+          "runes": {
+            ".validate": "newData.isString() && newData.val().length <= 96"
+          }
         }
       }
     }

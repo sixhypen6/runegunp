@@ -313,6 +313,9 @@
     padding:8px 12px;border:1px solid var(--line);background:rgba(7,5,16,.4);font-size:12px;letter-spacing:.12em}
   .lb-row .lb-rank{color:var(--dim);text-align:right;font-variant-numeric:tabular-nums}
   .lb-row .lb-name{color:var(--bone);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* the loadout behind the score: warden · rune glyphs, on its own quiet line */
+  .lb-row .lb-name small{display:block;font-size:calc(9px * var(--text-scale, 1));letter-spacing:.14em;
+    color:var(--dim);margin-top:2px;overflow:hidden;text-overflow:ellipsis}
   .lb-row .lb-score{color:var(--gold);font-variant-numeric:tabular-nums}
   .lb-row.me{border-color:var(--arcane);box-shadow:0 0 14px rgba(157,107,255,.35);background:rgba(157,107,255,.08)}
   .lb-row.me .lb-name{color:#fff}
@@ -322,11 +325,16 @@
   .gloss-tab.hard.on{border-color:var(--blood);color:#fff;box-shadow:0 0 16px rgba(255,77,94,.4)}
   .lb-list.hard .lb-row .lb-score{color:var(--blood)}
   .lb-list.hard .lb-row.me{border-color:var(--blood);box-shadow:0 0 14px rgba(255,77,94,.35);background:rgba(255,77,94,.08)}
+  /* chaos-mode reckoning — the rift's own pink */
+  .gloss-tab.chaos.on{border-color:#ff6bd6;color:#fff;box-shadow:0 0 16px rgba(255,107,214,.4)}
+  .lb-list.chaos .lb-row .lb-score{color:#ff6bd6}
+  .lb-list.chaos .lb-row.me{border-color:#ff6bd6;box-shadow:0 0 14px rgba(255,107,214,.35);background:rgba(255,107,214,.08)}
   /* a foretold reckoning — score submitted, not yet tallied by Play Games */
   @keyframes lbPendingPulse{0%,100%{opacity:.6}50%{opacity:1}}
   .lb-row.pending{border-style:dashed;animation:lbPendingPulse 1.6s ease-in-out infinite}
   .lb-row.pending .lb-rank{color:var(--gold)}
   .lb-list.hard .lb-row.pending .lb-rank{color:var(--blood)}
+  .lb-list.chaos .lb-row.pending .lb-rank{color:#ff6bd6}
   .lb-hint{color:var(--dim);font-size:calc(9px * var(--text-scale, 1));text-align:center;padding:8px 4px 0;letter-spacing:.2em;line-height:1.7}
   .gun-line{text-align:center;font-size:calc(10px * var(--text-scale, 1));letter-spacing:.2em;color:var(--dim);margin-bottom:10px;line-height:1.9}
   .gun-line span{color:var(--bone)}
@@ -749,6 +757,7 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
     <div class="glossary-tabs lb-mode-tabs">
       <button class="menu-btn small gloss-tab on" id="lbModeNormal">NORMAL</button>
       <button class="menu-btn small gloss-tab hard" id="lbModeHard">HARD</button>
+      <button class="menu-btn small gloss-tab chaos" id="lbModeChaos">CHAOS</button>
     </div>
     <div class="glossary-tabs">
       <button class="menu-btn small gloss-tab on" id="lbTabGlobal">GLOBAL TOP</button>

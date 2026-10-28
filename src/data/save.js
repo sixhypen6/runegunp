@@ -56,6 +56,11 @@ const Meta = {
     voidKills: 0,           // lifetime count of void bosses slain
     fastestVoidClearSec: 0, // min run-time at first void kill; 0 = never
     longestAfterVoidSec: 0, // max survival AFTER the void clear ("how long they last if they continue")
+    /* the loadout that PRODUCED score — shown beside the online board's top
+       rows. Recorded only when the score improves, so it can never describe a
+       different run than the number next to it. */
+    char: "gunsmith",       // CHARS key
+    runes: "",              // comma-separated rune ids, acquisition order
   },
   bestsHard: {        // personal records on HARD descents (lifetime void stats stay in bests above)
     score: 0,               // max Game.score on hard runs
@@ -63,6 +68,8 @@ const Meta = {
     wave: 0,                // max wave on hard
     depth: 0,               // max depth on hard
     speedSec: 0,            // fastest completed hard descent, seconds
+    char: "gunsmith",
+    runes: "",
   },
   bestsClassic: {     // personal records on CLASSIC descents — the run ends at THE EVENT HORIZON
     score: 0,
@@ -77,6 +84,8 @@ const Meta = {
     wave: 0,
     depth: 0,
     speedSec: 0,            // fastest completed chaos descent, seconds
+    char: "gunsmith",
+    runes: "",
   },
 };
 const SAVE_KEY = "runegun.meta.v2";
@@ -173,6 +182,16 @@ function metaLoad() {
         for (const k in Meta.bestsChaos)
           if (typeof d.bestsChaos[k] === "number" && d.bestsChaos[k] >= 0) Meta.bestsChaos[k] = d.bestsChaos[k];
       }
+      /* the loadout tags beside each record are strings, so the numeric loops
+         above skip them — restore those explicitly, and only if they're sane */
+      const loadTag = (src, dst) => {
+        if (!src || typeof src !== "object") return;
+        if (typeof src.char === "string" && CHARS[src.char]) dst.char = src.char;
+        if (typeof src.runes === "string") dst.runes = src.runes.slice(0, 96);
+      };
+      loadTag(d.bests, Meta.bests);
+      loadTag(d.bestsHard, Meta.bestsHard);
+      loadTag(d.bestsChaos, Meta.bestsChaos);
       /* v3 migration: THE DROWNED NAVE was wedged in before the void, pushing the
          Event Horizon from kind/floor-index 3 to 4 — carry the old void records over.
          Old depth = loop*4 + idx decomposes exactly, old idx 3 (the void) is now 4. */
@@ -199,11 +218,26 @@ function metaLoad() {
    and to signal Phase-2 online submission). */
 /* the ledger this run's mode writes to (CHAOS and HARD never share a run) */
 const modeBests = () => Game.chaosMode ? Meta.bestsChaos : Game.classicMode ? Meta.bestsClassic : Game.hardMode ? Meta.bestsHard : Meta.bests;
+/* The runes held at run end, as a short comma string for the online board.
+   Ids only (the stack counts would double the length and tell a reader
+   nothing); capped so a modded build can't stuff the row. */
+function heldRuneString(p) {
+  if (!p || !p.runes) return "";
+  const ids = Object.keys(p.runes).filter(id => p.runes[id] > 0);
+  return ids.join(",").slice(0, 96);
+}
 function recordBests() {
   const b = modeBests(), improved = {};
   const survived = Math.floor(Game.time), d = depth();
   const bump = (key, val, better) => { if (better) { b[key] = val; improved[key] = true; } };
   bump("score",       Game.score, Game.score > b.score);
+  /* The character + runes belong to the run that set the record — capture them
+     in the same breath as the score, or a later run's loadout would be shown
+     beside an older number. */
+  if (improved.score) {
+    b.char = (typeof CHARS !== "undefined" && CHARS[Meta.char]) ? Meta.char : "gunsmith";
+    b.runes = heldRuneString(typeof localPlayer === "function" ? localPlayer() : null);
+  }
   bump("survivedSec", survived,   survived   > b.survivedSec);
   bump("wave",        Game.wave,  Game.wave  > b.wave);
   bump("depth",       d,          d          > b.depth);

@@ -713,8 +713,24 @@ $("glossaryClose").addEventListener("click", closeGlossary);
 $("tabBestiary").addEventListener("click", () => glossShowPage("bestiary"));
 $("tabRunes").addEventListener("click", () => glossShowPage("runes"));
 
-/* ---------- the reckoning: custom in-game leaderboard (reads Play Games) ---------- */
-let lbTab = "global", lbMode = "normal";   // scope (global|nearby) × mode (normal|hard)
+/* ---------- the reckoning: custom in-game leaderboard ---------- */
+let lbTab = "global", lbMode = "normal";   // scope (global|nearby) × mode (normal|hard|chaos)
+
+/* "gunsmith" → "GUNSMITH"; anything unknown is shown as-is (a row may carry a
+   character from a newer build than this one). */
+function lbCharName(id) {
+  if (!id) return "";
+  return (typeof CHARS !== "undefined" && CHARS[id] && CHARS[id].name) ? CHARS[id].name : String(id).toUpperCase();
+}
+/* "warp,hex" → "ᚥ ᛜ". A rune this build doesn't know becomes its raw id, so a
+   row never renders as blank glyph soup. */
+function lbRuneGlyphs(csv) {
+  if (!csv) return "";
+  return csv.split(",").slice(0, 8).map(id => {
+    const R = (typeof RUNES !== "undefined") ? RUNES[id] : null;
+    return R && R.glyph ? R.glyph : id;
+  }).join(" ");
+}
 
 /* Build a row with textContent (NOT innerHTML) — player display names come from
    arbitrary players, so they must never be injected as markup. `pending` marks
@@ -724,14 +740,23 @@ function lbRow(entry, me, pending) {
   d.className = "lb-row" + (me ? " me" : "") + (pending ? " pending" : "");
   const rank = document.createElement("span"); rank.className = "lb-rank"; rank.textContent = entry.rank || "—";
   const name = document.createElement("span"); name.className = "lb-name"; name.textContent = entry.name + (me ? " · YOU" : "");
+  /* the loadout behind that score — absent on rows written before the tag existed */
+  const who = lbCharName(entry.char), runes = lbRuneGlyphs(entry.runes);
+  if (who || runes) {
+    const sub = document.createElement("small");
+    sub.textContent = [who, runes].filter(Boolean).join(" · ");
+    name.appendChild(sub);
+  }
   const score = document.createElement("span"); score.className = "lb-score"; score.textContent = entry.score;
   d.append(rank, name, score);
   return d;
 }
 
-/* The simulated pending row: the local best at its projected position. */
-function lbSimRow(rank, best) {
-  return lbRow({ rank, name: Leaderboard.myName() || "—", score: best.toLocaleString() }, true, true);
+/* The simulated pending row: the local best at its projected position, with the
+   loadout the local record was set with. */
+function lbSimRow(rank, best, tag) {
+  return lbRow({ rank, name: Leaderboard.myName() || "—", score: best.toLocaleString(),
+                 char: tag && tag.char, runes: tag && tag.runes }, true, true);
 }
 function lbHint(list, text) {
   const h = document.createElement("div");
@@ -750,15 +775,15 @@ async function renderLeaderboard() {
   const list = $("lbList");
   const tab = lbTab, mode = lbMode;                     // pin the view this request is for
   list.innerHTML = "<div class='lb-empty'>CONSULTING THE VOID…</div>";
-  const hard = mode === "hard";
-  const best = Leaderboard.localBest(hard);   // local data, read at render time — keyed by the overlay's own mode toggle
+  const best = Leaderboard.localBest(mode);   // local data, read at render time — keyed by the overlay's own mode toggle
+  const tag = Leaderboard.tagFor(mode);
   /* Fired alongside the entries fetch (never rejects, resolves false unless the
      score is provably recorded yet absent from the public view for good) so the
      pending hints below can say WHY the row still isn't on the board. */
-  const hiddenReq = best > 0 ? Leaderboard.isLikelyHidden({ hard }) : Promise.resolve(false);
+  const hiddenReq = best > 0 ? Leaderboard.isLikelyHidden({ mode }) : Promise.resolve(false);
   const res = (tab === "nearby")
-    ? await Leaderboard.getNearbyScores({ maxResults: 25, hard })
-    : await Leaderboard.getTopScores({ maxResults: 25, hard });
+    ? await Leaderboard.getNearbyScores({ maxResults: 25, mode })
+    : await Leaderboard.getTopScores({ maxResults: 25, mode });
   if (Game.state !== "leaderboard" || lbTab !== tab || lbMode !== mode) return;   // closed or switched view mid-await
   if (!res.ok) { list.innerHTML = "<div class='lb-empty'>THE VOID DOES NOT ANSWER</div>"; return; }
   const hintPending = (await hiddenReq) ? LB_HINT_HIDDEN : LB_HINT_PENDING;
@@ -768,7 +793,7 @@ async function renderLeaderboard() {
      whose first score hasn't been tallied yet has no ranked row to center on
      (exactly the lag this simulation covers). The top page can still place them. */
   if (tab === "nearby" && !res.entries.length && best > 0) {
-    const top = await Leaderboard.getTopScores({ maxResults: 25, hard });
+    const top = await Leaderboard.getTopScores({ maxResults: 25, mode });
     if (Game.state !== "leaderboard" || lbTab !== tab || lbMode !== mode) return;
     list.innerHTML = "";
     if (top.ok) {
@@ -777,9 +802,9 @@ async function renderLeaderboard() {
         const mine = top.entries.find(Leaderboard.isMine);
         if (mine) { list.appendChild(lbRow(mine, true)); return; }
       }
-      list.appendChild(lbSimRow(p.kind === "insert" ? "≈" + p.rank : "…", best));
+      list.appendChild(lbSimRow(p.kind === "insert" ? "≈" + p.rank : "…", best, tag));
     } else {
-      list.appendChild(lbSimRow("…", best));   // score pending, rank unknowable right now
+      list.appendChild(lbSimRow("…", best, tag));   // score pending, rank unknowable right now
     }
     lbHint(list, hintPending);
     return;
@@ -788,14 +813,16 @@ async function renderLeaderboard() {
   const proj = Leaderboard.computeProjection(res.entries, best);
   list.innerHTML = "";
   if (!res.entries.length && proj.kind !== "insert") {
-    list.innerHTML = "<div class='lb-empty'>NO SOULS RECORDED YET</div>"; return;
+    list.innerHTML = "<div class='lb-empty'>" +
+      (mode === "chaos" ? "NO CHAOS RECORDED YET" : "NO SOULS RECORDED YET") + "</div>";
+    return;
   }
   /* proj.rest = server rows with my stale row filtered out when a simulation is
      active (never a duplicate YOU); the plain full window otherwise. Server rows
      keep their server ranks — only the injected row is approximate. */
   proj.rest.forEach(e => list.appendChild(lbRow(e, Leaderboard.isMine(e))));
   if (proj.kind === "insert") {
-    list.insertBefore(lbSimRow("≈" + proj.rank, best), list.children[proj.index] || null);
+    list.insertBefore(lbSimRow("≈" + proj.rank, best, tag), list.children[proj.index] || null);
     lbHint(list, hintPending);
   } else if (proj.kind === "beyond") {
     /* veiled beats "see around you" — a veiled player is unranked in the public
@@ -806,21 +833,29 @@ async function renderLeaderboard() {
   }
 }
 
-/* repaint all four tab buttons + the red hard skin, then refetch */
+/* repaint the scope + mode buttons (and the mode's skin), then refetch */
 function lbSync() {
-  const hard = lbMode === "hard";
+  const mode = lbMode;
+  /* Play Games has no CHAOS board, so the tab only exists where it can pay off */
+  const chaosTab = $("lbModeChaos");
+  if (chaosTab) chaosTab.style.display = Leaderboard.modeSupported("chaos") ? "" : "none";
   $("lbTabGlobal").classList.toggle("on", lbTab === "global");
   $("lbTabNearby").classList.toggle("on", lbTab === "nearby");
-  $("lbModeNormal").classList.toggle("on", !hard);
-  $("lbModeHard").classList.toggle("on", hard);
-  $("lbList").classList.toggle("hard", hard);
+  $("lbModeNormal").classList.toggle("on", mode === "normal");
+  $("lbModeHard").classList.toggle("on", mode === "hard");
+  if (chaosTab) chaosTab.classList.toggle("on", mode === "chaos");
+  const list = $("lbList");
+  list.classList.toggle("hard", mode === "hard");
+  list.classList.toggle("chaos", mode === "chaos");
   const sub = $("lbSubtitle");
-  sub.textContent = (hard ? "HARD · " : "") + (lbTab === "nearby" ? "AROUND YOU" : "GLOBAL TOP");
-  sub.style.color = hard ? "var(--blood)" : "var(--gold)";   // beats the inline gold style in the markup
+  sub.textContent = (mode === "hard" ? "HARD · " : mode === "chaos" ? "CHAOS · " : "") +
+    (lbTab === "nearby" ? "AROUND YOU" : "GLOBAL TOP");
+  /* beats the inline gold style in the markup */
+  sub.style.color = mode === "hard" ? "var(--blood)" : mode === "chaos" ? CHAOS_COLOR : "var(--gold)";
   renderLeaderboard();
 }
 function lbShowTab(tab) { lbTab = (tab === "nearby") ? "nearby" : "global"; lbSync(); }
-function lbShowMode(m) { lbMode = (m === "hard") ? "hard" : "normal"; lbSync(); }
+function lbShowMode(m) { lbMode = (m === "hard" || m === "chaos") ? m : "normal"; lbSync(); }
 
 function openLeaderboard() {
   if (!Leaderboard.available()) { Leaderboard.show(); return; }   // safety fallback (button is hidden when unavailable)
@@ -839,7 +874,8 @@ $("lbTabGlobal").addEventListener("click", () => lbShowTab("global"));
 $("lbTabNearby").addEventListener("click", () => lbShowTab("nearby"));
 $("lbModeNormal").addEventListener("click", () => lbShowMode("normal"));
 $("lbModeHard").addEventListener("click", () => lbShowMode("hard"));
-$("lbNativeView").addEventListener("click", () => Leaderboard.show({ hard: lbMode === "hard" }));
+$("lbModeChaos").addEventListener("click", () => lbShowMode("chaos"));
+$("lbNativeView").addEventListener("click", () => Leaderboard.show({ mode: lbMode }));
 $("leaderboardClose").addEventListener("click", closeLeaderboard);
 
 /* Run-end projected-rank line (death + ascend screens; ending.js calls this at
@@ -854,12 +890,14 @@ async function fillRunRankLine(elId, wantState) {
   if (!el) return;
   el.style.display = "none";
   el.textContent = "";
-  if (!Leaderboard.available() || Game.devRun || Game.chaosMode) return;   // CHAOS has no board to rank on
+  if (!Leaderboard.available() || Game.devRun) return;
   const req = ++runEndRankReq;
-  const hard = Game.hardMode;               // pinned before the await — state may move on
-  const r = await Leaderboard.getProjectedRank({ hard });
+  /* pinned before the await — state may move on. CHAOS keeps its mode here
+     too: it now owns a board of its own on the shared online board. */
+  const mode = Game.chaosMode ? "chaos" : Game.hardMode ? "hard" : "normal";
+  const r = await Leaderboard.getProjectedRank({ mode });
   if (req !== runEndRankReq || Game.state !== wantState || !r) return;
-  const prefix = hard ? "HARD · " : "";
+  const prefix = mode === "hard" ? "HARD · " : mode === "chaos" ? "CHAOS · " : "";
   el.textContent =
     r.hidden ? prefix + "SCORE RECORDED — HIDDEN BY YOUR PLAY GAMES PRIVACY"   // full how-to lives in THE RECKONING
       : r.beyond25 ? prefix + "THE VOID STILL TALLIES YOUR RANK"
