@@ -408,9 +408,12 @@ const Leaderboard = (() => {
     const b = bestsFor(mode);
     return (b && b.score) || 0;
   }
-  /* The warden + runes behind that record, as captured by recordBests(). */
+  /* The warden + runes behind that record, as captured by recordBests().
+     Null when the record predates that capture: the stored char is only the
+     default, and labelling an old run with it would be a lie. */
   function tagFor(mode) {
-    const b = bestsFor(mode) || {};
+    const b = bestsFor(mode);
+    if (!b || !b.tag) return null;
     const char = (typeof CHARS !== "undefined" && CHARS[b.char]) ? b.char : (Meta && Meta.char) || "gunsmith";
     return { char, runes: (b.runes || "").slice(0, 96) };
   }
