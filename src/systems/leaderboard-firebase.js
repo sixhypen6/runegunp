@@ -16,10 +16,11 @@
    Play Games display names are never written here: they are private, and
    an anonymous board should not leak them.
 
-   SETUP (one time, Firebase console → project runegun-8b5b2):
+   SETUP (one time, Firebase console → project runegunp):
      1. Build → Authentication → Sign-in method → Anonymous → Enable.
         Without this, sign-in fails with CONFIGURATION_NOT_FOUND and the
         LEADERBOARDS button simply never appears (everything else works).
+        (Already enabled on runegunp.)
      2. Realtime Database → Rules → paste firebase.rules.json (repo root).
         That file is the complete tree: the co-op `rooms` block and the
         `scores` block. Nothing else in the database is used by this game.
