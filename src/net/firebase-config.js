@@ -4,28 +4,26 @@
    join-code flow; once the peers connect, the room is deleted and
    all game traffic is phone-to-phone.
 
-   SETUP (one time):
-   1. console.firebase.google.com → Add project (no Analytics needed)
-   2. Build → Realtime Database → Create database → locked mode
-   3. Rules tab → paste firebase.rules.json (repo root). It carries BOTH the
-      co-op `rooms` block and the leaderboard `scores` block — the game uses
-      no other paths.
-   4. Build → Authentication → Sign-in method → Anonymous → Enable
-      (the leaderboard's player identity).
-   5. Project settings → Your apps → Web app (</>) → copy the config
-      object over the placeholder below (these values are public
-      identifiers, not secrets — shipping them in source is normal)
+   SETUP (project `runegunp`):
+   1. Build → Realtime Database → Rules → paste firebase.rules.json (repo root).
+      That file is the complete tree: the co-op `rooms` block and the
+      leaderboard `scores` block. Nothing else in the database is used.
+   2. Build → Authentication → Sign-in method → Anonymous → Enable.
+      Without it sign-in fails with CONFIGURATION_NOT_FOUND and the
+      LEADERBOARDS button simply never appears (everything else works).
+   3. The config below is already live for `runegunp`. These values are public
+      identifiers, not secrets — shipping them in source is normal.
    ========================================================= */
 "use strict";
 
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyDWN7DsOAoMU3wfD47Epx5UDUNGJ0-6Ebg",
-  authDomain: "runegun-8b5b2.firebaseapp.com",
-  databaseURL: "https://runegun-8b5b2-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "runegun-8b5b2",
-  storageBucket: "runegun-8b5b2.firebasestorage.app",
-  messagingSenderId: "30857778312",
-  appId: "1:30857778312:web:51190fd9b8ba60bbdcfb3d",
+  apiKey: "AIzaSyAYNwA6RzUEbfyCWqbT3P27ti705QGfL2c",
+  authDomain: "runegunp.firebaseapp.com",
+  databaseURL: "https://runegunp-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "runegunp",
+  storageBucket: "runegunp.firebasestorage.app",
+  messagingSenderId: "867814511521",
+  appId: "1:867814511521:web:fd00305baa3dce103ef1e0",
 };
 /* measurementId is deliberately omitted — no Analytics SDK is loaded, so it
    would be dead weight. storageBucket / messagingSenderId are unused too, but
