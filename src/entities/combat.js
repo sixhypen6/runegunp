@@ -469,9 +469,9 @@ function killEnemy(e, killer) {
     Game.soulFrac = bonus - whole;
     gain += whole;
   }
-  Game.score += gain;
-  if (gain > 0 && (e.boss || e.ambush || floaters.length < FLOATER_SOFT))
-    floatText(e.x, e.y - 16, "+" + gain, "#ffd23d", e.boss || e.ambush ? 16 : 11);
+  const paid = awardSouls(gain);
+  if (paid > 0 && (e.boss || e.ambush || floaters.length < FLOATER_SOFT))
+    floatText(e.x, e.y - 16, "+" + paid, "#ffd23d", e.boss || e.ambush ? 16 : 11);
   if (km && km.leech && !killer.downed) { killer.hp = Math.min(killer.maxHp, killer.hp + km.leech); updateHp(); }
   /* type-specific death throes (cinder's fire ring, the slaghulk breaking apart)
      fire BEFORE the ambush ledger, so anything the corpse spawns keeps the trap armed */
@@ -587,14 +587,12 @@ function bossSlain(e, killer) {
   /* the hour, the glass and the posse return their runes and stop their clocks */
   if (e && e.kind >= 5) deepBossCleanup(e);
   const bounty = e ? ([400, 400, 400, 400, 1500, 600, 800, 2000, 3000][e.kind] || 400) : 400;
-  const award = Math.round(bounty * SOUL_RATE * (1 + (km ? km.midas : 0)));
-  Game.score += award;
+  const award = awardSouls(Math.round(bounty * SOUL_RATE * (1 + (km ? km.midas : 0))));
   /* FLAWLESS: not one hit taken since the run began — the fall pays extra.
      A single scratch anywhere in the run forfeits this for every stage after,
      so the flag stays true across floors only while the run stays untouched. */
   if (Game.flawless) {
-    const bonus = Math.round(bounty * SOUL_RATE * FLAWLESS_MUL * (1 + (km ? km.midas : 0)));
-    Game.score += bonus;
+    const bonus = awardSouls(Math.round(bounty * SOUL_RATE * FLAWLESS_MUL * (1 + (km ? km.midas : 0))));
     Game.flawlessAward = bonus;
     Game.flawlessToast = 2.0;
     if (e) floatText(e.x, e.y - e.r - 66, "FLAWLESS +" + bonus, "#fff3c8", 24);
@@ -738,6 +736,10 @@ function hurtPlayer(p, dmg, src) {
   if (src && src.wrath) dmg *= WRATH_DMG_MUL;
   /* AEGIS: wards bleed the force from the blow before it lands */
   if (p.mods.dr) dmg *= 1 - p.mods.dr;
+  /* ONE HIT: any blow that lands is the last. BULWARK is checked above (the shield
+     eats the hit outright) and REPRIEVE below (a lethal blow is refused), exactly
+     as the challenge promises — only the warden's own wards may answer. */
+  if (Game.challenge === "onehit" && dmg > 0) dmg *= 1000000;
   p.hp -= dmg;
   Game.flawless = false;                               // the run is scarred — no FLAWLESS bounty from here on
   /* REPRIEVE: a lethal blow is refused. The hour holds its breath — the horde

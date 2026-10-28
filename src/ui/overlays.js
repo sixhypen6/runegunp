@@ -742,9 +742,10 @@ function lbRow(entry, me, pending) {
   const name = document.createElement("span"); name.className = "lb-name"; name.textContent = entry.name + (me ? " · YOU" : "");
   /* the loadout behind that score — absent on rows written before the tag existed */
   const who = lbCharName(entry.char), runes = lbRuneGlyphs(entry.runes);
-  if (who || runes) {
+  const chal = (typeof challengeName === "function") ? challengeName(entry.challenge) : "";
+  if (who || runes || chal) {
     const sub = document.createElement("small");
-    sub.textContent = [who, runes].filter(Boolean).join(" · ");
+    sub.textContent = [who, runes, chal].filter(Boolean).join(" · ");
     name.appendChild(sub);
   }
   const score = document.createElement("span"); score.className = "lb-score"; score.textContent = entry.score;
@@ -756,7 +757,7 @@ function lbRow(entry, me, pending) {
    loadout the local record was set with. */
 function lbSimRow(rank, best, tag) {
   return lbRow({ rank, name: Leaderboard.myName() || "—", score: best.toLocaleString(),
-                 char: tag && tag.char, runes: tag && tag.runes }, true, true);
+                 char: tag && tag.char, runes: tag && tag.runes, challenge: tag && tag.challenge }, true, true);
 }
 function lbHint(list, text) {
   const h = document.createElement("div");
@@ -1274,6 +1275,16 @@ function doGameOver() {
   $("dCoopTag") && ($("dCoopTag").style.display = coop ? "" : "none");
   $("dHardTag").style.display = Game.hardMode ? "" : "none";
   $("dChaosTag").style.display = Game.chaosMode ? "" : "none";
+  const cd = (Game.chaosMode && typeof challengeDef === "function") ? challengeDef(Game.challenge) : null;
+  const dct = $("dChallengeTag");
+  if (dct) {
+    dct.style.display = cd ? "" : "none";
+    if (cd) {
+      dct.textContent = "✸ " + cd.name + " — ×" + cd.mul + " SOULS ✸";
+      dct.style.color = dct.style.borderColor = cd.color;
+      dct.style.textShadow = "0 0 12px " + cd.color;
+    }
+  }
   $("dClassicTag") && ($("dClassicTag").style.display = Game.classicMode ? "" : "none");
   $("dWave").textContent = ROMAN(Game.wave);
   $("dDepth").textContent = depth() + 1;
@@ -1348,7 +1359,7 @@ function openModeChoice() {
   chaos.style.display = "";
   chaos.classList.toggle("locked", !chaosOpen);
   $("mcChaosDesc").textContent = chaosOpen
-    ? "No seal on the gun. Every rune answers, all at once — and every fallen wave leaves another."
+    ? "No seal on the gun. Every rune answers, all at once — and every fallen wave leaves another. Choose a challenge for a richer bounty."
     : "⛓ SEALED — put down THE UNKNOWN to unleash this descent.";
   const cb = $("mcChaosBest"), cs = Meta.bestsChaos.score;
   cb.style.display = chaosOpen && cs > 0 ? "" : "none";
@@ -1369,11 +1380,13 @@ function openModeChoice() {
 function closeModeChoice() { $("modeChoice").classList.remove("on"); }
 $("mcNormal").addEventListener("click", () => {
   if (!modeChoiceArmed()) return;
-  Game.hardMode = false; Game.chaosMode = false; Game.classicMode = false; closeModeChoice(); startGame();
+  Game.hardMode = false; Game.chaosMode = false; Game.classicMode = false; Game.challenge = null;
+  closeModeChoice(); startGame();
 });
 $("mcClassic").addEventListener("click", () => {
   if (!modeChoiceArmed()) return;
-  Game.hardMode = false; Game.chaosMode = false; Game.classicMode = true; closeModeChoice(); startGame();
+  Game.hardMode = false; Game.chaosMode = false; Game.classicMode = true; Game.challenge = null;
+  closeModeChoice(); startGame();
 });
 $("mcHard").addEventListener("click", () => {
   if (!modeChoiceArmed()) return;
@@ -1382,7 +1395,8 @@ $("mcHard").addEventListener("click", () => {
     c.classList.remove("deny"); void c.offsetWidth; c.classList.add("deny");
     return;
   }
-  Game.hardMode = true; Game.chaosMode = false; Game.classicMode = false; closeModeChoice(); startGame();
+  Game.hardMode = true; Game.chaosMode = false; Game.classicMode = false; Game.challenge = null;
+  closeModeChoice(); startGame();
 });
 $("mcChaos").addEventListener("click", () => {
   if (!modeChoiceArmed()) return;
@@ -1391,9 +1405,34 @@ $("mcChaos").addEventListener("click", () => {
     c.classList.remove("deny"); void c.offsetWidth; c.classList.add("deny");
     return;
   }
-  Game.hardMode = false; Game.chaosMode = true; Game.classicMode = false; closeModeChoice(); startGame();
+  /* chaos asks one more question before it starts: which price to pay for the bounty */
+  closeModeChoice(); openChallengeChoice();
 });
 $("modeChoiceBack").addEventListener("click", () => { if (modeChoiceArmed()) closeModeChoice(); });
+
+/* ---------- the CHAOS challenge screen ---------- */
+let challengeArmT = 0;
+function challengeArmed() { return performance.now() - challengeArmT > 250; }
+function openChallengeChoice() {
+  challengeArmT = performance.now();
+  $("challengeChoice").classList.add("on");
+}
+function closeChallengeChoice() { $("challengeChoice").classList.remove("on"); }
+function pickChallenge(id) {
+  if (!challengeArmed()) return;
+  Game.hardMode = false; Game.chaosMode = true; Game.classicMode = false;
+  Game.challenge = id || null;
+  closeChallengeChoice();
+  startGame();
+}
+for (const card of document.querySelectorAll("#challengeChoice .bc-card")) {
+  card.addEventListener("click", () => pickChallenge(card.getAttribute("data-challenge") || null));
+}
+$("challengeBack").addEventListener("click", () => {
+  if (!challengeArmed()) return;
+  closeChallengeChoice();
+  openModeChoice();
+});
 
 function startGame() {
   if (Game.devRun) devEndRun();   // a real descent always starts from the real save

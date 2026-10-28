@@ -193,7 +193,12 @@ const FirebaseBoard = (() => {
   function cleanTag(tag) {
     const char = (tag && typeof tag.char === "string") ? tag.char.slice(0, 24) : "";
     const runes = (tag && typeof tag.runes === "string") ? tag.runes.slice(0, 96) : "";
-    return { char: char || "gunsmith", runes };
+    const out = { char: char || "gunsmith", runes };
+    /* the challenge is optional: absent on standard chaos runs and on every row
+       written before challenges existed */
+    const challenge = (tag && typeof tag.challenge === "string") ? tag.challenge.slice(0, 24) : "";
+    if (challenge) out.challenge = challenge;
+    return out;
   }
 
   function rowRef() { return db.ref(SCORES + "/" + uid); }
@@ -283,6 +288,7 @@ const FirebaseBoard = (() => {
       playerId: id,
       char: (tag && typeof tag.char === "string") ? tag.char : "",
       runes: (tag && typeof tag.runes === "string") ? tag.runes : "",
+      challenge: (tag && typeof tag.challenge === "string") ? tag.challenge : "",
     };
   }
   function rankRows(rows) {

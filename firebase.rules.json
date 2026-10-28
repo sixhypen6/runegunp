@@ -52,6 +52,9 @@
           },
           "runes": {
             ".validate": "newData.isString() && newData.val().length <= 96"
+          },
+          "challenge": {
+            ".validate": "newData.isString() && newData.val().length <= 24"
           }
         },
         "hard": {
@@ -61,6 +64,9 @@
           },
           "runes": {
             ".validate": "newData.isString() && newData.val().length <= 96"
+          },
+          "challenge": {
+            ".validate": "newData.isString() && newData.val().length <= 24"
           }
         },
         "chaos": {
@@ -70,6 +76,9 @@
           },
           "runes": {
             ".validate": "newData.isString() && newData.val().length <= 96"
+          },
+          "challenge": {
+            ".validate": "newData.isString() && newData.val().length <= 24"
           }
         }
       }

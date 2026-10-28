@@ -296,6 +296,7 @@ const Leaderboard = (() => {
       /* the loadout tag (Firebase only; Play Games rows have none) */
       char:     e.char || "",
       runes:    e.runes || "",
+      challenge: e.challenge || "",
     }));
   }
 
@@ -415,7 +416,7 @@ const Leaderboard = (() => {
     const b = bestsFor(mode);
     if (!b || !b.tag) return null;
     const char = (typeof CHARS !== "undefined" && CHARS[b.char]) ? b.char : (Meta && Meta.char) || "gunsmith";
-    return { char, runes: (b.runes || "").slice(0, 96) };
+    return { char, runes: (b.runes || "").slice(0, 96), challenge: (b.challenge || "").slice(0, 24) };
   }
 
   /* The one definition of "this row is me" — id match, display-name fallback

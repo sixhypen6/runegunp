@@ -105,9 +105,21 @@ function refreshRuneStrip() {
     d.innerHTML = Game.chaosMode ? "<small>CHAOS</small>" : "<small>SEALED</small>";
     el.appendChild(d);
   }
+  /* the challenge rides beside CHAOS, in its own colour, so the price is never hidden */
+  if (Game.chaosMode && typeof challengeDef === "function") {
+    const cd = challengeDef(Game.challenge);
+    if (cd) {
+      const d = document.createElement("span");
+      d.className = "chip";
+      d.style.color = d.style.borderColor = cd.color;
+      d.innerHTML = "<small>" + cd.name + " ×" + cd.mul + "</small>";
+      el.appendChild(d);
+    }
+  }
   for (const id in p.runes) {
     const n = p.runes[id]; if (!n) continue;
     const R = runeDefFor(p, id);
+    if (!R) continue;   // a stale id (e.g. a rune removed since the save) must not break the HUD
     const d = document.createElement("span");
     d.className = "chip";
     d.style.color = R.color;
@@ -119,6 +131,16 @@ function refreshRuneStrip() {
 
 /* ---------- rune choice: pick one of three, reroll per-slot ---------- */
 function openRuneChoice() {
+  /* RUNELESS: a rune source never asks — it mends and hastens. update() consumes
+     orbs on touch, so this is the belt-and-braces path for any other caller. */
+  if (Game.challenge === "runeless") {
+    const ch = players[Game.pendingPickupBy] || localPlayer();
+    const pk = Game.pendingPickup;
+    Game.pendingPickup = null;
+    if (pk) { const idx = pickups.indexOf(pk); if (idx !== -1) pickups.splice(idx, 1); }
+    if (ch) runelessBoon(ch);
+    return;
+  }
   const chooser = players[Game.pendingPickupBy] || localPlayer();
   /* an orb always has a hand to roll from by the time it is opened — co-op orbs
      roll on touch, so this is the last line of defence against an empty offer */

@@ -34,6 +34,7 @@ const Coop = {
     Game.hardMode = false;              // co-op is normal mode only in v1
     Game.chaosMode = false;
     Game.classicMode = false;
+    Game.challenge = null;
     resetRun(cfgs);
     Game.riftOffered = true;              // no rift in co-op
     setState("play");
@@ -47,6 +48,7 @@ const Coop = {
     Game.hardMode = false;
     Game.chaosMode = false;
     Game.classicMode = false;
+    Game.challenge = null;
     resetRun(cfgs);
     Game.riftOffered = true;
     this._floorReady = false;

@@ -27,7 +27,7 @@ const DEV_FLAG_KEY = "runegun.devtools.v1";
 let DEV_TOOLS = (() => { try { return localStorage.getItem(DEV_FLAG_KEY) === "1"; } catch (e) { return false; } })();
 
 /* the hooks the rest of the game reads (inert unless a test run turns them on) */
-const Dev = { god: false, dmgMul: 1, snap: null, prevHard: false, prevChaos: false, prevClassic: false, built: false, from: "menu", cfg: null };
+const Dev = { god: false, dmgMul: 1, snap: null, prevHard: false, prevChaos: false, prevClassic: false, prevChallenge: null, built: false, from: "menu", cfg: null };
 const DEV_KEY = "runegun.dev.v1";
 const DEV_MAX_STACKS = 32;   // deep enough to feel the stack taper (data/runes.js) at a full descent's worth of runes
 const DEV_DEFAULT = { char: "gunsmith", hard: false, chaos: false, classic: false, lap: 0, wave: "", dest: "unk:p1", wake: true,
@@ -71,12 +71,14 @@ function devStartRun() {
   if (Game.devRun) devEndRun();
   else if (devInRun()) bankSouls();               // a real run in progress keeps what it earned, as a quit would
   Dev.prevHard = Game.hardMode; Dev.prevChaos = Game.chaosMode; Dev.prevClassic = Game.classicMode;
+  Dev.prevChallenge = Game.challenge;
   Dev.snap = JSON.stringify(Meta);
   Game.devRun = true;                             // set first: metaSave() is silent from here on
   AudioFX.unlock();
   Game.hardMode = !!c.hard && !c.chaos && !c.classic;
   Game.chaosMode = !!c.chaos;
   Game.classicMode = !!c.classic && !c.chaos;
+  Game.challenge = null;                          // a test run never carries a challenge multiplier
   resetRun([Object.assign(localPlayerCfg(), { char: c.char })]);
   Game.devRun = true;
   Game.loop = clamp(c.lap | 0, 0, 9);
@@ -103,6 +105,7 @@ function devEndRun() {
     Dev.snap = null;
   }
   Game.hardMode = Dev.prevHard; Game.chaosMode = Dev.prevChaos; Game.classicMode = Dev.prevClassic;
+  Game.challenge = Dev.prevChallenge || null;
   if (typeof refreshMenu === "function") refreshMenu();
 }
 /* the run-end screens of a test run say plainly that nothing was kept */
