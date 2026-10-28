@@ -7,10 +7,9 @@
    SETUP (one time):
    1. console.firebase.google.com → Add project (no Analytics needed)
    2. Build → Realtime Database → Create database → locked mode
-   3. Rules tab → paste the contents of firebase.rules.json (repo root) — the
-      co-op `rooms` block — and merge the `scores` block from
-      firebase.rules.scores.json for the online leaderboard. Merge; never
-      replace the whole tree, or co-op loses its rules.
+   3. Rules tab → paste firebase.rules.json (repo root). It carries BOTH the
+      co-op `rooms` block and the leaderboard `scores` block — the game uses
+      no other paths.
    4. Build → Authentication → Sign-in method → Anonymous → Enable
       (the leaderboard's player identity).
    5. Project settings → Your apps → Web app (</>) → copy the config
