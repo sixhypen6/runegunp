@@ -57,6 +57,22 @@ const Leaderboard = (() => {
      is resolved lazily — this file must never assume it exists. */
   const BOARD_BACKEND = "firebase";
 
+  /* Three scored descents. NORMAL / HARD / CHAOS each own their own board:
+     chaos souls come thick and easy, so mixing them with honest descents
+     would bury every honest score (that is why chaos used to post nothing at
+     all). Play Games has no chaos board, so on that backend the mode simply
+     has nowhere to go. */
+  function modeOf(o) {
+    if (o && typeof o === "object") {
+      if (o.mode === "hard" || o.mode === "chaos") return o.mode;
+      return o.hard ? "hard" : "normal";
+    }
+    return (o === "hard" || o === "chaos") ? o : "normal";
+  }
+  function runMode() {
+    return Game.chaosMode ? "chaos" : Game.hardMode ? "hard" : "normal";
+  }
+
   function pg() {
     return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorGameConnect) || null;
   }
@@ -74,15 +90,22 @@ const Leaderboard = (() => {
   let playerId = null, playerName = null;   // the SCORE board's identity — drives the "· YOU" row
 
   /* The id handed to the provider's plugin-shaped calls. Play Games wants the
-     real board id; Firebase just needs to know which of the row's two fields
-     it is — so the shared call sites never have to branch. */
-  function boardId(hard) {
-    const p = board();
-    if (p && p !== pg()) return hard ? "hard" : "normal";
-    return hard ? LB_HIGHSCORE_HARD : LB_HIGHSCORE;
+     real board id (and has no CHAOS board); Firebase takes the mode name.
+     null = this provider has no board for that mode. */
+  function boardId(mode) {
+    const m = modeOf(mode), p = board();
+    if (!p) return null;
+    if (p !== pg()) return m;
+    return m === "hard" ? LB_HIGHSCORE_HARD : m === "chaos" ? null : LB_HIGHSCORE;
   }
   /* True when this player is on a reachable board. */
   function available() { return !!board() && signedIn; }
+  /* True when the CURRENT provider has a board for this mode. */
+  function modeSupported(mode) {
+    const m = modeOf(mode);
+    if (m !== "chaos") return true;
+    return !!fb() && board() === fb();   // chaos lives on the shared online board only
+  }
   /* True only when Google's own leaderboard overlay can actually be opened. */
   function nativeUI() { return !!pg() && nativeSignedIn; }
 
@@ -107,14 +130,14 @@ const Leaderboard = (() => {
     try { localStorage.setItem(STAMP_PREFIX + id, JSON.stringify({ a: amount, t: Date.now() })); } catch (e) {}
   }
 
-  async function submit(id, amount) {
+  async function submit(id, amount, tag) {
     const p = board();
     if (!p || !signedIn || !id || !(amount > 0)) return;
     /* Tally-age is a Play Games concept (Google ranks the public collection
        minutes to hours after the write). The Firebase board is live, so its
        rows are never "pending" and need no stamp. */
     if (p === pg()) stampSubmit(id, amount);
-    try { await p.submitScore({ leaderboardID: id, totalScoreAmount: amount }); } catch (e) {}
+    try { await p.submitScore({ leaderboardID: id, totalScoreAmount: amount, tag }); } catch (e) {}
   }
 
   /* Re-post the stored bests the moment sign-in succeeds. A best earned while
@@ -124,8 +147,10 @@ const Leaderboard = (() => {
      re-posting is always safe. */
   function resubmitBests() {
     if (typeof Meta === "undefined" || !Meta) return;
-    if (Meta.bests && Meta.bests.score > 0) submit(boardId(false), Meta.bests.score);
-    if (Meta.bestsHard && Meta.bestsHard.score > 0) submit(boardId(true), Meta.bestsHard.score);
+    ["normal", "hard", "chaos"].forEach(mode => {
+      const b = bestsFor(mode);
+      if (b && b.score > 0) submit(boardId(mode), b.score, tagFor(mode));
+    });
   }
 
   let initStarted = false;
@@ -228,23 +253,24 @@ const Leaderboard = (() => {
   }
 
   /* Fired from doGameOver + showAscend at the end of every run. Submits the
-     ALL-TIME best souls (Meta.bests.score — recordBests() updates it just before
-     this call) so a past or crash-lost high run still posts; PGS keeps the max.
-     Any warden achievement this run earned lands here too. */
+     ALL-TIME best souls for the run's mode (recordBests() updates that ledger
+     just before this call) so a past or crash-lost high run still posts; the
+     provider keeps the max. Any warden achievement this run earned lands here
+     too. CHAOS now has its own board, so those runs post as well — to a board
+     nothing else competes on. */
   function submitRun(/* improved */) {
     if (!available() || Game.devRun) return;   // TEST TOOLS runs post nothing and unlock nothing
-    if (Game.chaosMode) return;                // CHAOS has no board — its souls would bury every honest score
-    const hard = Game.hardMode;   // still holds the run's mode at every run-end sink (incl. mid-run quits)
-    const best = hard ? Meta.bestsHard.score : Meta.bests.score;
-    submit(boardId(hard), Math.max(Game.score, best));
+    const mode = runMode();                    // still holds the run's mode at every run-end sink
+    const id = boardId(mode);
+    if (id) submit(id, Math.max(Game.score, localBest(mode)), tagFor(mode));
     syncAchievements();
   }
 
   /* Open Google's native leaderboard overlay. Kept as a fallback / "official view"
      link even though the custom UI is the primary surface now. Native only — a
      Firebase board has no Google surface to show. */
-  async function show({ hard = false } = {}) {
-    const p = pg(), id = hard ? LB_HIGHSCORE_HARD : LB_HIGHSCORE;
+  async function show(opts = {}) {
+    const p = pg(), m = modeOf(opts), id = m === "hard" ? LB_HIGHSCORE_HARD : m === "chaos" ? null : LB_HIGHSCORE;
     if (!p || !nativeSignedIn || !id) return;
     try { await p.showLeaderboard({ leaderboardID: id }); } catch (e) {}
   }
@@ -267,6 +293,9 @@ const Leaderboard = (() => {
       raw:      Number(e.rawScore) || 0,
       icon:     e.iconImageUri || null,
       playerId: e.playerId || null,
+      /* the loadout tag (Firebase only; Play Games rows have none) */
+      char:     e.char || "",
+      runes:    e.runes || "",
     }));
   }
 
@@ -280,32 +309,35 @@ const Leaderboard = (() => {
      just refilled (seconds old at worst). A failed forced fetch re-arms itself
      so the next tap retries fresh instead of serving the stale cache. */
   const FRESH_MS = 60000;
-  const lastFresh = { top: -Infinity, nearby: -Infinity, topHard: -Infinity, nearbyHard: -Infinity };
+  const lastFresh = {};
   function wantFresh(kind) {
     const now = performance.now();
-    if (now - lastFresh[kind] < FRESH_MS) return false;
+    const at = lastFresh[kind];
+    if (at != null && now - at < FRESH_MS) return false;
     lastFresh[kind] = now;
     return true;
   }
 
-  /* Global top-N. */
-  async function getTopScores({ maxResults = 25, hard = false } = {}) {
-    const p = board(), id = boardId(hard);
+  /* Global top-N for one mode. */
+  async function getTopScores(opts = {}) {
+    const mode = modeOf(opts), maxResults = opts.maxResults || 25;
+    const p = board(), id = boardId(mode);
     if (!p || !signedIn || !id || typeof p.loadTopScores !== "function") return { ok: false, entries: [] };
-    const key = hard ? "topHard" : "top";
+    const key = "top:" + mode;
     const forceReload = wantFresh(key);
     try { return { ok: true, entries: normalizeEntries(await p.loadTopScores({ leaderboardID: id, maxResults, forceReload })) }; }
-    catch (e) { if (forceReload) lastFresh[key] = -Infinity; return { ok: false, entries: [] }; }
+    catch (e) { if (forceReload) lastFresh[key] = -1; return { ok: false, entries: [] }; }
   }
 
   /* Player-centered — your rank plus the neighbours above/below you. */
-  async function getNearbyScores({ maxResults = 25, hard = false } = {}) {
-    const p = board(), id = boardId(hard);
+  async function getNearbyScores(opts = {}) {
+    const mode = modeOf(opts), maxResults = opts.maxResults || 25;
+    const p = board(), id = boardId(mode);
     if (!p || !signedIn || !id || typeof p.loadPlayerCenteredScores !== "function") return { ok: false, entries: [] };
-    const key = hard ? "nearbyHard" : "nearby";
+    const key = "nearby:" + mode;
     const forceReload = wantFresh(key);
     try { return { ok: true, entries: normalizeEntries(await p.loadPlayerCenteredScores({ leaderboardID: id, maxResults, forceReload })) }; }
-    catch (e) { if (forceReload) lastFresh[key] = -Infinity; return { ok: false, entries: [] }; }
+    catch (e) { if (forceReload) lastFresh[key] = -1; return { ok: false, entries: [] }; }
   }
 
   function myPlayerId() { return playerId; }
@@ -318,8 +350,9 @@ const Leaderboard = (() => {
      other fetchers. ok:false = couldn't ask (off-shell / API error); ok:true
      with score 0 = the server holds no score for this player. */
   const serverBest = { score: {}, at: {} };
-  async function getMyServerScore({ hard = false } = {}) {
-    const p = board(), id = boardId(hard);
+  async function getMyServerScore(opts = {}) {
+    const mode = modeOf(opts);
+    const p = board(), id = boardId(mode);
     if (!p || !signedIn || !id || typeof p.getUserTotalScore !== "function") return { ok: false, score: 0 };
     const now = performance.now();
     if (serverBest.at[id] != null && now - serverBest.at[id] < FRESH_MS) return { ok: true, score: serverBest.score[id] };
@@ -342,16 +375,17 @@ const Leaderboard = (() => {
      absorbs honest tally lag, which resolves in minutes; a veiled profile
      persists forever, so a generous grace costs nothing. Never rejects. */
   const HIDDEN_GRACE_MS = 30 * 60 * 1000;
-  async function isLikelyHidden({ hard = false } = {}) {
+  async function isLikelyHidden(opts = {}) {
+    const mode = modeOf(opts);
     /* Play Games only: a Firebase row is public the instant it's written, and
        its callsign is not tied to a Google profile at all. */
     if (!available() || board() !== pg()) return false;
-    const id = boardId(hard), best = localBest(hard);
+    const id = boardId(mode), best = localBest(mode);
     if (!id || !(best > 0)) return false;
     const st = readStamp(id);
     if (!st || st.a < best) return false;                     // current best never handed to PGS → can't judge
     if (Date.now() - st.t < HIDDEN_GRACE_MS) return false;    // young submit → normal tally lag, not a veil
-    const s = await getMyServerScore({ hard });
+    const s = await getMyServerScore({ mode });
     return s.ok && s.score >= best;
   }
 
@@ -364,7 +398,22 @@ const Leaderboard = (() => {
 
   /* recordBests() runs before submitRun() at every run-end sink, so this is
      always exactly the score that was last submitted for the given board. */
-  function localBest(hard) { return hard ? Meta.bestsHard.score : Meta.bests.score; }
+  function bestsFor(mode) {
+    const m = modeOf(mode);
+    if (typeof Meta === "undefined" || !Meta) return null;
+    if (m === "chaos") return Meta.bestsChaos || null;
+    return m === "hard" ? (Meta.bestsHard || null) : (Meta.bests || null);
+  }
+  function localBest(mode) {
+    const b = bestsFor(mode);
+    return (b && b.score) || 0;
+  }
+  /* The warden + runes behind that record, as captured by recordBests(). */
+  function tagFor(mode) {
+    const b = bestsFor(mode) || {};
+    const char = (typeof CHARS !== "undefined" && CHARS[b.char]) ? b.char : (Meta && Meta.char) || "gunsmith";
+    return { char, runes: (b.runes || "").slice(0, 96) };
+  }
 
   /* The one definition of "this row is me" — id match, display-name fallback
      when sign-in returned no id. Highlight, dedup, and the self-heal check all
@@ -422,37 +471,38 @@ const Leaderboard = (() => {
      said (off-shell, no best, both fetches failed) — the caller hides the line.
      Riding getTopScores/getNearbyScores also pre-warms the plugin cache, so
      opening THE RECKONING right after death shows the same snapshot. */
-  async function getProjectedRank({ hard = false } = {}) {
-    if (!available()) return null;
-    const best = localBest(hard);
+  async function getProjectedRank(opts = {}) {
+    const mode = modeOf(opts);
+    if (!available() || !boardId(mode)) return null;
+    const best = localBest(mode);
     if (!(best > 0)) return null;
-    const top = await getTopScores({ maxResults: 25, hard });
+    const top = await getTopScores({ maxResults: 25, mode });
     if (top.ok) {
       const p = computeProjection(top.entries, best);
       if (p.kind === "insert")
-        return { rank: p.rank, orBetter: p.orBetter, settled: false, beyond25: false, hidden: await isLikelyHidden({ hard }) };
+        return { rank: p.rank, orBetter: p.orBetter, settled: false, beyond25: false, hidden: await isLikelyHidden({ mode }) };
       if (p.kind === "caughtUp" && p.myServerRank > 0)
         return { rank: p.myServerRank, orBetter: false, settled: true, beyond25: false, hidden: false };
     }
     // off the top page → the player-centered window holds my stale row and can
     // still place me for the many players outside the visible top
-    const near = await getNearbyScores({ maxResults: 25, hard });
+    const near = await getNearbyScores({ maxResults: 25, mode });
     if (near.ok && near.entries.length) {
       const p = computeProjection(near.entries, best);
       if (p.kind === "insert")
-        return { rank: p.rank, orBetter: p.orBetter, settled: false, beyond25: false, hidden: await isLikelyHidden({ hard }) };
+        return { rank: p.rank, orBetter: p.orBetter, settled: false, beyond25: false, hidden: await isLikelyHidden({ mode }) };
       if (p.kind === "caughtUp" && p.myServerRank > 0)
         return { rank: p.myServerRank, orBetter: false, settled: true, beyond25: false, hidden: false };
     }
     if (top.ok || near.ok)
-      return { rank: 0, orBetter: false, settled: false, beyond25: true, hidden: await isLikelyHidden({ hard }) };
+      return { rank: 0, orBetter: false, settled: false, beyond25: true, hidden: await isLikelyHidden({ mode }) };
     return null;
   }
 
   return { available, init, submitRun, show, syncMenuButton, syncAchievements,
            getTopScores, getNearbyScores, myPlayerId, myName,
-           localBest, isMine, computeProjection, getProjectedRank,
-           getMyServerScore, isLikelyHidden,
+           localBest, tagFor, isMine, computeProjection, getProjectedRank,
+           getMyServerScore, isLikelyHidden, modeSupported,
            nativeUI, backend: () => BOARD_BACKEND };
 })();
 

@@ -10,7 +10,19 @@
    build. The browser build (and the Android WebView, which is the same
    bundle) needs one board everyone can reach — this is it. Scores live at
 
-     /scores/<auth.uid> = { name, score, hardScore, updatedAt }
+     /scores/<auth.uid> = {
+       name, updatedAt,
+       score, hardScore, chaosScore,          // one best per board
+       normal: { char, runes },               // the loadout behind that best
+       hard:   { char, runes },
+       chaos:  { char, runes },
+     }
+
+   The mode objects are cosmetic tags: WHICH warden and which runes the run
+   that set the record was holding. They are written only when the score
+   itself improves, so a tag never describes a different run than the number
+   beside it, and they are written in a SECOND request — an older rules tree
+   without those fields must never cost a player their score.
 
    `name` is a generated WARDEN-XXXX callsign stored in Meta.boardName.
    Play Games display names are never written here: they are private, and
@@ -47,12 +59,16 @@ const FirebaseBoard = (() => {
      anyone ever argues about */
   const NAME_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
+  /* one board per mode; the value is the row field that carries its score */
+  const FIELDS = { normal: "score", hard: "hardScore", chaos: "chaosScore" };
+  const slotOf = id => (FIELDS[id] ? id : "normal");
+
   let app = null, db = null, auth = null;
   let uid = null, callsign = null;
   let signedIn = false;
   let initPromise = null;
   let lastError = null;
-  const cache = { normal: null, hard: null, at: { normal: 0, hard: 0 } };
+  const cache = {};                       // mode → { rows, at } (CACHE_MS reuse)
 
   function sdk() {
     return (typeof firebase !== "undefined" && firebase) ? firebase : null;
@@ -169,9 +185,16 @@ const FirebaseBoard = (() => {
     return callsign;
   }
 
-  const field = hard => hard ? "hardScore" : "score";
-  const isHard = leaderboardID => leaderboardID === "hard";
+  const field = mode => FIELDS[slotOf(mode)];
   const stamp = () => firebase.database.ServerValue.TIMESTAMP;
+
+  /* What may be written into a mode tag. Bounded here as well as in the rules
+     so a malformed value never even reaches the wire. */
+  function cleanTag(tag) {
+    const char = (tag && typeof tag.char === "string") ? tag.char.slice(0, 24) : "";
+    const runes = (tag && typeof tag.runes === "string") ? tag.runes.slice(0, 96) : "";
+    return { char: char || "gunsmith", runes };
+  }
 
   function rowRef() { return db.ref(SCORES + "/" + uid); }
 
@@ -187,7 +210,7 @@ const FirebaseBoard = (() => {
     }
     const name = ensureCallsign();
     const patch = { name, updatedAt: stamp() };
-    if (!row) { patch.score = 0; patch.hardScore = 0; }
+    if (!row) { patch.score = 0; patch.hardScore = 0; patch.chaosScore = 0; }
     await guard(rowRef().update(patch), "claim");
   }
 
@@ -218,12 +241,16 @@ const FirebaseBoard = (() => {
 
   /* Best-score-only, like Play Games: the board never moves down. The rule
      enforces the same thing server-side (a tampered client can't wipe or
-     lower an honest score), this pre-check just avoids a rejected write. */
-  async function submitScore({ leaderboardID, totalScoreAmount } = {}) {
+     lower an honest score), this pre-check just avoids a rejected write.
+
+     `tag` is the loadout behind the record ({ char, runes }). It is written
+     AFTER the score, in its own request, and a failure there is swallowed:
+     cosmetic metadata must never cost a player the score itself. */
+  async function submitScore({ leaderboardID, totalScoreAmount, tag } = {}) {
     if (!signedIn || !uid) return;
     const amount = Math.floor(Number(totalScoreAmount) || 0);
     if (!(amount > 0) || amount > SCORE_CAP) return;
-    const key = field(isHard(leaderboardID));
+    const slot = slotOf(leaderboardID), key = field(slot);
     let cur = 0;
     try {
       const snap = await guard(rowRef().child(key).get(), "best");
@@ -231,8 +258,11 @@ const FirebaseBoard = (() => {
     } catch (e) { /* read failed — try the write anyway, the rule is the referee */ }
     if (amount <= cur) return;
     await guard(rowRef().update({ [key]: amount, updatedAt: stamp() }), "submit");
-    cache.normal = cache.hard = null;          // next open shows the new row
-    cache.at.normal = cache.at.hard = 0;
+    cache[slot] = null;                        // next open shows the new row
+    if (tag) {
+      try { await guard(rowRef().child(slot).set(cleanTag(tag)), "tag"); }
+      catch (e) { /* rules not updated yet, or offline — the score stands */ }
+    }
   }
 
   /* ---- reads ----
@@ -242,14 +272,17 @@ const FirebaseBoard = (() => {
      line and the "· YOU" row all depend on that. SCAN_CAP bounds the cost:
      a player ranked deeper than 500 simply falls off the ranked window and
      the UI's existing "beyond the top" path takes over. */
-  function toEntry(id, row, key) {
+  function toEntry(id, row, key, slot) {
     const raw = Math.max(0, Math.floor(Number(row && row[key]) || 0));
+    const tag = (row && row[slot]) || null;      // absent on rows written before loadout tags
     return {
       rank: 0,
       displayName: (row && typeof row.name === "string" && row.name) || "WARDEN",
       displayScore: "",
       rawScore: raw,
       playerId: id,
+      char: (tag && typeof tag.char === "string") ? tag.char : "",
+      runes: (tag && typeof tag.runes === "string") ? tag.runes : "",
     };
   }
   function rankRows(rows) {
@@ -263,24 +296,24 @@ const FirebaseBoard = (() => {
     });
     return rows;
   }
-  async function rowsFor(hard) {
-    const key = field(hard);
-    const slot = hard ? "hard" : "normal";
+  async function rowsFor(mode) {
+    const slot = slotOf(mode), key = field(slot);
     const now = Date.now();
-    if (cache[slot] && now - cache.at[slot] < CACHE_MS) return cache[slot];
+    const hit = cache[slot];
+    if (hit && now - hit.at < CACHE_MS) return hit.rows;
     const snap = await guard(db.ref(SCORES).orderByChild(key).limitToLast(SCAN_CAP).get(), "top");
     const val = (snap && snap.val && snap.val()) || {};
     const rows = Object.keys(val)
-      .map(id => toEntry(id, val[id], key))
+      .map(id => toEntry(id, val[id], key, slot))
       .filter(r => r.rawScore > 0);       // a row with no score on this board isn't ranked
-    cache[slot] = rankRows(rows);
-    cache.at[slot] = now;
-    return cache[slot];
+    const ranked = rankRows(rows);
+    cache[slot] = { rows: ranked, at: now };
+    return ranked;
   }
 
   async function loadTopScores({ leaderboardID, maxResults = 25 } = {}) {
     if (!signedIn) throw new Error("board-signed-out");
-    const rows = await rowsFor(isHard(leaderboardID));
+    const rows = await rowsFor(leaderboardID);
     return { entries: rows.slice(0, Math.max(1, maxResults)).map(r => ({ ...r })) };
   }
 
@@ -290,7 +323,7 @@ const FirebaseBoard = (() => {
      the top page. */
   async function loadPlayerCenteredScores({ leaderboardID, maxResults = 25 } = {}) {
     if (!signedIn || !uid) throw new Error("board-signed-out");
-    const rows = await rowsFor(isHard(leaderboardID));
+    const rows = await rowsFor(leaderboardID);
     const i = rows.findIndex(r => r.playerId === uid);
     if (i < 0) return { entries: [] };
     const half = Math.max(3, Math.floor((Math.max(1, maxResults) - 1) / 2));
@@ -302,7 +335,7 @@ const FirebaseBoard = (() => {
   /* The player's own recorded score — ground truth regardless of the window. */
   async function getUserTotalScore({ leaderboardID } = {}) {
     if (!signedIn || !uid) throw new Error("board-signed-out");
-    const snap = await guard(rowRef().child(field(isHard(leaderboardID))).get(), "mine");
+    const snap = await guard(rowRef().child(field(leaderboardID)).get(), "mine");
     return { player_score: Number(snap && snap.val && snap.val()) || 0 };
   }
 
