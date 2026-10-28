@@ -1,0 +1,48 @@
+{
+  "rules": {
+    "rooms": {
+      "$code": {
+        ".read": true,
+        ".write": true,
+        ".validate": "newData.hasChild('host')",
+        "host": {
+          ".validate": "newData.hasChildren(['v', 'createdAt', 'offer'])",
+          "v": { ".validate": "newData.isNumber()" },
+          "createdAt": { ".validate": "newData.isNumber()" },
+          "offer": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 16000" }
+        },
+        "guest": {
+          ".validate": "newData.hasChildren(['v', 'answer'])",
+          "v": { ".validate": "newData.isNumber()" },
+          "answer": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 16000" }
+        },
+        "hc": {
+          "$cand": { ".validate": "newData.isString() && newData.val().length <= 2000" }
+        },
+        "gc": {
+          "$cand": { ".validate": "newData.isString() && newData.val().length <= 2000" }
+        }
+      }
+    },
+    "scores": {
+      ".read": "auth != null",
+      ".indexOn": ["score", "hardScore"],
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.hasChildren(['name', 'score', 'hardScore'])",
+        "name": {
+          ".validate": "newData.isString() && newData.val().length >= 3 && newData.val().length <= 20"
+        },
+        "score": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000 && (!data.exists() || newData.val() >= data.val())"
+        },
+        "hardScore": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000 && (!data.exists() || newData.val() >= data.val())"
+        },
+        "updatedAt": {
+          ".validate": "newData.isNumber()"
+        }
+      }
+    }
+  }
+}

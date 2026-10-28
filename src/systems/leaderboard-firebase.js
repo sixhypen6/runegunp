@@ -20,9 +20,9 @@
      1. Build → Authentication → Sign-in method → Anonymous → Enable.
         Without this, sign-in fails with CONFIGURATION_NOT_FOUND and the
         LEADERBOARDS button simply never appears (everything else works).
-     2. Realtime Database → Rules → merge the `scores` block from
-        firebase.rules.scores.json. DO NOT replace the file wholesale —
-        the `rooms` rules for co-op live there too.
+     2. Realtime Database → Rules → paste firebase.rules.json (repo root).
+        That file is the complete tree: the co-op `rooms` block and the
+        `scores` block. Nothing else in the database is used by this game.
      3. Nothing else: the database already backs co-op signaling.
 
    A second NAMED app instance is used on purpose. Co-op calls goOffline()
