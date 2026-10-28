@@ -362,7 +362,16 @@ const UNK_PLAYER_RUNE_IDS = Object.keys(UNK_PLAYER_RUNES);
 /* which rune definitions apply to a given warden: THE UNKNOWN's own runes,
    everyone else's normal ones. Hidden runes only appear for hidden wardens,
    and RUNEGUN is JOHN RUNEGUN exclusive. */
+/* VENOM as the SHREDDER reads it: no bullets leave the trigger, so the poison
+   comes off the blade — every SAW_VENOM_EVERY bites on the same horror
+   (game/update.js). Same puddle numbers as the bullet version. */
+const SAW_VENOM_RUNE = Object.assign({}, RUNES.venom, {
+  desc: "The blade itself is poisoned. Every third bite on the same horror leaves a standing pool behind it.",
+});
 function runeDefFor(p, id) {
+  /* the SHREDDER has no trigger to fire venom through, so its card has to
+     describe what the blade does instead (see SAW_VENOM_RUNE) */
+  if (p.char === "shredder" && id === "venom") return SAW_VENOM_RUNE;
   return (p.char === "theUnknown" && UNK_PLAYER_RUNES[id]) ? UNK_PLAYER_RUNES[id]
     : (HIDDEN_RUNES[id] ? HIDDEN_RUNES[id] : RUNES[id]);
 }
@@ -522,7 +531,11 @@ function runeStatLines(p, id) {
   /* (tapered stacks run fractional — whole counts round the way combat.js does) */
   if (full.ember !== w.ember) { const e = full.ember; L.push("BURN " + Math.round(2 + 2 * e) + " DMG / 0.45s FOR " + (2 + e).toFixed(1) + "s"); }
   if (full.frost !== w.frost) { const f = full.frost; L.push("CHILL \u2014 SLOW ENEMIES FOR " + (1 + 0.7 * f).toFixed(1) + "s"); }
-  if (full.venom !== w.venom) { const v = full.venom; L.push("POISON POOL " + Math.round(3 + 2 * v) + " DMG / TICK"); }
+  if (full.venom !== w.venom) {
+    const v = full.venom;
+    L.push("POISON POOL " + Math.round(3 + 2 * v) + " DMG / TICK");
+    if (p.char === "shredder") L.push("THE BLADE PLANTS ONE EVERY " + SAW_VENOM_EVERY + " BITES ON THE SAME FOE");
+  }
   if (full.storm !== w.storm) { const s = full.storm; L.push("ARC LIGHTNING " + (1 + Math.round(s)) + " JUMPS, " + Math.round(5 + 4 * s) + " DMG"); }
   if (full.nova !== w.nova) { const v = full.nova; L.push("CORPSE BLAST " + Math.round(6 + 3 * v) + " DMG"); }
   if (full.splinter !== w.splinter) { const v = full.splinter; L.push((3 + Math.round(2 * v)) + " DEATH SHARDS, " + Math.round(6 + 2 * v) + " DMG"); }

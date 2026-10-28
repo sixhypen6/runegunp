@@ -183,6 +183,31 @@ function fireWeapon(p, inp, dt) {
 }
 
 /* =========================================================
+   VENOM — one poison pool at a point.
+   Shared by the bullet path (game/update.js) and the Shredder's blade so both
+   speak the same numbers. A pool that mostly overlaps an existing one refreshes
+   it instead of piling a new disc on top: a fast weapon can otherwise lay
+   hundreds of alpha-blended circles and OOM-kill the WebView on low-RAM phones.
+   ========================================================= */
+function dropVenomPool(x, y, venom, owner) {
+  if (!(venom > 0)) return;
+  let near = null;
+  for (const pu of puddles) {
+    if (pu.team === "p" && !pu.lava && !pu.vortex && !pu.phase && !pu.slime &&
+        dist2(x, y, pu.x, pu.y) < (pu.r * 0.5) ** 2) { near = pu; break; }
+  }
+  if (near) {
+    near.t = Math.min(near.t, 0.3); near.life = 4;
+    near.r = Math.max(near.r, 26 + 14 * venom);
+    near.dmg = Math.max(near.dmg, 3 + 2 * venom);
+    return;
+  }
+  if (puddles.length < 140)
+    puddles.push({ x, y, r: 26 + 14 * venom, t: 0, life: 4,
+      team: "p", dmg: 3 + 2 * venom, color: "#7dff5e", tickMap: {}, owner });
+}
+
+/* =========================================================
    VEIL BURST — the Wraith's auto-attack.
    It slips out of the world for a heartbeat and a hollow circle
    of un-reality snaps open around where it stood. Everything
