@@ -635,9 +635,10 @@ function bossSlain(e, killer) {
     if (!(typeof Net !== "undefined" && Net.active)) Game.unknownDue = true;
   }
   /* CLASSIC descent: THE EVENT HORIZON is the last warden, exactly as before the deep
-     floors existed. The ending cinematic plays with the descent below sealed, then the
-     ascent tally records the run. */
-  if (Game.classicMode && e && e.kind === 4 && !(typeof Net !== "undefined" && Net.active)) {
+     floors existed. Solo plays the ending cinematic; a shared descent ends together
+     on the tally (Coop.finish tells the guest). */
+  if (Game.classicMode && !Game.classicLoop && e && e.kind === 4) {
+    if (typeof Net !== "undefined" && Net.active) { Coop.finish(); return; }
     if (typeof RunTimer !== "undefined") RunTimer.finish();
     startEnding();
     return;

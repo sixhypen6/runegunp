@@ -11,9 +11,11 @@
 "use strict";
 
 /* 2: packed array wire format + first-sight statics (round-1 playtest fixes).
+   3: the shared descent's mode rides start/retry and the lobby's mode messages.
    Mismatched builds refuse each other with a clear message, so this must be
-   bumped whenever the snapshot layout changes. */
-const PROTOCOL_VERSION = 2;
+   bumped whenever the snapshot layout OR the rules a pair agrees on change —
+   an old guest would ignore `mode` and silently play a different descent. */
+const PROTOCOL_VERSION = 3;
 
 const Net = {
   role: "none",          // "none" (solo) | "host" | "guest"

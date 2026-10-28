@@ -556,6 +556,18 @@
 .coop-warden .cw-name { font-weight: bold; letter-spacing: 0.08em; }
 .coop-warden .cw-sub { font-size:calc(10px * var(--text-scale, 1)); color: var(--dim, #6a6584); margin-top: 4px; }
 .coop-warden.ready { border-color: #7dff5e; box-shadow: 0 0 12px rgba(125, 255, 94, 0.35); }
+/* the shared descent's mode — the host picks, the guest watches */
+.coop-modes { margin: 10px 0 2px; }
+.coop-modes-label { font-size: calc(9px * var(--text-scale, 1)); letter-spacing: .3em; color: var(--dim, #6a6584); margin-bottom: 6px; }
+.coop-mode-row { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+.coop-mode {
+  font-family: inherit; font-size: calc(10px * var(--text-scale, 1)); letter-spacing: .18em;
+  padding: 7px 10px; background: rgba(20, 18, 34, 0.85); color: var(--bone, #e8e2d0);
+  border: 1px solid #3a3654; border-radius: 6px; cursor: pointer;
+}
+.coop-mode.on { border-color: var(--gold); color: var(--gold); box-shadow: 0 0 10px rgba(255, 210, 61, 0.35); }
+.coop-mode:disabled { opacity: .45; cursor: default; }
+#coopModeHint { margin-top: 6px; }
 
 /* ---------- THE SINGULAR's blackjack table (scenes/blackjack.js) ----------
    The felt and the cards are painted on the game canvas; this layer only holds the
@@ -836,6 +848,17 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
         <div class="coop-warden" id="coopCardPeer"></div>
       </div>
       <div class="hint" id="coopPing"></div>
+      <div class="coop-modes" id="coopModes">
+        <div class="coop-modes-label">DESCENT</div>
+        <div class="coop-mode-row">
+          <button class="coop-mode" data-mode="normal">NORMAL</button>
+          <button class="coop-mode" data-mode="hard">HARD</button>
+          <button class="coop-mode" data-mode="classic">CLASSIC</button>
+          <button class="coop-mode" data-mode="classicloop">CLASSIC LOOP</button>
+          <button class="coop-mode" data-mode="chaos">CHAOS</button>
+        </div>
+        <div class="hint" id="coopModeHint"></div>
+      </div>
       <button class="menu-btn" id="coopReadyBtn" style="margin-top:8px">READY</button>
       <div class="hint" id="coopReadyStatus" style="margin-top:6px"></div>
     </div>
@@ -955,8 +978,8 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
 
 <!-- DEATH -->
 <div class="overlay" id="death">
-  <div class="title" style="font-size:clamp(28px,7vw,60px)">SLAIN</div>
-  <div class="subtitle">THE CATACOMB KEEPS YOUR BONES</div>
+  <div class="title" id="dTitle" style="font-size:clamp(28px,7vw,60px)">SLAIN</div>
+  <div class="subtitle" id="dSub">THE CATACOMB KEEPS YOUR BONES</div>
   <div class="hard-tag" id="dHardTag" style="display:none">☠ HARD DESCENT ☠</div>
   <div class="hard-tag chaos-tag" id="dChaosTag" style="display:none">✸ CHAOS DESCENT ✸</div>
   <div class="hard-tag chaos-tag" id="dChallengeTag" style="display:none"></div>

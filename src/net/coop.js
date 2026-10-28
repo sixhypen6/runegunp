@@ -16,6 +16,21 @@ const SNAP_HZ = 12, INPUT_HZ = 30;
    independent: the fraction of remaining error closed per second. */
 const CHASE = 0.0001;
 
+/* The shared descent is floors I–V (loopLen in floors.js): the saloon, the deep
+   floors and THE UNKNOWN have no guest-side sync yet. These are the rules a pair
+   may lay over that lap — chosen by the host in the lobby. */
+const COOP_MODES = ["normal", "hard", "classic", "classicloop", "chaos"];
+const COOP_MODE_LABEL = {
+  normal: "NORMAL", hard: "HARD", classic: "CLASSIC", classicloop: "CLASSIC LOOP", chaos: "CHAOS",
+};
+const COOP_MODE_DESC = {
+  normal: "The catacomb as it hungers. The lap returns and returns.",
+  hard: "Half again the vitality in every horror and warden.",
+  classic: "The old descent: the run ends when THE EVENT HORIZON falls.",
+  classicloop: "The old descent's rune rules, but the lap never ends.",
+  chaos: "No seal on either gun. Every rune answers — and kills leave orbs.",
+};
+
 const Coop = {
   running: false,
   _snapT: 0, _inputT: 0,
@@ -28,27 +43,33 @@ const Coop = {
   _prevWave: 0,
 
   /* ---------------- lifecycle ---------------- */
-  beginHost(cfgs) {
+  /* Lay this descent's mode over the run. Both sides call it, so the rules that
+     read Game.hardMode / classicMode / chaosMode agree on every client. */
+  applyMode(mode) {
+    const m = COOP_MODES.includes(mode) ? mode : "normal";
+    this.mode = m;
+    Game.hardMode = m === "hard";
+    Game.classicMode = m === "classic" || m === "classicloop";
+    Game.classicLoop = m === "classicloop";
+    Game.chaosMode = m === "chaos";
+    Game.challenge = null;              // challenges are a solo CHAOS concern
+    Game.coopVictory = false;
+  },
+  beginHost(cfgs, mode) {
     this.cfgs = cfgs;                   // kept so DESCEND AGAIN can rebuild the same pair
     this._start("host");
-    Game.hardMode = false;              // co-op is normal mode only in v1
-    Game.chaosMode = false;
-    Game.classicMode = false;
-    Game.challenge = null;
+    this.applyMode(mode);
     resetRun(cfgs);
     Game.riftOffered = true;              // no rift in co-op
     setState("play");
     this.sendFloor();
-    toast("YOU DESCEND TOGETHER");
+    toast("YOU DESCEND TOGETHER" + (this.mode !== "normal" ? " — " + COOP_MODE_LABEL[this.mode] : ""));
     AudioFX.portal();
   },
-  beginGuest(cfgs) {
+  beginGuest(cfgs, mode) {
     this.cfgs = cfgs;
     this._start("guest");
-    Game.hardMode = false;
-    Game.chaosMode = false;
-    Game.classicMode = false;
-    Game.challenge = null;
+    this.applyMode(mode);
     resetRun(cfgs);
     Game.riftOffered = true;
     this._floorReady = false;
@@ -78,8 +99,8 @@ const Coop = {
      Returns false if the link is already gone, so the caller falls back to solo. */
   retry() {
     if (Net.role === "host") {
-      Net.sendR({ t: "start", cfgs: this.cfgs });
-      this.beginHost(this.cfgs);
+      Net.sendR({ t: "start", cfgs: this.cfgs, mode: this.mode });
+      this.beginHost(this.cfgs, this.mode);
       return true;
     }
     if (Net.role === "guest") {
@@ -89,6 +110,14 @@ const Coop = {
       return true;
     }
     return false;
+  },
+  /* CLASSIC: THE EVENT HORIZON is the last warden of the shared descent. The run
+     is over but the link is not — DESCEND AGAIN starts the pair again. */
+  finish() {
+    Game.coopVictory = true;
+    if (typeof RunTimer !== "undefined") RunTimer.finish();
+    if (Net.role === "host" && this.running) Net.sendR({ t: "victory" });
+    doGameOver();
   },
   _resetRetryBtn() {
     const b = $("btnRetry");
@@ -453,7 +482,7 @@ const Coop = {
       /* --- guest receives --- */
       /* a fresh descent: the first one comes from the lobby, later ones from
          the host's DESCEND AGAIN (the lobby's handler is long gone by then) */
-      case "start": if (Net.role === "guest") this.beginGuest(m.cfgs); break;
+      case "start": if (Net.role === "guest") this.beginGuest(m.cfgs, m.mode); break;
       case "s": if (Net.role === "guest") {
         if (this._stale(m)) break;
         this._buf.push(m);
@@ -481,6 +510,12 @@ const Coop = {
       case "runeOffer": if (Net.role === "guest") this._guestRuneOffer(m); break;
       case "runeGranted": if (Net.role === "guest") { grantRune(players[m.idx], m.id, m.idx !== Net.localIdx); } break;
       case "over": if (Net.role === "guest") { doGameOver(); } break;
+      /* CLASSIC: the host felled THE EVENT HORIZON — the shared descent is complete */
+      case "victory": if (Net.role === "guest") {
+        Game.coopVictory = true;
+        if (typeof RunTimer !== "undefined") RunTimer.finish();
+        doGameOver();
+      } break;
       case "hostQuit": this._peerLost("quit"); break;
     }
   },
