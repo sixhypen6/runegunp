@@ -20,6 +20,7 @@ const Meta = {
                       // which are re-asserted from here at every sign-in (see leaderboard.js).
   runesSeen: {},      // glossary: every rune id ever carved into a gun
   char: "gunsmith", skin: "bone",
+  boardName: "",      // generated callsign shown on the online score board (Firebase) — never a Google name
   gunSkin: null,      // warpaint worn on the GUN (SKINS key) or null = unpainted, rune-tinted barrels
   pet: null,          // equipped pet type (PTYPES key) or null for none
   aimMode: "auto",   // mobile: "auto" = 1 stick (move) + auto-aim (default) · "twin" = 2 sticks (move + aim/fire)
@@ -108,6 +109,9 @@ function metaLoad() {
       if (Meta.slain["boss:8"] && !Meta.unlocked["char:theUnknown"]) Meta.unlocked["char:theUnknown"] = true;
       if (d.char && CHARS[d.char]) Meta.char = d.char;
       if (d.skin && SKINS[d.skin]) Meta.skin = d.skin;
+      /* the online board callsign — only a well-formed WARDEN-XXXX survives, so a
+         hand-edited save can't put a weird string in front of other players */
+      if (typeof d.boardName === "string" && /^WARDEN-[A-Z2-9]{4}$/.test(d.boardName)) Meta.boardName = d.boardName;
       if (d.gunSkin && SKINS[d.gunSkin]) Meta.gunSkin = d.gunSkin;
       if (d.pet && PTYPES[d.pet]) Meta.pet = d.pet;
       if (d.aimMode === "twin" || d.aimMode === "auto") Meta.aimMode = d.aimMode;

@@ -16,6 +16,10 @@ if (!Meta.juiceSet && window.matchMedia && matchMedia("(prefers-reduced-motion: 
 document.body.classList.toggle("juiceOff", Meta.juice === "off");
 applyTextSizeUI();   // set --text-scale from the save before the first paint
 refreshMenu();
+/* Arm the online board after the save is loaded and every script (including
+   the Firebase SDK) has parsed. Fire-and-forget: it re-renders the menu's
+   LEADERBOARDS button itself when sign-in lands, and stays a no-op offline. */
+Leaderboard.init();
 applyButtonSize();   // set the --tbtn size var + clamp bounds before first layout/paint
 applyCtrlScheme();   // apply saved on-screen control scheme + custom button layout
 if (typeof applyRunTimerUI === "function") applyRunTimerUI();   // speedrun clock visibility from the save

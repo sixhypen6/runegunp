@@ -824,6 +824,11 @@ function lbShowMode(m) { lbMode = (m === "hard") ? "hard" : "normal"; lbSync(); 
 
 function openLeaderboard() {
   if (!Leaderboard.available()) { Leaderboard.show(); return; }   // safety fallback (button is hidden when unavailable)
+  /* Google's own overlay only exists on the native build. The Firebase board
+     renders completely inside THE RECKONING, so this button would be a dead
+     end there — hide it instead of leaving a tap that does nothing. */
+  const nv = $("lbNativeView");
+  if (nv) nv.style.display = Leaderboard.nativeUI() ? "" : "none";
   setState("leaderboard");
   lbTab = "global"; lbMode = "normal";    // always land on the normal global view
   lbSync();

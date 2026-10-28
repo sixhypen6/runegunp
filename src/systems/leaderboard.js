@@ -1,21 +1,21 @@
 /* =========================================================
-   RUNEGUN · Global leaderboard — Google Play Games Services
-   A thin, defensive shim over @ni2khanna/capacitor-game-connect
-   (plugin key "CapacitorGameConnect"). A complete no-op anywhere
-   window.Capacitor.Plugins.CapacitorGameConnect is absent (plain web,
-   itch.io, Steam/Electron) or the player isn't signed in — so the same
-   source builds and runs for every target, exactly like ads.js.
+   RUNEGUN · Global leaderboard — one board, two providers
+   The SCORES live on Firebase (src/systems/leaderboard-firebase.js) so the
+   browser build and the Android build share one board; Play Games Services
+   still owns ACHIEVEMENTS and the official overlay on the signed APK.
 
-   Free via Play Games Services. Models the two things the run cares about:
-     · felling each warden       → ACHIEVEMENTS (unlockAchievement), two per boss:
-                                   one for the kill, one for killing it FLAWLESSLY
-     · the all-time high score   → a NUMERIC leaderboard (submitScore, best souls)
-   Both fire at RUN END (not at the kill) so the native popups never collide with
-   the void-ending cinematic. PGS keeps each player's best automatically.
+   The Firebase provider is a second implementation with the same shape as
+   the @ni2khanna/capacitor-game-connect shim (plugin key
+   "CapacitorGameConnect"), so everything below — the custom "THE RECKONING"
+   UI, the "· YOU" row, the projected-rank line — talks to one interface.
+   Flip BOARD_BACKEND to "playgames" to restore the native-only board.
 
-   SETUP: paste the IDs generated in Play Console into the constants below.
-   While they're blank the online calls stay no-ops (local best-records in
-   save.js work regardless). See the plan file for the Play Console steps.
+   Free on both paths. Models the two things the run cares about:
+     · felling each warden       → ACHIEVEMENTS (Play Games, native only)
+     · the all-time high score   → the online NUMERIC board (best souls, or
+                                   best HARD souls on the hard board)
+   Both fire at RUN END (not at the kill) so native popups never collide with
+   the void-ending cinematic. Each provider keeps each player's best.
    ========================================================= */
 "use strict";
 
@@ -45,15 +45,46 @@ const Leaderboard = (() => {
     { plain: "", flawless: "" },                                        // 8 · THE UNKNOWN — the final stage past floor VIII
   ];
   const CONFIGURED = !!(LB_HIGHSCORE || LB_HIGHSCORE_HARD || ACH.some(a => a.plain || a.flawless));
-  const boardId = hard => hard ? LB_HIGHSCORE_HARD : LB_HIGHSCORE;
+
+  /* ---- Which board carries the SCORES? ----
+     "firebase"  one shared online board — browser, Android WebView and APK.
+                 Play Games keeps achievements + the official overlay only.
+     "playgames" the pre-Firebase behaviour: scores AND achievements on Play
+                 Games, which only works inside the signed Android build.
+     Flip this constant to go back; nothing else branches on it.
+
+     The Firebase provider is loaded later in the page (after the SDK), so it
+     is resolved lazily — this file must never assume it exists. */
+  const BOARD_BACKEND = "firebase";
 
   function pg() {
     return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorGameConnect) || null;
   }
-  let signedIn = false;
-  let playerId = null, playerName = null;   // captured at sign-in — lets the custom UI highlight "you"
-  /* True only inside the native shell, with the plugin present AND signed in. */
-  function available() { return !!pg() && signedIn; }
+  function fb() {
+    return (typeof FirebaseBoard !== "undefined" && FirebaseBoard && FirebaseBoard.configured()) ? FirebaseBoard : null;
+  }
+  /* The score provider: Firebase when it's reachable, otherwise the native
+     plugin (an APK with Play Games configured but no anonymous auth yet). */
+  function board() {
+    return BOARD_BACKEND === "playgames" ? pg() : (fb() || pg());
+  }
+
+  let signedIn = false;        // the SCORE provider accepted us → the board works
+  let nativeSignedIn = false;  // Play Games accepted us → achievements + official overlay
+  let playerId = null, playerName = null;   // the SCORE board's identity — drives the "· YOU" row
+
+  /* The id handed to the provider's plugin-shaped calls. Play Games wants the
+     real board id; Firebase just needs to know which of the row's two fields
+     it is — so the shared call sites never have to branch. */
+  function boardId(hard) {
+    const p = board();
+    if (p && p !== pg()) return hard ? "hard" : "normal";
+    return hard ? LB_HIGHSCORE_HARD : LB_HIGHSCORE;
+  }
+  /* True when this player is on a reachable board. */
+  function available() { return !!board() && signedIn; }
+  /* True only when Google's own leaderboard overlay can actually be opened. */
+  function nativeUI() { return !!pg() && nativeSignedIn; }
 
   /* ---- Submit stamps: when was THIS best first handed to Play Games? ----
      submitRun re-posts the all-time best at every run end, so a naive "time of
@@ -77,35 +108,73 @@ const Leaderboard = (() => {
   }
 
   async function submit(id, amount) {
-    const p = pg();
+    const p = board();
     if (!p || !signedIn || !id || !(amount > 0)) return;
-    stampSubmit(id, amount);
+    /* Tally-age is a Play Games concept (Google ranks the public collection
+       minutes to hours after the write). The Firebase board is live, so its
+       rows are never "pending" and need no stamp. */
+    if (p === pg()) stampSubmit(id, amount);
     try { await p.submitScore({ leaderboardID: id, totalScoreAmount: amount }); } catch (e) {}
   }
 
   /* Re-post the stored bests the moment sign-in succeeds. A best earned while
-     signed out (first sessions before the player accepted Play Games, or a day
-     the sign-in failed) would otherwise wait for the NEXT run end to be
-     submitted. PGS keeps the max per player, so re-posting is always safe. */
+     signed out (first sessions before the player accepted Play Games, a launch
+     the sign-in failed, or a run played offline) would otherwise wait for the
+     NEXT run end to be submitted. Both providers keep the max per player, so
+     re-posting is always safe. */
   function resubmitBests() {
     if (typeof Meta === "undefined" || !Meta) return;
-    if (Meta.bests && Meta.bests.score > 0) submit(LB_HIGHSCORE, Meta.bests.score);
-    if (Meta.bestsHard && Meta.bestsHard.score > 0) submit(LB_HIGHSCORE_HARD, Meta.bestsHard.score);
+    if (Meta.bests && Meta.bests.score > 0) submit(boardId(false), Meta.bests.score);
+    if (Meta.bestsHard && Meta.bestsHard.score > 0) submit(boardId(true), Meta.bestsHard.score);
   }
 
   let initStarted = false;
   async function init() {
-    const p = pg();
-    if (!p || initStarted || !CONFIGURED) return;   // off the native shell / not set up yet → silent no-op
+    if (initStarted) return;
+    const nat = pg(), score = board();
+    if (!score && !nat) return;          // no native shell and no Firebase → silent no-op
+    if (!CONFIGURED && !fb()) return;    // nothing configured anywhere yet → keep the SDK idle
     initStarted = true;
-    try {
-      const info = await p.signIn();
-      signedIn = true;
-      playerId = (info && info.player_id) || null;
-      playerName = (info && info.player_name) || null;
-      resubmitBests();      // fire-and-forget — heals bests earned before sign-in worked
-      syncAchievements();   // likewise for wardens felled before sign-in (or before these existed)
-    } catch (e) { signedIn = false; }
+
+    /* Play Games first: it owns achievements and the official overlay, and on
+       the APK it is the only place those exist. A failure here is not fatal to
+       the board — the two sign-ins are independent. */
+    if (nat) {
+      try {
+        const info = await nat.signIn();
+        nativeSignedIn = true;
+        /* When Play Games IS the score board (no Firebase), its identity is
+           also the one the "· YOU" row matches on. */
+        if (!score || score === nat) {
+          playerId = (info && info.player_id) || null;
+          playerName = (info && info.player_name) || null;
+        }
+      } catch (e) { nativeSignedIn = false; }
+    }
+
+    /* Then the board. On a phone both are signed in and the score identity
+       must be the BOARD's, or every row would look like a stranger's. */
+    if (score && score !== nat) {
+      try {
+        const info = await score.signIn();
+        signedIn = true;
+        playerId = (info && info.player_id) || null;
+        playerName = (info && info.player_name) || null;
+      } catch (e) {
+        signedIn = false;
+        /* one quiet line, so a browser player (or the devtools-savvy) can tell
+           "not configured" from "offline" — the button simply stays hidden */
+        if (score === fb() && typeof console !== "undefined" && console.warn)
+          console.warn("[runegun] online board sign-in failed:", (e && e.message) || e);
+      }
+    } else if (score === nat) {
+      signedIn = nativeSignedIn;   // one sign-in serves both roles
+    }
+
+    if (signedIn) resubmitBests();   // fire-and-forget — heals bests earned before sign-in worked
+    if (nativeSignedIn) syncAchievements();   // likewise for wardens felled before sign-in existed
+    /* nothing worked → let a later attempt (menu tap, next launch) try again */
+    if (!signedIn && !nativeSignedIn) initStarted = false;
     syncMenuButton();
   }
 
@@ -129,7 +198,7 @@ const Leaderboard = (() => {
   const sent = new Set();
   async function unlock(id) {
     const p = pg();
-    if (!p || !signedIn || !id || sent.has(id)) return;
+    if (!p || !nativeSignedIn || !id || sent.has(id)) return;
     sent.add(id);
     try { await p.unlockAchievement({ achievementID: id }); }
     catch (e) { sent.delete(id); }   // let the next run end / launch try again
@@ -151,7 +220,7 @@ const Leaderboard = (() => {
      never at the kill, so a native popup can't collide with the void-ending
      cinematic. Fire-and-forget: nothing here is awaited by the run-end screens. */
   function syncAchievements() {
-    if (!available()) return;
+    if (!nativeUI()) return;
     ACH.forEach((a, kind) => {
       if (slainEver(kind, false)) unlock(a.plain);
       if (slainEver(kind, true))  unlock(a.flawless);
@@ -172,10 +241,11 @@ const Leaderboard = (() => {
   }
 
   /* Open Google's native leaderboard overlay. Kept as a fallback / "official view"
-     link even though the custom UI is the primary surface now. */
+     link even though the custom UI is the primary surface now. Native only — a
+     Firebase board has no Google surface to show. */
   async function show({ hard = false } = {}) {
-    const p = pg(), id = boardId(hard) || LB_HIGHSCORE;
-    if (!p || !signedIn || !id) return;
+    const p = pg(), id = hard ? LB_HIGHSCORE_HARD : LB_HIGHSCORE;
+    if (!p || !nativeSignedIn || !id) return;
     try { await p.showLeaderboard({ leaderboardID: id }); } catch (e) {}
   }
 
@@ -220,7 +290,7 @@ const Leaderboard = (() => {
 
   /* Global top-N. */
   async function getTopScores({ maxResults = 25, hard = false } = {}) {
-    const p = pg(), id = boardId(hard);
+    const p = board(), id = boardId(hard);
     if (!p || !signedIn || !id || typeof p.loadTopScores !== "function") return { ok: false, entries: [] };
     const key = hard ? "topHard" : "top";
     const forceReload = wantFresh(key);
@@ -230,7 +300,7 @@ const Leaderboard = (() => {
 
   /* Player-centered — your rank plus the neighbours above/below you. */
   async function getNearbyScores({ maxResults = 25, hard = false } = {}) {
-    const p = pg(), id = boardId(hard);
+    const p = board(), id = boardId(hard);
     if (!p || !signedIn || !id || typeof p.loadPlayerCenteredScores !== "function") return { ok: false, entries: [] };
     const key = hard ? "nearbyHard" : "nearby";
     const forceReload = wantFresh(key);
@@ -249,7 +319,7 @@ const Leaderboard = (() => {
      with score 0 = the server holds no score for this player. */
   const serverBest = { score: {}, at: {} };
   async function getMyServerScore({ hard = false } = {}) {
-    const p = pg(), id = boardId(hard);
+    const p = board(), id = boardId(hard);
     if (!p || !signedIn || !id || typeof p.getUserTotalScore !== "function") return { ok: false, score: 0 };
     const now = performance.now();
     if (serverBest.at[id] != null && now - serverBest.at[id] < FRESH_MS) return { ok: true, score: serverBest.score[id] };
@@ -273,7 +343,9 @@ const Leaderboard = (() => {
      persists forever, so a generous grace costs nothing. Never rejects. */
   const HIDDEN_GRACE_MS = 30 * 60 * 1000;
   async function isLikelyHidden({ hard = false } = {}) {
-    if (!available()) return false;
+    /* Play Games only: a Firebase row is public the instant it's written, and
+       its callsign is not tied to a Google profile at all. */
+    if (!available() || board() !== pg()) return false;
     const id = boardId(hard), best = localBest(hard);
     if (!id || !(best > 0)) return false;
     const st = readStamp(id);
@@ -380,8 +452,17 @@ const Leaderboard = (() => {
   return { available, init, submitRun, show, syncMenuButton, syncAchievements,
            getTopScores, getNearbyScores, myPlayerId, myName,
            localBest, isMine, computeProjection, getProjectedRank,
-           getMyServerScore, isLikelyHidden };
+           getMyServerScore, isLikelyHidden,
+           nativeUI, backend: () => BOARD_BACKEND };
 })();
 
-/* Sign in + arm the leaderboard at startup (no-op off the native shell). */
-Leaderboard.init();
+/* Sign-in is kicked off from main.js boot — after the save is loaded, and after
+   every script (including the Firebase SDK) has been parsed. Calling it here
+   would run before the provider file exists. */
+
+/* A launch that began offline would otherwise hide the board for the whole
+   session (the menu button only appears once sign-in lands). init() is a no-op
+   when it already succeeded, so listening for connectivity costs nothing. */
+if (typeof window !== "undefined" && window.addEventListener) {
+  window.addEventListener("online", () => { if (!Leaderboard.available()) Leaderboard.init(); });
+}

@@ -741,7 +741,7 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
   </div>
 </div>
 
-<!-- LEADERBOARD (custom, in-game — reads Play Games, renders our own UI) -->
+<!-- LEADERBOARD (custom, in-game — reads the shared online board, renders our own UI) -->
 <div class="overlay" id="leaderboardScreen">
   <div class="panel">
     <h2>THE RECKONING</h2>
@@ -1131,8 +1131,10 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
 <script src="src/scenes/cutscene-vault.js"></script>
 <script src="src/scenes/menu-bg.js"></script>
 <script src="src/lib/firebase-app-compat.js"></script>
+<script src="src/lib/firebase-auth-compat.js"></script>
 <script src="src/lib/firebase-database-compat.js"></script>
 <script src="src/net/firebase-config.js"></script>
+<script src="src/systems/leaderboard-firebase.js"></script>
 <script src="src/net/turn-config.js"></script>
 <script src="src/net/signal.js"></script>
 <script src="src/net/net.js"></script>
