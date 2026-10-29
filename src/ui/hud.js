@@ -92,6 +92,32 @@ function toast(msg) {
   toastT = setTimeout(() => el.style.opacity = 0, 2200);
 }
 
+/* The REPRIEVE save's clock, under the vitality bar. Written only when the
+   text changes — the countdown redraws once a second, not once a frame. */
+let lastReprieveCue = null;
+function updateReprieveCue(p) {
+  const el = $("reprieveCue");
+  if (!el) return;
+  const stacks = p && p.mods ? (p.mods.reprieveStacks || 0) : 0;
+  if (!stacks) {
+    if (lastReprieveCue !== "") {
+      lastReprieveCue = "";
+      el.textContent = "";
+      el.className = "";
+    }
+    return;
+  }
+  const t = Math.ceil(p.reprieveCd || 0);
+  const ready = t <= 0;
+  const txt = "REPRIEVE" + (stacks > 1 ? " ×" + stacks : "") + " · " + (ready ? "READY" : "IN " + t + "s");
+  const cls = "on" + (ready ? " ready" : "");
+  if (lastReprieveCue !== txt + cls) {
+    lastReprieveCue = txt + cls;
+    el.textContent = txt;
+    el.className = cls;
+  }
+}
+
 /* HUD strip: every stack the LOCAL warden carries */
 function refreshRuneStrip() {
   const el = $("runeStrip");
