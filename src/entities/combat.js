@@ -738,6 +738,8 @@ function hurtPlayer(p, dmg, src) {
   if (p.shield > 0) { shieldBurst(p); return; }   // shield soaks the hit, then detonates
   /* WRATHFUL horrors — and everything they hurl — strike half again as hard */
   if (src && src.wrath) dmg *= WRATH_DMG_MUL;
+  /* PARTY SCALING: a larger party faces harder blows (data/floors.js) */
+  dmg *= partyDmgMul();
   /* AEGIS: wards bleed the force from the blow before it lands */
   if (p.mods.dr) dmg *= 1 - p.mods.dr;
   /* ONE HIT: any blow that lands is the last. BULWARK is checked above (the shield
@@ -820,6 +822,10 @@ function hurtPlayer(p, dmg, src) {
 const REVIVE_RANGE = 60;     // px a rescuer must close to
 const REVIVE_TIME = 3;       // seconds of contact to lift them
 const REVIVE_HP_FRAC = 0.4;  // vitality restored on the lift
+/* PARTY SCALING (data/floors.js): a bigger party lifts slower and lower, so
+   four wardens cannot simply cycle revives forever. A leaver lightens both. */
+function reviveTimeFor()   { return REVIVE_TIME + PARTY.reviveTime * partyExtra(); }
+function reviveHpFracFor() { return Math.max(0.15, REVIVE_HP_FRAC - PARTY.reviveHp * partyExtra()); }
 function downPlayer(p) {
   p.hp = 0;
   const partnerUp = players.some(o => o !== p && o.hp > 0 && !o.downed);
@@ -836,7 +842,7 @@ function downPlayer(p) {
 }
 function revivePartner(p) {
   p.downed = false;
-  p.hp = Math.max(1, Math.round(p.maxHp * REVIVE_HP_FRAC));
+  p.hp = Math.max(1, Math.round(p.maxHp * reviveHpFracFor()));
   p.iframes = 2; p.reviveT = 0;
   /* the lift shoves the crowd back — same breath the paid revive grants */
   shockwaves.push({ x: p.x, y: p.y, r: 8, max: 220, speed: 520, dmg: 0,

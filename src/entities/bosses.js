@@ -58,7 +58,7 @@ function makeBoss(kind, x, y, hpMul) {
   const prof = bossProfile(kind);
   const b = {
     type: "boss", boss: true, kind, x, y, r: prof.r,
-    hp: 650 * prof.hpMul * (1 + depth() * 0.55) * (1 + Game.wave * 0.03) * (Game.hardMode ? 1.5 : 1) * hpMul,
+    hp: 650 * prof.hpMul * (1 + depth() * 0.55) * (1 + Game.wave * 0.03) * (Game.hardMode ? 1.5 : 1) * hpMul * partyBossHpMul(),
     color: FLOORS[kind].wallGlow, score: 400,
     vx: 0, vy: 0, slowMul: 1, slowT: 0, burnT: 0, burnDps: 0, burnTick: 0,
     hitFlash: 0, spawnT: 1.4, ambush: false, ghost: false,

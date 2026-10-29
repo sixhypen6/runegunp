@@ -65,3 +65,34 @@ const UNKNOWN_FLOOR = { name: "THE UNKNOWN", boss: "THE UNKNOWN",
 const floorDef = () => Game.inSaloon ? SALOON_FLOOR : Game.inUnknown ? UNKNOWN_FLOOR : FLOORS[Game.mapIdx];
 const depth = () => Game.loop * FLOORS.length + Game.mapIdx;   // 0,1,2,3,...
 const diffScale = () => 1 + (Game.wave - 1) * 0.14 + depth() * 0.45;
+
+/* =========================================================
+   PARTY SCALING — more wardens bring more guns, so the horde and
+   its wardens grow with the party. Every value is one step per
+   EXTRA warden BEYOND A PAIR, so a solo run and today's two-player
+   co-op keep exactly the difficulty they were tuned for. Three and
+   four wardens are where the horde starts hitting back harder.
+   A leaver stops counting (the run continues with survivors); a
+   DOWNED warden still counts — they can be lifted.
+   ========================================================= */
+const PARTY = {
+  hp:         0.60,   // +60% horror vitality per extra warden
+  dmg:        0.10,   // +10% horror damage per extra warden
+  wave:       0.30,   // +30% horrors per wave per extra warden
+  bossHp:     0.80,   // +80% warden (boss) vitality per extra warden
+  reviveTime: 0.60,   // +0.6s to lift a fallen warden, per extra warden
+  reviveHp:   0.05,   // −5% vitality restored on the lift, per extra warden
+};
+/* wardens still in the run — disconnected seats stop inflating the horde */
+function partySize() {
+  let n = 0;
+  if (typeof players !== "undefined" && players)
+    for (const p of players) if (p && !p.gone) n++;
+  return Math.max(1, n);
+}
+/* steps past a pair; 0 for solo and for a two-player descent */
+function partyExtra() { return Math.max(0, partySize() - 2); }
+const partyHpMul     = () => 1 + PARTY.hp * partyExtra();
+const partyDmgMul    = () => 1 + PARTY.dmg * partyExtra();
+const partyWaveMul   = () => 1 + PARTY.wave * partyExtra();
+const partyBossHpMul = () => 1 + PARTY.bossHp * partyExtra();
