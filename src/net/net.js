@@ -1,48 +1,69 @@
 /* =========================================================
    RUNEGUN · Net — the co-op session.
-   Who this client is (role/localIdx), the WebRTC peer connection and
-   its two channels, and the seam the sim reads a partner's input from
-   (frameFor). Signaling lives in signal.js; the lobby drives connect().
+   Who this client is (role/localIdx), one WebRTC peer connection per
+   partner (up to MAX_GUESTS guests on a star around the host), and the
+   seam the sim reads a partner's input from (frameFor).
+   Signaling lives in signal.js; the lobby drives connect().
 
-   Channels:
+   Channels (one pair per peer):
      "u" — unreliable/unordered: inputs + snapshots (latest-wins)
      "r" — reliable/ordered:     hello, lifecycle events, control
+
+   A guest holds exactly one peer (the host, idx 0). A host holds one
+   peer per connected guest; peer.idx is that guest's seat in players[].
    ========================================================= */
 "use strict";
 
 /* 2: packed array wire format + first-sight statics (round-1 playtest fixes).
    3: the shared descent's mode rides start/retry and the lobby's mode messages.
+   4: rooms hold up to four wardens; per-peer hello/slot/ready messages and the
+      party-scaled rules both sides agree on.
    Mismatched builds refuse each other with a clear message, so this must be
-   bumped whenever the snapshot layout OR the rules a pair agrees on change —
-   an old guest would ignore `mode` and silently play a different descent. */
-const PROTOCOL_VERSION = 3;
+   bumped whenever the snapshot layout OR the rules a party agrees on change. */
+const PROTOCOL_VERSION = 4;
+const MAX_WARDENS = 4;                 // host + three guests
+const MAX_GUESTS = MAX_WARDENS - 1;
 
 const Net = {
   role: "none",          // "none" (solo) | "host" | "guest"
   localIdx: 0,           // index into players[] of the warden THIS screen steers
   get active() { return this.role !== "none"; },
 
-  pc: null, chU: null, chR: null,
-  peerCfg: null,         // the partner's { char, skin, gunSkin, pet } from hello
-  rtt: 0,
-  _lastHeard: 0, _hbTimer: 0, _openCount: 0,
+  peers: [],             // [{ id, idx, pc, chU, chR, cfg, rtt, lastHeard, opened, ice }]
+  peerCfg: null,         // convenience: first partner's cfg (the host's, when guest)
+  rtt: 0,                // worst link in the party — what the lobby shows
+  _hbTimer: 0,
 
   /* wired by the lobby / game layer */
-  onConnected: null,     // both channels open, hello exchanged
-  onPeerHello: null,     // partner's cfg arrived (lobby shows their warden)
-  onPeerLost: null,      // heartbeat silence / ICE failure / close
-  onMessage: null,       // Phase C protocol dispatch — every non-internal msg
+  onConnected: null,     // (peer) both channels open, hello sent
+  onPeerHello: null,     // (cfg, peer) that partner's cfg arrived
+  onPeerLost: null,      // (why, peer) heartbeat silence / ICE failure / close / refused join
+  onMessage: null,       // (msg, peer) every non-internal message
 
-  /* debug latency harness (Phase E fills in): { ms, jitter, loss } */
+  /* debug latency harness: { ms, jitter, loss } */
   fakeLag: null,
 
-  /* ---------- connect flows ---------- */
   /* what the last connection attempt actually managed — surfaced in the lobby
      so a failure can say WHY instead of blaming the code */
   iceStats: { gathered: 0, relay: 0, srflx: 0, rescued: 0, state: "", route: "" },
 
-  _newPc() {
-    this.iceStats = { gathered: 0, relay: 0, srflx: 0, rescued: 0, state: "new", route: "" };
+  peerByIdx(idx) { return this.peers.find(p => p.idx === idx) || null; },
+  peerById(id) { return this.peers.find(p => p.id === id) || null; },
+
+  _newPeer(id, idx) {
+    return {
+      id, idx, pc: null, chU: null, chR: null, cfg: null, rtt: 0,
+      lastHeard: performance.now(), opened: 0, acceptTimer: 0,
+      ice: { out: [], inn: [], canSend: false, canAdd: false },
+    };
+  },
+  _nextIdx() {
+    for (let i = 1; i <= MAX_GUESTS; i++) if (!this.peerByIdx(i)) return i;
+    return MAX_GUESTS;
+  },
+
+  /* ---------- connect flows ---------- */
+  _newPc(peer) {
     const pc = new RTCPeerConnection({
       iceServers: iceServers(),
       iceCandidatePoolSize: 2,
@@ -51,7 +72,7 @@ const Net = {
       const s = pc.iceConnectionState;
       this.iceStats.state = s;
       if (s === "connected" || s === "completed") this._noteRoute(pc);
-      if (s === "failed" || s === "closed") this._lost("ice-" + s);
+      if (s === "failed" || s === "closed") this._drop(peer, "ice-" + s);
       /* "disconnected" often self-heals — the heartbeat below is the arbiter */
     };
     return pc;
@@ -88,176 +109,225 @@ const Net = {
      1. OUTBOUND. Gathering starts the instant setLocalDescription() resolves,
         but the room to publish into does not exist until Firebase answers —
         hundreds of milliseconds on mobile. Candidates emitted in that window
-        hit no handler at all and vanished. Host-type (local network) candidates
-        are the very first to arrive, so the pair that should connect fastest
-        was reliably the one thrown away.
+        hit no handler at all and vanished.
      2. INBOUND. addIceCandidate() is only legal once a REMOTE description
         exists. The host has none until the answer arrives, so every guest
-        candidate that beat the answer was swallowed by the .catch().
+        candidate that beat the answer was swallowed.
 
-     Both directions are now buffered and flushed instead of dropped.
+     Both directions are now buffered per peer and flushed instead of dropped.
      ========================================================= */
-  _iceOut: [], _iceIn: [], _iceSide: "host", _iceCanSend: false, _iceCanAdd: false,
-
-  _resetIce(side) {
-    this._iceOut = []; this._iceIn = [];
-    this._iceSide = side; this._iceCanSend = false; this._iceCanAdd = false;
-  },
-  /* attach BEFORE setLocalDescription — that is the whole point */
-  _wireLocalIce(pc) {
-    pc.onicecandidate = e => {
+  _wireLocalIce(peer) {
+    peer.ice.out = []; peer.ice.canSend = false;
+    peer.pc.onicecandidate = e => {
       if (!e.candidate) return;
       this._noteCandidate(e.candidate);
       const c = e.candidate.toJSON();
-      if (this._iceCanSend) { try { Signal.pushCandidate(this._iceSide, c); } catch (err) {} }
-      else this._iceOut.push(c);
+      if (peer.ice.canSend) { try { Signal.pushCandidate(peer.id, this.role, c); } catch (err) {} }
+      else peer.ice.out.push(c);
     };
   },
-  _iceSendReady() {
-    this._iceCanSend = true;
-    /* every one of these gathered before the room existed — the old code had no
-       handler attached yet and dropped them all. Counted because it is the
-       difference between a pair that meets and one that times out. */
-    this.iceStats.rescued += this._iceOut.length;
-    for (const c of this._iceOut) { try { Signal.pushCandidate(this._iceSide, c); } catch (e) {} }
-    this._iceOut = [];
+  _iceSendReady(peer) {
+    peer.ice.canSend = true;
+    this.iceStats.rescued += peer.ice.out.length;
+    for (const c of peer.ice.out) { try { Signal.pushCandidate(peer.id, this.role, c); } catch (e) {} }
+    peer.ice.out = [];
   },
-  _addRemoteIce(pc, c) {
-    if (this._iceCanAdd) pc.addIceCandidate(c).catch(() => {});
-    else this._iceIn.push(c);
+  _addRemoteIce(peer, c) {
+    if (peer.ice.canAdd && peer.pc) peer.pc.addIceCandidate(c).catch(() => {});
+    else peer.ice.inn.push(c);
   },
-  _iceAddReady(pc) {
-    this._iceCanAdd = true;
-    this.iceStats.rescued += this._iceIn.length;   // ...same, for the peer's side
-    for (const c of this._iceIn) pc.addIceCandidate(c).catch(() => {});
-    this._iceIn = [];
+  _iceAddReady(peer) {
+    peer.ice.canAdd = true;
+    this.iceStats.rescued += peer.ice.inn.length;   // ...same, for the peer's side
+    for (const c of peer.ice.inn) peer.pc.addIceCandidate(c).catch(() => {});
+    peer.ice.inn = [];
   },
 
-  /* HOST: create channels + offer, claim a room code. Resolves with the code
-     as soon as the room exists; the connection completes in the background. */
+  /* HOST: claim a room code and answer every guest that knocks with its own
+     offer. Resolves with the code as soon as the room exists; guests connect
+     in the background, one peer record each. */
   async host() {
     this.role = "host"; this.localIdx = 0;
-    this._resetIce("host");
-    const pc = this.pc = this._newPc();
-    this._wire(pc.createDataChannel("u", { ordered: false, maxRetransmits: 0 }), "u");
-    this._wire(pc.createDataChannel("r"), "r");
-    this._wireLocalIce(pc);                  // armed before gathering can start
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    const code = await Signal.createRoom(offer.sdp);
-    this._iceSendReady();                    // room exists — flush everything gathered meanwhile
-    Signal.onCandidates("guest", c => this._addRemoteIce(pc, c));
-    Signal.waitForAnswer().then(sdp =>
-      pc.setRemoteDescription({ type: "answer", sdp })
-        .then(() => this._iceAddReady(pc))   // only NOW may their candidates be added
-        .catch(() => this._lost("answer-bad")));
+    this.peers = [];
+    this.iceStats = { gathered: 0, relay: 0, srflx: 0, rescued: 0, state: "", route: "" };
+    const code = await Signal.createRoom();
+    Signal.watchJoins(jid => { this._acceptJoin(jid).catch(() => {}); });
     return code;
   },
 
-  /* GUEST: fetch the offer for a code and answer it. */
+  async _acceptJoin(jid) {
+    if (this.role !== "host" || this.peerById(jid)) return;
+    if (this.peers.length >= MAX_GUESTS) { Signal.rejectJoin(jid, "full"); return; }
+    const peer = this._newPeer(jid, this._nextIdx());
+    this.peers.push(peer);
+    /* a join that never opens a channel must not hold a seat forever */
+    peer.acceptTimer = setTimeout(() => { if (!peer.opened) this._drop(peer, "join-timeout"); }, 25000);
+    try {
+      const pc = peer.pc = this._newPc(peer);
+      this._wire(pc.createDataChannel("u", { ordered: false, maxRetransmits: 0 }), "u", peer);
+      this._wire(pc.createDataChannel("r"), "r", peer);
+      this._wireLocalIce(peer);                  // armed before gathering can start
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      await Signal.postOffer(jid, offer.sdp);
+      this._iceSendReady(peer);                  // peer node exists — flush everything gathered
+      Signal.onCandidates(jid, "guest", c => this._addRemoteIce(peer, c));
+      Signal.waitForAnswer(jid).then(sdp =>
+        pc.setRemoteDescription({ type: "answer", sdp })
+          .then(() => this._iceAddReady(peer))   // only NOW may their candidates be added
+          .catch(() => this._drop(peer, "answer-bad")));
+    } catch (e) {
+      this._drop(peer, "offer-bad");
+    }
+  },
+
+  /* GUEST: ask to join a code. The host answers with an offer; the answer and
+     the peer connection follow. */
   async join(code) {
     this.role = "guest"; this.localIdx = 1;
-    this._resetIce("guest");
-    const offerSdp = await Signal.fetchOffer(code);
-    const pc = this.pc = this._newPc();
-    pc.ondatachannel = e => this._wire(e.channel, e.channel.label);
-    this._wireLocalIce(pc);
-    /* the room already exists (the host made it) and fetchOffer has just given
-       us its code, so our candidates can go out the moment they are gathered —
-       no need to wait on postAnswer */
-    this._iceSendReady();
-    await pc.setRemoteDescription({ type: "offer", sdp: offerSdp });
-    this._iceAddReady(pc);                   // remote description in hand from the start
-    Signal.onCandidates("host", c => this._addRemoteIce(pc, c));
+    this.peers = [];
+    this.iceStats = { gathered: 0, relay: 0, srflx: 0, rescued: 0, state: "", route: "" };
+    const jid = await Signal.joinRoom(code);
+    const peer = this._newPeer(jid, 0);
+    this.peers = [peer];
+    Signal.onCandidates(jid, "host", c => this._addRemoteIce(peer, c));
+    Signal.watchOffer(jid,
+      sdp => this._acceptOffer(peer, sdp).catch(() => this._drop(peer, "answer-bad")),
+      reason => this._drop(peer, reason === "full" ? "room-full" : "room-closed"));
+  },
+
+  async _acceptOffer(peer, sdp) {
+    const pc = peer.pc = this._newPc(peer);
+    pc.ondatachannel = e => this._wire(e.channel, e.channel.label, peer);
+    this._wireLocalIce(peer);
+    await pc.setRemoteDescription({ type: "offer", sdp });
+    this._iceAddReady(peer);                     // remote description in hand from the start
+    this._iceSendReady(peer);                    // the room already exists — send at once
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
-    await Signal.postAnswer(answer.sdp);
+    await Signal.postAnswer(peer.id, answer.sdp);
   },
 
-  _wire(ch, label) {
-    if (label === "u") this.chU = ch; else this.chR = ch;
-    ch.onmessage = ev => this._recv(ev.data);
+  _wire(ch, label, peer) {
+    if (label === "u") peer.chU = ch; else peer.chR = ch;
+    ch.onmessage = ev => this._recv(ev.data, peer);
     ch.onopen = () => {
-      this._openCount++;
-      if (this._openCount >= 2) this._onOpen();
+      peer.opened++;
+      if (peer.opened >= 2) this._onOpen(peer);
     };
-    ch.onclose = () => { if (this.active) this._lost("channel-closed"); };
+    ch.onclose = () => this._drop(peer, "channel-closed");
   },
 
-  _onOpen() {
-    Signal.cleanup(true);                       // the mailbox has served its purpose
-    /* the peers are talking directly now — hand the database connection back
-       rather than holding one of the plan's 100 for the whole app session
-       (deferred so the room delete queued above actually flushes) */
-    Signal.releaseSoon();
-    this._lastHeard = performance.now();
-    this.sendR({ t: "hello", v: PROTOCOL_VERSION, cfg: localPlayerCfg() });
+  _onOpen(peer) {
+    clearTimeout(peer.acceptTimer); peer.acceptTimer = 0;
+    peer.lastHeard = performance.now();
+    /* the gate stays open while the lobby fills — the room is only retired when
+       the host fires the descent (Signal.closeRoom) or leaves */
+    this._startHeartbeat();
+    this.sendRTo(peer, { t: "hello", v: PROTOCOL_VERSION, cfg: localPlayerCfg() });
+    if (this.onConnected) this.onConnected(peer);
+  },
+
+  _startHeartbeat() {
+    if (this._hbTimer) return;
     this._hbTimer = setInterval(() => this._heartbeat(), 2000);
-    if (this.onConnected) this.onConnected();
   },
-
   _heartbeat() {
-    this.sendU({ t: "ping", ts: performance.now() });
-    if (performance.now() - this._lastHeard > 8000) this._lost("silence");
+    const now = performance.now();
+    let worst = 0;
+    for (const peer of this.peers.slice()) {
+      if (!peer.chU || peer.chU.readyState !== "open") continue;
+      this.sendUTo(peer, { t: "ping", ts: now });
+      if (now - peer.lastHeard > 8000) { this._drop(peer, "silence"); continue; }
+      if (peer.rtt > worst) worst = peer.rtt;
+    }
+    this.rtt = worst;
   },
 
   /* ---------- send / receive ---------- */
-  _send(ch, obj) {
+  _sendData(ch, data) {
     if (!ch || ch.readyState !== "open") return;
-    const data = JSON.stringify(obj);
     const L = this.fakeLag;
-    if (L && ch === this.chU && Math.random() < (L.loss || 0)) return;
+    if (L && this.peers.some(p => p.chU === ch) && Math.random() < (L.loss || 0)) return;
     if (L) setTimeout(() => { try { ch.send(data); } catch (e) {} }, L.ms + Math.random() * (L.jitter || 0));
     else { try { ch.send(data); } catch (e) {} }
   },
-  sendU(obj) { this._send(this.chU, obj); },
-  sendR(obj) { this._send(this.chR, obj); },
+  _broadcast(key, obj) {
+    if (!this.peers.length) return;
+    const data = JSON.stringify(obj);
+    for (const peer of this.peers) if (peer[key] && peer[key].readyState === "open") this._sendData(peer[key], data);
+  },
+  sendU(obj) { this._broadcast("chU", obj); },
+  sendR(obj) { this._broadcast("chR", obj); },
+  sendUTo(peer, obj) { if (peer) this._sendData(peer.chU, JSON.stringify(obj)); },
+  sendRTo(peer, obj) { if (peer) this._sendData(peer.chR, JSON.stringify(obj)); },
 
-  _recv(data) {
-    this._lastHeard = performance.now();
+  _recv(data, peer) {
+    peer.lastHeard = performance.now();
     let m; try { m = JSON.parse(data); } catch (e) { return; }
     switch (m.t) {
-      case "ping": this.sendU({ t: "pong", ts: m.ts }); return;
-      case "pong": this.rtt = Math.round(performance.now() - m.ts); return;
+      case "ping": this.sendUTo(peer, { t: "pong", ts: m.ts }); return;
+      case "pong":
+        peer.rtt = Math.round(performance.now() - m.ts);
+        if (peer.rtt > this.rtt) this.rtt = peer.rtt;
+        return;
       case "hello":
         if (m.v !== PROTOCOL_VERSION) {
-          this.sendR({ t: "err", code: "version" });
-          this.hangUp();
-          if (this.onPeerLost) this.onPeerLost("version");
+          this.sendRTo(peer, { t: "err", code: "version" });
+          this._drop(peer, "version");
           return;
         }
-        this.peerCfg = m.cfg;
-        if (this.onPeerHello) this.onPeerHello(m.cfg);
+        peer.cfg = m.cfg;
+        if (!this.peerCfg) this.peerCfg = m.cfg;
+        if (this.onPeerHello) this.onPeerHello(m.cfg, peer);
         return;
       case "err":
-        this.hangUp();
-        if (this.onPeerLost) this.onPeerLost(m.code || "peer-error");
+        this._drop(peer, m.code || "peer-error");
         return;
     }
-    if (this.onMessage) this.onMessage(m);
+    if (this.onMessage) this.onMessage(m, peer);
   },
 
   /* ---------- teardown ---------- */
+  _closePeer(peer) {
+    clearTimeout(peer.acceptTimer); peer.acceptTimer = 0;
+    try { if (peer.chU) peer.chU.close(); } catch (e) {}
+    try { if (peer.chR) peer.chR.close(); } catch (e) {}
+    try { if (peer.pc) peer.pc.close(); } catch (e) {}
+    peer.pc = peer.chU = peer.chR = null;
+  },
+  /* One partner is gone. The rest of the party keeps its links. */
+  _drop(peer, why) {
+    const i = this.peers.indexOf(peer);
+    if (i === -1) return;
+    this.peers.splice(i, 1);
+    this._closePeer(peer);
+    if (!this.peers.length) { clearInterval(this._hbTimer); this._hbTimer = 0; this.rtt = 0; }
+    this.peerCfg = this.peers.length ? this.peers[0].cfg : null;
+    const cb = this.onPeerLost;
+    if (cb) cb(why, peer);
+  },
+
   hangUp() {
     clearInterval(this._hbTimer); this._hbTimer = 0;
+    for (const peer of this.peers.slice()) this._closePeer(peer);
+    this.peers = [];
     Signal.cleanup(true);
-    try { if (this.chU) this.chU.close(); } catch (e) {}
-    try { if (this.chR) this.chR.close(); } catch (e) {}
-    try { if (this.pc) this.pc.close(); } catch (e) {}
-    this.pc = this.chU = this.chR = null;
-    this._openCount = 0; this.peerCfg = null; this.rtt = 0;
-    this._resetIce("host");     // a retry must not inherit the dead attempt's candidates
+    Signal.releaseSoon();
+    this.peerCfg = null; this.rtt = 0;
     this.role = "none"; this.localIdx = 0;
   },
-  _lost(why) {
-    if (!this.active) return;
-    const cb = this.onPeerLost;
-    this.hangUp();
-    if (cb) cb(why);
+
+  /* host only: compact seats after a lobby departure so every connected guest
+     still lines up with players[] before the descent starts */
+  renumber() {
+    if (this.role !== "host") return;
+    let i = 1;
+    for (const peer of this.peers) peer.idx = i++;
   },
 
   /* the input frame steering warden `p` this tick when p is not local.
-     Phase C feeds the guest's wire input here; DEV_P2 is the couch harness. */
+     Phase C feeds each guest's wire input here; DEV_P2 is the couch harness. */
   frameFor(p) {
     if (DEV_P2) return devP2Frame(p);
     return null;   // update() substitutes a zero frame

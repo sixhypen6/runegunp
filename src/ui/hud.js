@@ -37,15 +37,40 @@ function updateHp() {
   $("hpChip").style.width = pct;   // the pale chip eases after the fill — the bite lingers
   $("hpNum").textContent = Math.ceil(p.hp) + " / " + p.maxHp;
   document.querySelector(".hp-wrap").classList.toggle("low", p.hp > 0 && p.hp / p.maxHp < 0.3);
-  /* co-op: the partner's smaller bar underneath */
-  const partner = players.find(o => o !== p);
-  const pw = $("partnerHp");
-  if (partner && typeof Net !== "undefined" && Net.active) {
-    pw.style.display = "";
-    $("partnerName").textContent = (CHARS[partner.char] ? CHARS[partner.char].name : "PARTNER") + (partner.downed ? " · DOWN" : "");
-    $("partnerHpFill").style.width = clamp(partner.hp / partner.maxHp * 100, 0, 100) + "%";
-    $("partnerHpNum").textContent = partner.downed ? "✚" : Math.ceil(partner.hp);
-  } else pw.style.display = "none";
+  /* co-op: one smaller bar per living partner underneath (up to three) */
+  const stack = $("partnerStack");
+  if (!stack) return;
+  const mates = (typeof Net !== "undefined" && Net.active)
+    ? players.filter(o => o !== p && !o.gone)
+    : [];
+  for (const [idx, row] of hudPartnerRows)
+    if (!mates.some(o => o.idx === idx)) { row.remove(); hudPartnerRows.delete(idx); }
+  for (const mate of mates) {
+    const row = partnerRowFor(mate);
+    row._name.textContent = (CHARS[mate.char] ? CHARS[mate.char].name : "WARDEN") + (mate.downed ? " · DOWN" : "");
+    row._num.textContent = mate.downed ? "✚" : Math.ceil(mate.hp);
+    row._fill.style.width = clamp(mate.hp / mate.maxHp * 100, 0, 100) + "%";
+    stack.appendChild(row);          // keep rows in seat order
+  }
+}
+
+/* the partner bars are built once per seat and then updated in place — this
+   runs on every hurt, so it must not rebuild the DOM */
+const hudPartnerRows = new Map();
+function partnerRowFor(p) {
+  let row = hudPartnerRows.get(p.idx);
+  if (row) return row;
+  row = document.createElement("div");
+  row.className = "partner-row";
+  row.innerHTML =
+    "<div class='hp-label' style='font-size:calc(9px * var(--text-scale, 1));margin-top:4px'>" +
+      "<span class='p-name'></span><span class='p-num'></span></div>" +
+    "<div class='hp-bar' style='height:6px'><div class='hp-fill'></div></div>";
+  row._name = row.querySelector(".p-name");
+  row._num = row.querySelector(".p-num");
+  row._fill = row.querySelector(".hp-fill");
+  hudPartnerRows.set(p.idx, row);
+  return row;
 }
 
 /* animate a numeric readout from what it currently shows to `to` */
