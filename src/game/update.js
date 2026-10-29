@@ -436,7 +436,7 @@ function update(dt) {
       p.reviveT += dt;
       if (Math.random() < dt * 12) particles.push({ x: p.x + rnd(-14, 14), y: p.y + rnd(-14, 6),
         vx: rnd(-15, 15), vy: rnd(-70, -25), t: 0, life: rnd(0.3, 0.6), r: rnd(1.5, 3), color: "#7dff5e" });
-      if (p.reviveT >= REVIVE_TIME) revivePartner(p);
+      if (p.reviveT >= reviveTimeFor()) revivePartner(p);
     } else p.reviveT = Math.max(0, p.reviveT - dt * 2);
   }
 

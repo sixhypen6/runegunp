@@ -600,9 +600,12 @@ const RunegunConsole = {
       } else if (command === "status") {
         const p = this.currentPlayer();
         const pet = p.pet && PTYPES[p.pet] ? " · " + PTYPES[p.pet].name : "";
+        const party = partyExtra() > 0
+          ? " · PARTY " + partySize() + " · HORDE ×" + partyHpMul().toFixed(2) + " · WARDENS ×" + partyBossHpMul().toFixed(2)
+          : "";
         this.log(this.targetTag(p) + " · HP " + Math.ceil(p.hp) + "/" + p.maxHp +
           " · " + Object.keys(p.runes).filter(id => p.runes[id] > 0).length + " runes" +
-          " · " + p.rerolls + " rerolls" + pet);
+          " · " + p.rerolls + " rerolls" + pet + party);
       } else if (command === "target" || command === "p1" || command === "p2") {
         this.setTarget(command === "target" ? rawArgs.join(" ") : command.slice(1));
       } else if (command === "souls") {

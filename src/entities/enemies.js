@@ -489,7 +489,7 @@ const SEAR_BURN_T = 2.5;      // seconds of BRAND when it does
 
 function spawnEnemy(type, x, y) {
   const T = ETYPES[type];
-  const s = diffScale() * (Game.hardMode ? 1.5 : 1);   // HARD: half again the vitality
+  const s = diffScale() * (Game.hardMode ? 1.5 : 1) * partyHpMul();   // HARD + bigger parties: more vitality
   const e = { type, x, y, r: T.r, hp: T.hp * s, maxHp: T.hp * s,
     speed: T.speed * (1 + depth() * 0.04), color: T.color,
     vx: 0, vy: 0, slowMul: 1, slowT: 0, burnT: 0, burnDps: 0, burnTick: 0,
@@ -543,7 +543,7 @@ function wavePool() {
 function startWave() {
   Game.wave++;
   const raw = 4 + Math.floor(Game.wave * 1.8 + depth() * 1.5);
-  const n = Math.max(1, Math.round(raw * (1 - partyWardCut())));
+  const n = Math.max(1, Math.round(raw * (1 - partyWardCut()) * partyWaveMul()));
   if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("WAVE", "wave " + Game.wave + " started (" + n + " enemies)");
   const pool = wavePool();
   for (let i = 0; i < n; i++) {
@@ -560,7 +560,7 @@ function startWave() {
 function triggerAmbush(chest) {
   chest.state = "ambush";
   const raw = 6 + Math.floor(Game.wave * 1.3 + depth() * 1.5);
-  const n = Math.max(1, Math.round(raw * (1 - partyWardCut())));
+  const n = Math.max(1, Math.round(raw * (1 - partyWardCut()) * partyWaveMul()));
   const pool = wavePool();
   let remaining = 0;
   for (let i = 0; i < n; i++) {

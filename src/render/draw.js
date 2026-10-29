@@ -1460,7 +1460,7 @@ function drawWarden(P) {
       cx.beginPath(); cx.arc(P.x, P.y, P.r + 10, 0, TAU); cx.stroke();
       if (P.reviveT > 0) {
         cx.globalAlpha = 0.95; cx.strokeStyle = "#7dff5e"; cx.lineWidth = 4; cx.lineCap = "round";
-        cx.beginPath(); cx.arc(P.x, P.y, P.r + 10, -Math.PI / 2, -Math.PI / 2 + clamp(P.reviveT / REVIVE_TIME, 0, 1) * TAU); cx.stroke();
+        cx.beginPath(); cx.arc(P.x, P.y, P.r + 10, -Math.PI / 2, -Math.PI / 2 + clamp(P.reviveT / reviveTimeFor(), 0, 1) * TAU); cx.stroke();
         cx.lineCap = "butt";
       }
       cx.globalAlpha = 0.8; cx.fillStyle = "#ff4d5e"; cx.font = "bold 9px monospace"; cx.textAlign = "center";
