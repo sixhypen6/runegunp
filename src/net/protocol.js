@@ -61,7 +61,7 @@ const BOSS_SKIP = new Set(["airDst", "convergePos"]);
 
 const PLAYER_FIELDS = ["x", "y", "vx", "vy", "hp", "maxHp", "shield", "shieldMax", "aim", "autoFire",
   "fireT", "dashT", "dashAng", "dashCd", "dashCdBase", "veilT", "veilCdBase", "kickT", "iframes",
-  "downed", "reviveT", "puddleTick", "thrallRecallT"];
+  "downed", "reviveT", "puddleTick", "thrallRecallT", "reprieveCd"];
 
 const NUM3 = v => typeof v === "number" ? Math.round(v * 100) / 100 : v;
 const QI = v => Math.round(v) || 0;                       // whole pixels

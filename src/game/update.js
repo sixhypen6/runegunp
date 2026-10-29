@@ -151,6 +151,7 @@ function updateShredderSaw(p, dt) {
 function updatePlayer(p, inp, dt) {
   if (p.hp <= 0 && !p.downed) return;
   const isLocal = p === localPlayer();
+  if (isLocal) { updateThrallCue(p); updateReprieveCue(p); }
   const mx = inp.mx, my = inp.my;
   p.dashCd -= dt;
   p.iframes -= dt;
@@ -176,7 +177,6 @@ function updatePlayer(p, inp, dt) {
     if (p.char === "necromancer" && inp.recallTap) reanimatorRecallNow(p);
     reanimatorTick(p, dt);
   }
-  if (p === localPlayer()) updateThrallCue(p);
   if (inp.dashTap && p.dashCd <= 0) {
     p.dashT = p.dashDur; p.dashCd = p.dashCdBase;
     if (onIce(p.x, p.y)) p.dashT *= 1.6;   // the Stilled Hour: a dash launched off black ice slides 1.6x as far
