@@ -35,10 +35,8 @@ const Coop = {
   running: false,
   _snapT: 0, _inputT: 0,
   _buf: [],                          // guest: snapshot buffer (newest last)
-  _remote: null,                     // host: latest guest input msg
-  _remoteAt: 0,
-  _lastDashN: 0, _lastUseN: 0, _lastRecallN: 0,   // host: consumed tap counters
-  _dashN: 0, _useN: 0, _recallN: 0,               // guest: outgoing tap counters
+  _inputs: new Map(),                // host: player idx -> { m, at } (one per guest)
+  _taps: new Map(),                  // host: player idx -> consumed tap counters
   _floorReady: false,
   _prevWave: 0,
 
@@ -56,10 +54,11 @@ const Coop = {
     Game.coopVictory = false;
   },
   beginHost(cfgs, mode) {
-    this.cfgs = cfgs;                   // kept so DESCEND AGAIN can rebuild the same pair
+    this.cfgs = cfgs;                   // kept so DESCEND AGAIN can rebuild the same party
     this._start("host");
     this.applyMode(mode);
     resetRun(cfgs);
+    this._markAbsent();
     Game.riftOffered = true;              // no rift in co-op
     setState("play");
     this.sendFloor();
@@ -78,15 +77,26 @@ const Coop = {
   },
   _start(role) {
     this.running = true;
-    this._buf = []; this._remote = null;
+    this._buf = []; this._inputs.clear(); this._taps.clear();
     this._snapT = 0; this._inputT = 0;
-    this._lastDashN = this._lastUseN = this._lastRecallN = this._dashN = this._useN = this._recallN = 0;
+    this._dashN = 0; this._useN = 0; this._recallN = 0;   // guest outgoing counters
     this._prevWave = 0;
     this._stateN = 0;      // newest host-state packet acted on (see _stale)
-    Net.onMessage = m => this._onMsg(m);
-    Net.onPeerLost = why => this._peerLost(why);
+    Net.onMessage = (m, peer) => this._onMsg(m, peer);
+    Net.onPeerLost = (why, peer) => this._peerLost(why, peer);
     Protocol._snapN = 0; Protocol._fx = [];
     this._resetRetryBtn();
+  },
+
+  /* A seat with no live peer (a leaver on DESCEND AGAIN, or a host that
+     started before the gate filled) slumps and stops drawing aggro, but keeps
+     its array index so every other seat stays aligned. */
+  _markAbsent() {
+    if (Net.role !== "host") return;
+    for (const p of players) {
+      if (p.idx === 0) continue;
+      if (!Net.peerByIdx(p.idx)) { p.gone = true; p.downed = true; p.hp = 0; }
+    }
   },
   end() {
     this.running = false;
@@ -145,19 +155,22 @@ const Coop = {
     Net.sendU(Protocol.encodeSnapshot());
   },
 
-  /* the guest warden's input frame, synthesized from the last wire msg */
-  guestFrame() {
-    const m = this._remote;
-    const stale = !m || performance.now() - this._remoteAt > 250;
+  /* a guest warden's input frame, synthesized from that peer's last wire msg */
+  guestFrame(idx) {
+    const rec = this._inputs.get(idx);
+    const m = rec && rec.m;
+    const stale = !m || performance.now() - rec.at > 250;
+    let taps = this._taps.get(idx);
+    if (!taps) { taps = { dash: 0, use: 0, recall: 0 }; this._taps.set(idx, taps); }
     const f = zeroFrame();
     if (m && !stale) {
       f.mx = m.mx; f.my = m.my;
       f.aiming = !!m.fire;
       f.aimX = Math.cos(m.aim); f.aimY = Math.sin(m.aim);
       f.aimMode = "manual";
-      if (m.dashN > this._lastDashN) { f.dashTap = true; this._lastDashN = m.dashN; }
-      if (m.useN > this._lastUseN) { f.useTap = true; this._lastUseN = m.useN; }
-      if (m.recallN > this._lastRecallN) { f.recallTap = true; this._lastRecallN = m.recallN; }
+      if (m.dashN > taps.dash) { f.dashTap = true; taps.dash = m.dashN; }
+      if (m.useN > taps.use) { f.useTap = true; taps.use = m.useN; }
+      if (m.recallN > taps.recall) { f.recallTap = true; taps.recall = m.recallN; }
     } else if (m) {
       /* stale link: stand still but keep the last aim */
       f.aimX = Math.cos(m.aim); f.aimY = Math.sin(m.aim);
@@ -247,12 +260,12 @@ const Coop = {
     /* downed banners, from each client's OWN perspective */
     for (let i = 0; i < players.length; i++) {
       if (players[i].downed && !prevDowned[i]) {
-        toast(i === Net.localIdx ? "YOU ARE DOWN — YOUR PARTNER CAN LIFT YOU"
-                                 : "YOUR PARTNER IS DOWN — REACH THEM");
+        toast(i === Net.localIdx ? "YOU ARE DOWN — A PARTNER CAN LIFT YOU"
+                                 : "A WARDEN IS DOWN — REACH THEM");
         screenFlash(0.2);
       }
       if (!players[i].downed && prevDowned[i])
-        toast(i === Net.localIdx ? "YOU RISE — FIGHT ON" : "YOUR PARTNER RISES");
+        toast(i === Net.localIdx ? "YOU RISE — FIGHT ON" : "A WARDEN RISES");
     }
     if (Game.wave > prevWave && Game.wave > 1) {
       $("waveNum").textContent = ROMAN(Game.wave);
@@ -272,7 +285,9 @@ const Coop = {
      waiting on US to choose — so if we're sitting there holding nothing to
      pick, the offer never arrived. Ask again rather than freezing forever. */
   _starveCheck(hostState) {
-    if (hostState === "wait" && !Game.pendingPickup) {
+    /* only the warden the host is actually waiting on should re-ask; the rest
+       of the party merely sees the frozen world */
+    if (hostState === "wait" && Game.pendingPickupBy === Net.localIdx && !Game.pendingPickup) {
       this._starveT = (this._starveT || 0) + 1;
       if (this._starveT >= 6) { this._starveT = 0; Net.sendR({ t: "reofferReq" }); }
     } else this._starveT = 0;
@@ -476,23 +491,25 @@ const Coop = {
   },
 
   /* ---------------- messages (both roles) ---------------- */
-  _onMsg(m) {
+  _onMsg(m, peer) {
     switch (m.t) {
-      /* --- host receives --- */
-      case "i": this._remote = m; this._remoteAt = performance.now(); break;
+      /* --- host receives (peer identifies WHICH guest spoke) --- */
+      case "i":
+        if (Net.role === "host" && peer) this._inputs.set(peer.idx, { m, at: performance.now() });
+        break;
       case "runePick": if (Net.role === "host") this._hostGrant(m.id); break;
       case "reroll": if (Net.role === "host") this._hostReroll(m.slot); break;
       /* explicit rather than a toggle: a pause request that raced the host's own
          pause must not resume the game instead */
       case "pauseReq": if (Net.role === "host" && Game.state === "play") togglePause(); break;
       case "resumeReq": if (Net.role === "host" && Game.state === "pause") setState("play"); break;
-      /* the guest pressed DESCEND AGAIN — the host performs the reset for both.
+      /* a guest pressed DESCEND AGAIN — the host performs the reset for everyone.
          Ignored once a restart is already under way, so a late request can't
          reset a run that has just begun. */
       case "retryReq": if (Net.role === "host" && !this.running) this.retry(); break;
-      /* the guest is frozen with nothing to choose — resend what it's owed */
+      /* a guest is frozen with nothing to choose — resend what it's owed */
       case "reofferReq": if (Net.role === "host") this._sendRuneOffer(); break;
-      case "guestQuit": this._peerLost("quit"); break;
+      case "guestQuit": this._peerLost("quit", peer); break;
 
       /* --- guest receives --- */
       /* a fresh descent: the first one comes from the lobby, later ones from
@@ -547,8 +564,16 @@ const Coop = {
      truly unreachable, take the choice ourselves and carry on.
      ========================================================= */
   _runeWatchdog(dt) {
+    const chooser = players[Game.pendingPickupBy];
+    /* the hand belonged to a warden who has left: nobody can answer it, so
+       release the run rather than re-offering into the dark */
+    if (Game.pendingPickup && chooser && chooser.gone) {
+      Game.pendingPickup = null; this._waitT = 0; this._reoffers = 0;
+      if (Game.state === "wait") setState("play");
+      return;
+    }
     const waiting = Game.state === "wait" && Game.pendingPickup &&
-                    players[Game.pendingPickupBy] && players[Game.pendingPickupBy] !== localPlayer();
+                    chooser && chooser !== localPlayer();
     if (!waiting) { this._waitT = 0; this._reoffers = 0; return; }
     this._waitT = (this._waitT || 0) + dt;
     if (this._waitT > 3 && this._reoffers < 4) {
@@ -571,7 +596,7 @@ const Coop = {
     const pk = Game.pendingPickup;
     if (!ch || !pk) return;
     if (!pk.ids) pk.ids = genThreeRunes(ch);       // never offer an empty hand
-    Net.sendR({ t: "runeOffer", ids: pk.ids, rerolls: ch.rerolls });
+    Net.sendR({ t: "runeOffer", idx: ch.idx, ids: pk.ids, rerolls: ch.rerolls });
   },
 
   /* ---------------- rune choice over the wire ---------------- */
@@ -600,9 +625,10 @@ const Coop = {
     if (!avail.length) avail = pool.filter(id => id !== pk.ids[slot]);
     if (avail.length) pk.ids[slot] = pick(avail);
     this._waitT = 0; this._reoffers = 0;          // they're clearly alive — reset the watchdog
-    Net.sendR({ t: "runeOffer", ids: pk.ids, rerolls: ch.rerolls });
+    Net.sendR({ t: "runeOffer", idx: ch.idx, ids: pk.ids, rerolls: ch.rerolls });
   },
   _guestRuneOffer(m) {
+    if (m.idx !== Net.localIdx) return;           // somebody else's hand
     /* a re-offer for a choice already on screen must not reset the cards under
        the player's finger — only adopt it if something actually changed */
     const same = Game.state === "rune" && Game.pendingPickup && Game.pendingPickup.ids &&
@@ -710,31 +736,33 @@ const Coop = {
     setState("play");
   },
 
-  /* ---------------- the partner is gone ---------------- */
-  _peerLost(why) {
+  /* ---------------- a partner is gone ---------------- */
+  _peerLost(why, peer) {
     if (!this.running) { Net.hangUp(); return; }
-    this.running = false;
-    const wasHost = Net.role === "host";   // captured BEFORE hangUp clears the role
-    Net.hangUp();
-    if (Game.state === "menu" || Game.state === "lobby") return;
-    /* lost on the tally screen: nothing to salvage, but DESCEND AGAIN must stop
-       promising a shared run — it falls back to a solo descent from here */
-    if (Game.state === "dead") {
-      this._resetRetryBtn();
-      toast("YOUR PARTNER HAS GONE — THE NEXT DESCENT IS YOURS ALONE");
-      return;
-    }
-    if (wasHost) {
-      /* carry on alone: the partner's warden slumps and stops drawing aggro.
-         The run stays record-gated — it began as a shared descent. */
-      const p2 = players[1];
-      if (p2) { p2.gone = true; p2.downed = true; p2.hp = 0; }
-      if (Game.state === "wait" || Game.state === "pause") setState("play");
-      toast("YOUR PARTNER IS LOST TO THE DARK — FIGHT ON");
-    } else {
+    /* a guest's only link is the host: losing it ends this screen's run */
+    if (Net.role === "guest") {
+      this.running = false;
+      Net.hangUp();
+      if (Game.state === "menu" || Game.state === "lobby") return;
+      /* lost on the tally screen: nothing to salvage, but DESCEND AGAIN must stop
+         promising a shared run — it falls back to a solo descent from here */
+      if (Game.state === "dead") {
+        this._resetRetryBtn();
+        toast("THE HOST HAS GONE — THE NEXT DESCENT IS YOURS ALONE");
+        return;
+      }
       toast("CONNECTION LOST");
       if (Game.state !== "dead") doGameOver();
+      return;
     }
+    /* HOST: one seat is lost, the rest of the party fights on. The fallen
+       warden slumps and stops drawing aggro; the run stays record-gated
+       because it began as a shared descent. */
+    const p = peer && players[peer.idx];
+    if (p) { p.gone = true; p.downed = true; p.hp = 0; }
+    if (Game.state === "wait" || Game.state === "pause") setState("play");
+    if (Net.peers.length > 0) toast("A WARDEN IS LOST TO THE DARK — FIGHT ON");
+    else toast("YOUR PARTNERS ARE LOST TO THE DARK — FIGHT ON");
   },
 };
 
@@ -805,7 +833,7 @@ $("waitLeave").addEventListener("click", () => {
 {
   const _frameFor = Net.frameFor.bind(Net);
   Net.frameFor = function (p) {
-    if (this.role === "host" && Coop.running && p.idx === 1) return Coop.guestFrame();
+    if (this.role === "host" && Coop.running && p.idx !== 0) return Coop.guestFrame(p.idx);
     return _frameFor(p);
   };
 }

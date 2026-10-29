@@ -566,6 +566,7 @@
 .coop-warden .cw-name { font-weight: bold; letter-spacing: 0.08em; }
 .coop-warden .cw-sub { font-size:calc(10px * var(--text-scale, 1)); color: var(--dim, #6a6584); margin-top: 4px; }
 .coop-warden.ready { border-color: #7dff5e; box-shadow: 0 0 12px rgba(125, 255, 94, 0.35); }
+.coop-warden.empty { opacity: 0.45; border-style: dashed; }
 /* the shared descent's mode — the host picks, the guest watches */
 .coop-modes { margin: 10px 0 2px; }
 .coop-modes-label { font-size: calc(9px * var(--text-scale, 1)); letter-spacing: .3em; color: var(--dim, #6a6584); margin-bottom: 6px; }
@@ -611,10 +612,7 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
   <div class="hp-wrap">
     <div class="hp-label"><span>VITALITY</span><span id="hpNum"></span></div>
     <div class="hp-bar"><div class="hp-chip" id="hpChip"></div><div class="hp-fill" id="hpFill"></div><div class="hp-tick"></div></div>
-    <div id="partnerHp" style="display:none">
-      <div class="hp-label" style="font-size:calc(9px * var(--text-scale, 1));margin-top:4px"><span id="partnerName">PARTNER</span><span id="partnerHpNum"></span></div>
-      <div class="hp-bar" style="height:6px"><div class="hp-fill" id="partnerHpFill"></div></div>
-    </div>
+    <div id="partnerStack"></div>
     <div id="runeStrip"></div>
     <div id="curseStrip"></div>
     <div id="thrallCue"></div>
@@ -855,10 +853,7 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
       <div class="hint" id="coopJoinStatus" style="margin-top:8px"></div>
     </div>
     <div id="coopReadyView" style="display:none">
-      <div class="coop-wardens">
-        <div class="coop-warden" id="coopCardSelf"></div>
-        <div class="coop-warden" id="coopCardPeer"></div>
-      </div>
+      <div class="coop-wardens" id="coopCards"></div>
       <div class="hint" id="coopPing"></div>
       <div class="coop-modes" id="coopModes">
         <div class="coop-modes-label">DESCENT</div>

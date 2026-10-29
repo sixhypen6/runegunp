@@ -1,14 +1,22 @@
 /* =========================================================
    RUNEGUN · Signaling — join codes over Firebase Realtime DB.
-   The DB is a one-shot mailbox: host posts an offer under a short
-   code, guest posts the answer, both trade ICE candidates, and the
-   room is deleted the moment the DataChannel opens.
+   The DB is a one-shot mailbox: the host claims a short code and
+   keeps it open while guests join, each guest posts a join key, the
+   host posts one offer per guest key, the guest answers, and both
+   trade ICE candidates per key. The room is deleted when the host
+   starts the descent (or leaves the lobby).
 
    RTDB layout:
-     /rooms/<CODE>/host  { v, createdAt, offer }
-     /rooms/<CODE>/guest { v, answer }
-     /rooms/<CODE>/hc/<push>  host ICE candidate (JSON string)
-     /rooms/<CODE>/gc/<push>  guest ICE candidate (JSON string)
+     /rooms/<CODE>/host                     { v, createdAt, open }
+     /rooms/<CODE>/joins/<jid>              { v, at }            guest asks to join
+     /rooms/<CODE>/peers/<jid>/offer        host's SDP for that guest
+     /rooms/<CODE>/peers/<jid>/answer       guest's SDP
+     /rooms/<CODE>/peers/<jid>/hc/<push>    host ICE candidate (JSON string)
+     /rooms/<CODE>/peers/<jid>/gc/<push>    guest ICE candidate (JSON string)
+     /rooms/<CODE>/peers/<jid>/reject       "full" / "closed" when the host refuses a join
+
+   One key per guest keeps the mailbox flat: no slot negotiation, no
+   collisions, and a guest that retries simply brings a fresh key.
    ========================================================= */
 "use strict";
 
@@ -16,11 +24,13 @@ const Signal = {
   /* code alphabet: A-Z + 2-9 minus lookalikes O/0/I/1 */
   ALPHABET: "ABCDEFGHJKLMNPQRSTUVWXYZ23456789",
   CODE_LEN: 5,
+  JOIN_LEN: 10,
   ROOM_TTL_MS: 10 * 60 * 1000,
 
   app: null, db: null,
   code: null,
   owner: null,        // "host" if WE created this room — only the owner may delete it
+  joinId: null,       // a guest's key inside the room (null on the host)
   _refs: [],          // listeners to detach on cleanup
   _skew: 0,           // serverTime - deviceTime, so a wrong device clock can't expire rooms
   online: false,      // is the RTDB socket actually up right now
@@ -91,14 +101,15 @@ const Signal = {
      SDK holds the connection for the rest of the app session, and 100 of those
      is the whole Spark allowance — roughly 1,800 co-op starts a day. Freed
      after ~5 seconds instead, the same allowance covers orders of magnitude
-     more. Re-opened automatically by the next createRoom/fetchOffer. */
+     more. Re-opened automatically by the next createRoom/joinRoom. */
   release() {
     if (!this.db) return;
     try { this.db.goOffline(); this.online = false; } catch (e) {}
   },
   /* cleanup() queues a room delete, and cutting the socket underneath it would
      strand that write — leaving an orphan room to sit until its TTL. Give the
-     delete a moment to flush, then hand the connection back. */
+     delete a moment to flush, then hand the connection back. A lobby that is
+     still accepting guests keeps the socket; only closeRoom/leaveRoom release. */
   releaseSoon(ms) {
     clearTimeout(this._relTimer);
     this._relTimer = setTimeout(() => this.release(), ms || 2000);
@@ -149,12 +160,29 @@ const Signal = {
     for (let i = 0; i < this.CODE_LEN; i++) c += this.ALPHABET[Math.floor(Math.random() * this.ALPHABET.length)];
     return c;
   },
+  genJoinId() {
+    let c = "";
+    for (let i = 0; i < this.JOIN_LEN; i++) c += this.ALPHABET[Math.floor(Math.random() * this.ALPHABET.length)];
+    return c;
+  },
 
   roomRef(code) { return this.db.ref("rooms/" + code); },
+  peerRef(jid) { return this.roomRef(this.code).child("peers/" + jid); },
 
-  /* HOST: claim a fresh code (retry on collision with a live room) and
-     post the offer. Returns the code. */
-  async createRoom(offerSdp) {
+  /* One-shot listener: fire once, then detach every listener it owns. */
+  _offRef(ref, ev, cb) {
+    try { ref.off(ev, cb); } catch (e) {}
+    this._refs = this._refs.filter(r => !(r[0] === ref && r[1] === ev && r[2] === cb));
+  },
+
+  /* =========================================================
+     HOST
+     ========================================================= */
+
+  /* Claim a fresh code (retry on collision with a live room). The room holds
+     no offer yet: one is minted per guest as they arrive, so a 4-player gate
+     never needs a pre-baked slot layout. */
+  async createRoom() {
     if (!this.init()) throw new Error("firebase-unconfigured");
     this._wake();                       // a previous session may have released the socket
     await this._ready();                // ...and goOnline() lands asynchronously
@@ -164,84 +192,140 @@ const Signal = {
       const snap = await this._guard(ref.child("host/createdAt").get(), "probe");
       const stale = !snap.exists() || snap.val() < this.now() - this.ROOM_TTL_MS;
       if (!stale) continue;
-      await this._guard(ref.set({ host: { v: PROTOCOL_VERSION, createdAt: firebase.database.ServerValue.TIMESTAMP, offer: offerSdp } }), "claim");
+      await this._guard(ref.set({ host: {
+        v: PROTOCOL_VERSION, createdAt: firebase.database.ServerValue.TIMESTAMP, open: true,
+      } }), "claim");
       /* Deliberately NO onDisconnect().remove(): on mobile a momentary RTDB
          socket blip makes the server fire it and destroy a room the host is
          still displaying a code for. The TTL above retires abandoned rooms. */
       this.code = code;
       this.owner = "host";
+      this.joinId = null;
       return code;
     }
     throw new Error("no-free-code");
   },
 
-  /* GUEST: fetch the host's offer for a code. Throws "room-not-found" /
-     "room-taken" / "version-mismatch". */
-  async fetchOffer(code) {
-    if (!this.init()) throw new Error("firebase-unconfigured");
-    this._wake();
-    await this._ready();
-    code = code.toUpperCase();
-    const ref = this.roomRef(code);
-    const snap = await this._guard(ref.get(), "fetch");
-    const room = snap.val();
-    if (!room || !room.host || !room.host.offer ||
-        room.host.createdAt < this.now() - this.ROOM_TTL_MS) throw new Error("room-not-found");
-    if (room.host.v !== PROTOCOL_VERSION) throw new Error("version-mismatch");
-    /* A stale answer is almost always OUR OWN abandoned attempt (the join timed
-       out and we came back to retry), not a third player. Reclaim it rather than
-       refusing — the previous behaviour made one failed attempt poison the code. */
-    if (room.guest && room.guest.answer) await this._guard(ref.child("guest").remove(), "reclaim");
-    this.code = code;
-    this.owner = "guest";
-    return room.host.offer;
+  /* Host: hear about every guest that knocks. child_added also replays the
+     guests who joined while the listener was still being attached. */
+  watchJoins(fn) {
+    const ref = this.roomRef(this.code).child("joins");
+    const cb = snap => { if (snap.exists()) fn(snap.key); };
+    ref.on("child_added", cb);
+    this._refs.push([ref, "child_added", cb]);
   },
 
-  async postAnswer(answerSdp) {
-    await this._guard(this.roomRef(this.code).child("guest").set({ v: PROTOCOL_VERSION, answer: answerSdp }), "answer");
+  async postOffer(jid, offerSdp) {
+    await this._guard(this.peerRef(jid).child("offer").set({ v: PROTOCOL_VERSION, sdp: offerSdp }), "offer");
   },
 
-  /* HOST: resolve once a guest posts an answer.
-     Deliberately NOT time-limited — the host may sit on the code for minutes
-     while reading it out. The lobby watches `Signal.online` to notice if the
-     socket dies underneath this wait. */
-  waitForAnswer() {
+  /* Resolve once the guest answers our offer. Deliberately NOT time-limited:
+     the host may sit on the code for minutes while the guest sets up. */
+  waitForAnswer(jid) {
     return new Promise(resolve => {
-      const ref = this.roomRef(this.code).child("guest/answer");
-      const cb = snap => { if (snap.exists()) { ref.off("value", cb); resolve(snap.val()); } };
+      const ref = this.peerRef(jid).child("answer/sdp");
+      const cb = snap => { if (snap.exists()) { this._offRef(ref, "value", cb); resolve(snap.val()); } };
       ref.on("value", cb);
       this._refs.push([ref, "value", cb]);
     });
   },
 
-  /* trade ICE: push mine under my key, stream the peer's from theirs */
-  pushCandidate(mine, cand) {
-    const key = mine === "host" ? "hc" : "gc";
-    this.roomRef(this.code).child(key).push(JSON.stringify(cand));
+  /* Host: refuse a join (gate already full, or the descent has begun). */
+  async rejectJoin(jid, reason) {
+    try { await this.peerRef(jid).child("reject").set(reason || "closed"); } catch (e) {}
   },
-  onCandidates(theirs, fn) {
-    const key = theirs === "host" ? "hc" : "gc";
-    const ref = this.roomRef(this.code).child(key);
+
+  /* =========================================================
+     GUEST
+     ========================================================= */
+
+  /* Ask to join a code. Throws "room-not-found" / "version-mismatch" /
+     "room-closed". Returns this guest's join key. */
+  async joinRoom(code) {
+    if (!this.init()) throw new Error("firebase-unconfigured");
+    this._wake();
+    await this._ready();
+    code = String(code || "").toUpperCase();
+    const ref = this.roomRef(code);
+    const snap = await this._guard(ref.get(), "fetch");
+    const room = snap.val();
+    if (!room || !room.host || !room.host.createdAt ||
+        room.host.createdAt < this.now() - this.ROOM_TTL_MS) throw new Error("room-not-found");
+    if (room.host.v !== PROTOCOL_VERSION) throw new Error("version-mismatch");
+    if (room.host.open === false) throw new Error("room-closed");
+    const jid = this.genJoinId();
+    await this._guard(ref.child("joins/" + jid).set({
+      v: PROTOCOL_VERSION, at: firebase.database.ServerValue.TIMESTAMP,
+    }), "join");
+    this.code = code;
+    this.owner = "guest";
+    this.joinId = jid;
+    return jid;
+  },
+
+  /* Guest: resolve when the host mints our offer (or reject us). */
+  watchOffer(jid, onOffer, onReject) {
+    const base = this.peerRef(jid);
+    const off = snap => { if (snap.exists()) { offVal(); offRej(); onOffer(snap.val().sdp); } };
+    const rej = snap => { if (snap.exists()) { offVal(); offRej(); onReject && onReject(snap.val()); } };
+    const refO = base.child("offer"), refR = base.child("reject");
+    const offVal = () => { this._offRef(refO, "value", off); };
+    const offRej = () => { this._offRef(refR, "value", rej); };
+    refO.on("value", off);
+    refR.on("value", rej);
+    this._refs.push([refO, "value", off], [refR, "value", rej]);
+  },
+
+  async postAnswer(jid, answerSdp) {
+    await this._guard(this.peerRef(jid).child("answer").set({ v: PROTOCOL_VERSION, sdp: answerSdp }), "answer");
+  },
+
+  /* =========================================================
+     ICE — one bucket pair per guest key
+     ========================================================= */
+  pushCandidate(jid, side, cand) {
+    this.peerRef(jid).child(side === "host" ? "hc" : "gc").push(JSON.stringify(cand));
+  },
+  onCandidates(jid, side, fn) {
+    const ref = this.peerRef(jid).child(side === "host" ? "hc" : "gc");
     const cb = snap => { try { fn(JSON.parse(snap.val())); } catch (e) {} };
     ref.on("child_added", cb);
     this._refs.push([ref, "child_added", cb]);
   },
 
+  /* =========================================================
+     TEARDOWN
+     ========================================================= */
   /* The handshake is done (or abandoned): drop listeners and tidy up.
      OWNERSHIP MATTERS. Only the host created the room, so only the host may
      delete it. A guest that tears down (failed ICE, cancelled join, hang-up)
-     must leave the room standing and merely withdraw its own answer, or it
-     destroys the room its partner is still advertising a code for — which is
-     what made every retry report "no gate answers that code". */
+     must leave the room standing and merely withdraw its own join key, or it
+     destroys the gate its partners are still walking through. */
   cleanup(deleteRoom) {
     for (const [ref, ev, cb] of this._refs) { try { ref.off(ev, cb); } catch (e) {} }
     this._refs = [];
     if (this.code && this.db) {
       const ref = this.roomRef(this.code);
-      if (deleteRoom && this.owner === "host") { try { ref.remove(); } catch (e) {} }
-      else if (this.owner === "guest") { try { ref.child("guest").remove(); } catch (e) {} }
+      if (deleteRoom && this.owner === "host") {
+        try { ref.remove(); } catch (e) {}
+      } else if (this.owner === "guest" && this.joinId) {
+        try { ref.child("joins/" + this.joinId).remove(); } catch (e) {}
+        try { ref.child("peers/" + this.joinId).remove(); } catch (e) {}
+      }
     }
     this.code = null;
     this.owner = null;
+    this.joinId = null;
+  },
+
+  /* Host: the descent is firing — retire the gate and give the socket back. */
+  closeRoom() {
+    this.cleanup(true);
+    this.releaseSoon();
+  },
+  /* Guest: step away without disturbing the gate. */
+  leaveRoom() {
+    this.cleanup(false);
+    this.releaseSoon();
   },
 };

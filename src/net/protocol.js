@@ -61,7 +61,7 @@ const BOSS_SKIP = new Set(["airDst", "convergePos"]);
 
 const PLAYER_FIELDS = ["x", "y", "vx", "vy", "hp", "maxHp", "shield", "shieldMax", "aim", "autoFire",
   "fireT", "dashT", "dashAng", "dashCd", "dashCdBase", "veilT", "veilCdBase", "kickT", "iframes",
-  "downed", "reviveT", "puddleTick", "thrallRecallT", "reprieveCd"];
+  "downed", "gone", "reviveT", "puddleTick", "thrallRecallT", "reprieveCd"];
 
 const NUM3 = v => typeof v === "number" ? Math.round(v * 100) / 100 : v;
 const QI = v => Math.round(v) || 0;                       // whole pixels
@@ -252,7 +252,7 @@ const Protocol = {
         const err = Math.hypot(p.x - o.x, p.y - o.y);
         if (err > 48) { p.x = o.x; p.y = o.y; }
         else if (err > 4) { p.x = lerp(p.x, o.x, 0.08); p.y = lerp(p.y, o.y, 0.08); }
-        for (const f of ["hp", "maxHp", "shield", "shieldMax", "iframes", "downed", "reviveT"])
+        for (const f of ["hp", "maxHp", "shield", "shieldMax", "iframes", "downed", "gone", "reviveT"])
           if (o[f] !== undefined) p[f] = o[f];
       }
       p.curses = o.curses || {};
@@ -397,9 +397,10 @@ const Protocol = {
        felt as general co-op jank rather than anything nameable. Gate them on a
        cheap signature and they fire only on real change.
        ========================================================= */
-    const me = localPlayer(), mate = players.find(o => o !== me);
+    const me = localPlayer();
+    const mates = players.filter(o => o !== me);
     const hpSig = (me ? me.hp + "/" + me.maxHp + "/" + me.shield : "-") + "|" +
-                  (mate ? mate.hp + "/" + mate.maxHp + "/" + (mate.downed ? 1 : 0) : "-");
+                  mates.map(o => o.hp + "/" + o.maxHp + "/" + (o.downed ? 1 : 0) + "/" + (o.gone ? 1 : 0)).join("|");
     if (hpSig !== this._uiHp) { this._uiHp = hpSig; updateHp(); }
     if (Game.score !== this._uiScore) { this._uiScore = Game.score; updateScore(); }
     const sealSig = Game.chestsOpened + "/" + Game.chestsTotal + "/" +

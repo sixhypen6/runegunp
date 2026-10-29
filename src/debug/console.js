@@ -243,7 +243,7 @@ const RunegunConsole = {
     const idx = p && typeof p.idx === "number" ? p.idx : this.targetIdx;
     const c = typeof CHARS !== "undefined" && CHARS[p.char] ? CHARS[p.char] : { name: p.char };
     const role = (typeof Net !== "undefined" && Net.active)
-      ? (idx === Net.localIdx ? "YOU" : "PARTNER")
+      ? (idx === Net.localIdx ? "YOU" : "WARDEN")
       : "WARDEN";
     return "P" + (idx + 1) + " · " + role + " · " + c.name;
   },
@@ -259,7 +259,7 @@ const RunegunConsole = {
     const lines = players.map((p, i) =>
       "  " + (i + 1) + " · " + this.targetTag(p) + " · HP " + Math.ceil(p.hp) + "/" + p.maxHp + (i === this.targetIdx ? "  ←" : ""));
     return "TARGET: " + this.targetTag(players[this.targetIdx]) + "\n" + lines.join("\n") +
-      "\nUse target 1|2 (aliases p1, p2), target me, target partner.";
+      "\nUse target 1–" + players.length + " (aliases p1, p2…), target me, target partner.";
   },
 
   setTarget(arg) {
@@ -269,17 +269,23 @@ const RunegunConsole = {
     const local = (typeof Net !== "undefined" && Net.active) ? Net.localIdx : 0;
     let idx = -1;
     if (raw === "me" || raw === "self" || raw === "host") idx = local;
-    else if (raw === "partner" || raw === "guest" || raw === "other") idx = players.length > 1 ? 1 - local : -1;
+    else if (raw === "partner" || raw === "guest" || raw === "other") {
+      /* the first other living seat — the host addresses a guest, a guest the host */
+      for (let i = 1; i <= players.length; i++) {
+        const cand = (local + i) % players.length;
+        if (cand !== local) { idx = cand; break; }
+      }
+    }
     else if (/^\d+$/.test(raw)) idx = Number(raw) - 1;
     else {
       const matches = players.map((p, i) => ({ i, key: p.char }))
         .filter(x => x.key === raw || (CHARS[x.key] && CHARS[x.key].name.toLowerCase() === raw));
       if (matches.length === 1) idx = matches[0].i;
-      else if (matches.length > 1) throw new Error("More than one warden matches '" + arg + "'. Use target 1 or 2.");
+      else if (matches.length > 1) throw new Error("More than one warden matches '" + arg + "'. Use a seat number.");
     }
     if (idx < 0 || idx >= players.length) {
       throw new Error(players.length > 1
-        ? "Usage: target 1|2, target me, target partner. This run has " + players.length + " wardens."
+        ? "Usage: target 1–" + players.length + ", target me, target partner. This run has " + players.length + " wardens."
         : "This run has only one warden — there is no partner to target.");
     }
     this.targetIdx = idx;
@@ -486,7 +492,7 @@ const RunegunConsole = {
       "RUN CONSOLE — every command",
       "  help                          this list",
       "  status                        current warden, vitality, rune count",
-      "  target [1|2|me|partner]       choose which warden edits apply to (p1, p2)",
+      "  target [1-4|me|partner]       choose which warden edits apply to (aliases p1…p4)",
       "  runes                         runes held by the target",
       "  list                          every carvable rune id",
       "  add <rune> [n]                carve n more stacks (default 1)",
@@ -606,7 +612,7 @@ const RunegunConsole = {
         this.log(this.targetTag(p) + " · HP " + Math.ceil(p.hp) + "/" + p.maxHp +
           " · " + Object.keys(p.runes).filter(id => p.runes[id] > 0).length + " runes" +
           " · " + p.rerolls + " rerolls" + pet + party);
-      } else if (command === "target" || command === "p1" || command === "p2") {
+      } else if (command === "target" || /^p[1-9]$/.test(command)) {
         this.setTarget(command === "target" ? rawArgs.join(" ") : command.slice(1));
       } else if (command === "souls") {
         this.currentPlayer();
