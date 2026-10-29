@@ -58,6 +58,11 @@
     animation:cursePulse 1s ease-in-out infinite}
   .curse small{font-size:calc(9px * var(--text-scale, 1));opacity:.8}
   @keyframes cursePulse{0%,100%{opacity:.65}50%{opacity:1}}
+  /* the REANIMATOR's pack — count and recall clock, quiet until it is ready */
+  #thrallCue{display:none;margin-top:6px;font-size:calc(10px * var(--text-scale, 1));letter-spacing:.16em;
+    color:#b9a8ff;font-variant-numeric:tabular-nums;text-shadow:0 0 8px rgba(157,107,255,.4)}
+  #thrallCue.on{display:block}
+  #thrallCue.ready{color:#7dff5e;text-shadow:0 0 8px rgba(125,255,94,.45)}
   /* the saloon's rounds — amber, with the sober clock draining below it */
   #drunkHud{display:none;margin-top:7px;max-width:min(320px,44vw);font-variant-numeric:tabular-nums}
   #drunkHud.on{display:block}
@@ -607,6 +612,7 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
     </div>
     <div id="runeStrip"></div>
     <div id="curseStrip"></div>
+    <div id="thrallCue"></div>
     <div id="drunkHud"><div id="drunkName"></div><div id="drunkBar"><div id="drunkFill"></div></div><div id="drunkTime"></div></div>
   </div>
   <div class="wave-wrap">
@@ -1169,6 +1175,7 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
 <script src="src/core/world.js"></script>
 <script src="src/entities/spawning.js"></script>
 <script src="src/entities/enemies.js"></script>
+<script src="src/entities/reanimator.js"></script>
 <script src="src/entities/bosses.js"></script>
 <script src="src/entities/deep.js"></script>
 <script src="src/entities/unknown.js"></script>

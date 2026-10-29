@@ -520,13 +520,16 @@ function killEnemy(e, killer) {
   /* a warden's death freezes in full; a horror's is a recurring beat, inside the budget (juice.js) */
   if (e.boss) Game.hitstop = Math.max(Game.hitstop, 0.2); else beatHitstop(0.03);
   AudioFX.kill();
-  /* REANIMATOR: its ghost thralls pay their life back as a little healing. */
+  /* REANIMATOR: its ghost thralls pay their life back as a little healing.
+     A thrall spent by the SOUL TITHE rite pays according to its multiplier and
+     is tallied by the rite instead of printing its own line. */
   if (e.team === "p" && e.owner && e.owner.char === "necromancer") {
     const owner = e.owner;
-    const heal = Math.floor(rnd(2, 7));
+    const heal = soulFeedHeal() * (e.sacrifice ? REANIMATOR.sacrificeHealMul : 1);
     owner.hp = Math.min(owner.maxHp, owner.hp + heal);
     if (owner === localPlayer()) updateHp();
-    floatText(owner.x, owner.y - 30, "+" + heal + " SOUL FEED", "#7dff5e", 11);
+    if (e.sacrifice) owner.sacrificeTally = (owner.sacrificeTally || 0) + heal;
+    else floatText(owner.x, owner.y - 30, "+" + heal + " SOUL FEED", "#7dff5e", 11);
   }
   /* slain horrors sometimes rise as allied ghosts; summoned units cannot reanimate. */
   const reanimator = killer && killer.char === "necromancer";
