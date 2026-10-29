@@ -29,7 +29,7 @@ const CHARS = {
     hp: 80, speed: 300, dashCd: 0.95, dashDur: 0.3, dashSpeed: 920, startRunes: 0, rerolls: 2,
     sawReach: 76, weaponBase: { dmg: 6, rate: 8, size: 4, count: 1 } },
   necromancer: { name: "REANIMATOR", glyph: "ᚻ", color: "#8a86a0", cost: 50000,
-    desc: "85 vitality. Slain horrors have a 40% chance to rise as ghost thralls. Thralls keep half their vitality and fight for you; their deaths feed your soul.",
+    desc: "85 vitality. Slain horrors have a 40% chance to rise as ghost thralls. Thralls keep half their vitality and fight for you; their deaths feed your soul. Every 24s the pack is recalled to your side — or press recall. Below 35% vitality, a surplus of thralls is spent for doubled healing.",
     hp: 85, speed: 257.5, dashCd: 1.0, startRunes: 0, rerolls: 4,
     weaponBase: { dmg: 16, rate: 2.6, size: 4 } },
   theUnknown: { name: "THE UNKNOWN", glyph: "?", color: "#e8e2d0", cost: 999999,

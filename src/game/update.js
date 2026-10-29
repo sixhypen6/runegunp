@@ -47,13 +47,13 @@ function localInputFrame() {
   const f = { mx, my, aimX: Input.aimX, aimY: Input.aimY, aiming: Input.aiming,
     mouseX: Input.mouseX, mouseY: Input.mouseY, mouseDown: Input.touchMode ? Input.mouseDown : fireHeld(),
     touchMode: Input.touchMode, aimMode: Meta.aimMode, deskMode: Meta.deskMode,
-    dashTap: Input.dashTap, useTap: Input.useTap };
-  Input.dashTap = false; Input.useTap = false;
+    dashTap: Input.dashTap, useTap: Input.useTap, recallTap: Input.recallTap };
+  Input.dashTap = false; Input.useTap = false; Input.recallTap = false;
   return f;
 }
 function zeroFrame() {
   return { mx: 0, my: 0, aimX: 0, aimY: 0, aiming: false, mouseX: undefined, mouseY: undefined,
-    mouseDown: false, touchMode: true, aimMode: "auto", deskMode: "auto", dashTap: false, useTap: false };
+    mouseDown: false, touchMode: true, aimMode: "auto", deskMode: "auto", dashTap: false, useTap: false, recallTap: false };
 }
 function inputFrameFor(p) {
   if (p === localPlayer()) return localInputFrame();
@@ -170,6 +170,13 @@ function updatePlayer(p, inp, dt) {
         t: 0, life: 0.4, r: rnd(1.5, 3), color: "#ff4d5e" });
     return;
   }
+  /* REANIMATOR — the thrall rites. The host owns them in a shared descent;
+     the guest only keeps its own HUD cue in step with the host's timer. */
+  if (reanimatorAuthority()) {
+    if (p.char === "necromancer" && inp.recallTap) reanimatorRecallNow(p);
+    reanimatorTick(p, dt);
+  }
+  if (p === localPlayer()) updateThrallCue(p);
   if (inp.dashTap && p.dashCd <= 0) {
     p.dashT = p.dashDur; p.dashCd = p.dashCdBase;
     if (onIce(p.x, p.y)) p.dashT *= 1.6;   // the Stilled Hour: a dash launched off black ice slides 1.6x as far

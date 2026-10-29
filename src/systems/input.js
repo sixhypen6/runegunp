@@ -11,7 +11,7 @@ const Input = {
   moveX: 0, moveY: 0,
   aimX: 0, aimY: 0, aiming: false,
   touchMode: false,
-  dashTap: false, useTap: false,
+  dashTap: false, useTap: false, recallTap: false,
 };
 
 /* ---------- key bindings (desktop) ----------
@@ -23,13 +23,13 @@ const Input = {
    own map — null means these defaults, which are exactly the keys the game always
    had, so nothing changes for anyone who never opens CONTROLS (or for Android).
    PAUSE is not rebindable: Escape / P on the keyboard, MENU (9) on a controller. */
-const KEY_ACTIONS = ["up", "down", "left", "right", "fire", "dash", "use", "runes"];
+const KEY_ACTIONS = ["up", "down", "left", "right", "fire", "dash", "use", "recall", "runes"];
 const KEY_DEFAULTS = {
   up: ["KeyW", "ArrowUp"], down: ["KeyS", "ArrowDown"], left: ["KeyA", "ArrowLeft"], right: ["KeyD", "ArrowRight"],
-  fire: ["Mouse0", null], dash: ["Space", null], use: ["KeyE", null], runes: ["Tab", "KeyI"],
+  fire: ["Mouse0", null], dash: ["Space", null], use: ["KeyE", null], recall: ["KeyR", null], runes: ["Tab", "KeyI"],
 };
-const PAD_ACTIONS = ["fire", "dash", "use", "runes"];
-const PAD_DEFAULTS = { fire: 7, dash: 6, use: 0, runes: 8 };   // RT · LT · A · VIEW
+const PAD_ACTIONS = ["fire", "dash", "use", "recall", "runes"];
+const PAD_DEFAULTS = { fire: 7, dash: 6, use: 0, recall: 3, runes: 8 };   // RT · LT · A · Y · VIEW
 function keyBinds(act) { return (Meta.keyBinds && Meta.keyBinds[act]) || KEY_DEFAULTS[act]; }
 function padBind(act) {
   const v = Meta.padBinds ? Meta.padBinds[act] : undefined;
@@ -46,6 +46,7 @@ function fireHeld() { return keyHeld("fire") || (typeof Pad !== "undefined" && P
 function pressBound(code, e) {
   if (keyBound("dash", code)) { if (Game.state === "play") Input.dashTap = true; if (e) e.preventDefault(); }
   if (keyBound("use", code) && Game.state === "play") Input.useTap = true;
+  if (keyBound("recall", code) && Game.state === "play") Input.recallTap = true;
   if (keyBound("runes", code)) { if (e) e.preventDefault(); toggleRunesHeld(); }
 }
 

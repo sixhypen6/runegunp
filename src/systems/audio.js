@@ -218,6 +218,9 @@ const AudioFX = (() => {
     combo: n => blip(280 + 55 * Math.min(n, 9), 0.07, "square", 0.05, 1.3),
     calm: () => { blip(523, 0.16, "sine", 0.06, 0.9); setTimeout(() => blip(392, 0.22, "sine", 0.05, 0.9), 130); },
     sizzle: collapse(() => noise(0.18, 0.13, 1200), 0.04),
+    /* REANIMATOR rites: the pack snapping home, and the wet tithe of spent thralls */
+    recall: () => { blip(300, 0.18, "sine", 0.06, 2.4); setTimeout(() => blip(620, 0.16, "triangle", 0.05, 1.6), 70); },
+    sacrifice: () => { blip(150, 0.38, "triangle", 0.1, 1.8); noise(0.26, 0.12, 700); setTimeout(() => blip(430, 0.22, "sine", 0.06, 1.4), 90); },
     keeperWord,
     duck,
     /* THE SINGULAR: a mumbled voice under a line of speech, and the saloon piano */
