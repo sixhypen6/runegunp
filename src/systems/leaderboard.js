@@ -130,14 +130,26 @@ const Leaderboard = (() => {
     try { localStorage.setItem(STAMP_PREFIX + id, JSON.stringify({ a: amount, t: Date.now() })); } catch (e) {}
   }
 
-  async function submit(id, amount, tag) {
+async function submit(id, amount, tag) {
     const p = board();
     if (!p || !signedIn || !id || !(amount > 0)) return;
     /* Tally-age is a Play Games concept (Google ranks the public collection
-       minutes to hours after the write). The Firebase board is live, so its
-       rows are never "pending" and need no stamp. */
+        minutes to hours after the write). The Firebase board is live, so its
+        rows are never "pending" and need no stamp. */
     if (p === pg()) stampSubmit(id, amount);
-    try { await p.submitScore({ leaderboardID: id, totalScoreAmount: amount, tag }); } catch (e) {}
+    
+    // Automatically determine place based on where the game is hosted
+    const host = window.location.hostname;
+    const placeVal = host.includes("github.io") ? "github" : "vscode live server";
+
+    try { 
+      await p.submitScore({ 
+        leaderboardID: id, 
+        totalScoreAmount: amount, 
+        tag,
+        place: placeVal // <--- This sends the place to your Firebase database!
+      }); 
+    } catch (e) {}
   }
 
   /* Re-post the stored bests the moment sign-in succeeds. A best earned while
