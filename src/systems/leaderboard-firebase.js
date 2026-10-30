@@ -267,12 +267,11 @@ function toEntry(id, row, key, slot) {
     return {
       rank: 0,
       displayName: preferredName,
-      name: preferredName, // <-- ADDED THIS so entry.name exists too!
-      // place: entry.place
+      name: preferredName,
       displayScore: "",
       rawScore: raw,
       playerId: id,
-      place: (row && typeof row.place === "string") ? row.place : "",
+      place: (row && typeof row.place === "string") ? row.place : "", // <-- THIS MUST BE HERE
       char: (tag && typeof tag.char === "string") ? tag.char : "",
       runes: (tag && typeof tag.runes === "string") ? tag.runes : "",
       challenge: (tag && typeof tag.challenge === "string") ? tag.challenge : "",
