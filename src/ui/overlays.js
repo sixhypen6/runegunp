@@ -788,7 +788,7 @@ function lbSimRow(rank, best, tag) {
     displayName: Leaderboard.myDisplayName?.() || Leaderboard.myName() || "WARDEN",
     name: Leaderboard.myName() || "—", 
     score: best.toLocaleString(),
-    place: currentPlace, // <--- Passes place to the simulated row
+    place: currentPlace, // <--- This passes the place property into lbRow!
     char: tag && tag.char, 
     runes: tag && tag.runes, 
     challenge: tag && tag.challenge 
