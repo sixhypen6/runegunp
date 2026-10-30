@@ -268,7 +268,7 @@ function toEntry(id, row, key, slot) {
       rank: 0,
       displayName: preferredName,
       name: preferredName, // <-- ADDED THIS so entry.name exists too!
-      place: (row && typeof row.place === "string") ? row.place : "",
+      // place: entry.place
       displayScore: "",
       rawScore: raw,
       playerId: id,
