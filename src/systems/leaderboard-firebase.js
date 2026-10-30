@@ -145,9 +145,6 @@ const FirebaseBoard = (() => {
       try {
         unsub = auth.onAuthStateChanged(finish, () => finish(null));
       } catch (e) { finish(null); }
-      /* persistence can be refused (private mode / blocked storage) and the
-         callback would then never fire a user — but it always fires ONCE with
-         null, so this is only a last-resort net */
       setTimeout(() => finish(auth.currentUser || null), 4000);
     });
   }
