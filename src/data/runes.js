@@ -6,6 +6,52 @@
 
 
 /* =========================================================
+   FIRE-RATE CEILING — surplus speed folds into damage
+   The trigger stops at RATE_CAP shots a second. Fire rate past the ceiling
+   isn't wasted: it pays back as per-shot damage. RAPID's payback is capped at
+   what the same gun would earn without it — a slow gun's huge rate surplus can
+   reach parity but must never flip "a touch down" into a damage gain.
+   ========================================================= */
+const RATE_CAP = 20;                 // shots/s — the hard trigger ceiling
+const RAPID_RATE = 1.45;             // RAPID's fire-rate gain per stack
+const RAPID_DMG = 0.92;              // RAPID's per-shot damage cost per stack
+
+/* Fold rate above the ceiling into damage. Returns a per-build fold function so
+   the generic pass and the SHREDDER's twin pass share one running payback.
+   RAPID's payback is capped at what the same gun would earn WITHOUT RAPID —
+   so piling on speed can reach parity but never flip its damage cost into a
+   gain. Above the cap the extra stacks simply stop helping. */
+function rateFold(m, runes) {
+  const rapid = (runes && runes.rapid) || 0;
+  /* no RAPID: surplus rate pays back 1:1, exactly as it always has */
+  if (!rapid) return () => {
+    if (m.rate <= RATE_CAP) return;
+    m.dmg *= m.rate / RATE_CAP;
+    m.rate = RATE_CAP;
+  };
+  const rapidRate = stackMul(RAPID_RATE, rapid);   // speed RAPID itself added
+  const rapidCost = stackMul(RAPID_DMG, rapid);    // per-shot damage RAPID took
+  let paid = 1;        // cumulative fold already applied to m.dmg
+  let seenRate = 0;    // m.rate at the previous fold point
+  let bareRate = 0;    // the same rate with RAPID's speed gain removed
+  let bareFold = 1;    // fold the RAPID-less build would have earned so far
+  return () => {
+    if (!seenRate) bareRate = m.rate / rapidRate;     // first fold point
+    else bareRate *= m.rate / seenRate;               // carry rate added between folds
+    bareFold *= Math.max(1, bareRate / RATE_CAP);     // what the no-RAPID build earns here
+    bareRate = Math.min(bareRate, RATE_CAP);
+    seenRate = m.rate;
+    if (m.rate <= RATE_CAP) return;
+    const next = Math.min(paid * (m.rate / RATE_CAP), bareFold / rapidCost);
+    m.dmg *= next / paid;
+    m.rate = RATE_CAP;
+    paid = next;
+    seenRate = RATE_CAP;
+  };
+}
+
+
+/* =========================================================
    STACK CURVE — diminishing returns on piled-up stacks
    The first STACK_FULL stacks of a rune count in full; every stack after that
    counts for less (a square-root taper) but never for nothing. Multiplying runes
@@ -102,8 +148,8 @@ const RUNES = {
     desc: "A hand-cannon. Per stack: huge damage and brutal knockback, but it fires much slower. One devastating slug at a time.",
     mod: (m, n) => { m.dmg *= stackMul(1.9, n); m.rate *= stackMul(0.7, n); m.size *= stackMul(1.08, n); m.knock *= stackMul(1.6, n); } },
   rapid: { name: "RAPID", glyph: "ᚱ", color: "#ffffff",
-    desc: "Per stack: fire rate way up, damage a touch down.",
-    mod: (m, n) => { m.rate *= stackMul(1.45, n); m.dmg *= stackMul(0.92, n); m.spread += 0.04 * stackCurve(n); } },
+    desc: "Per stack: fire rate way up, damage a touch down. Rate past the cap pays back as damage — never above parity.",
+    mod: (m, n) => { m.rate *= stackMul(RAPID_RATE, n); m.dmg *= stackMul(RAPID_DMG, n); m.spread += 0.04 * stackCurve(n); } },
   venom: { name: "VENOM", glyph: "ᛢ", color: "#7dff5e",
     desc: "Bullets burst into poison puddles. Stacks widen the puddles and sharpen the poison.",
     mod: (m, n) => { m.venom += stackCurve(n); } },
@@ -232,8 +278,8 @@ const UNK_PLAYER_RUNES = {
     desc: "A hand-cannon. Per stack: huge damage and brutal knockback, but it fires much slower. One devastating slug at a time.",
     mod: (m, n) => { m.dmg *= stackMul(1.9, n); m.rate *= stackMul(0.7, n); m.size *= stackMul(1.08, n); m.knock *= stackMul(1.6, n); } },
   rapid: { name: "THE HAIL", glyph: "ᚱ", color: "#ffffff",
-    desc: "Per stack: fire rate way up, damage a touch down.",
-    mod: (m, n) => { m.rate *= stackMul(1.45, n); m.dmg *= stackMul(0.92, n); m.spread += 0.04 * stackCurve(n); } },
+    desc: "Per stack: fire rate way up, damage a touch down. Rate past the cap pays back as damage — never above parity.",
+    mod: (m, n) => { m.rate *= stackMul(RAPID_RATE, n); m.dmg *= stackMul(RAPID_DMG, n); m.spread += 0.04 * stackCurve(n); } },
   venom: { name: "BLIGHT RAIN", glyph: "ᛢ", color: "#7dff5e",
     desc: "Bullets burst into poison puddles. Stacks widen the puddles and sharpen the poison.",
     mod: (m, n) => { m.venom += stackCurve(n); } },
@@ -457,12 +503,13 @@ function buildWeaponModsFrom(runes, p) {
     const n = runes[id];
     if (n > 0) { const rd = runeDefFor(p, id); if (rd) rd.mod(m, n); }
   }
-  /* fire rate past the 20/s ceiling isn't wasted — the surplus folds into damage,
-     so RAPID never turns against you once the trigger can't go any faster */
-  if (m.rate > 20) { m.dmg *= m.rate / 20; m.rate = 20; }
+  /* fire rate past the ceiling isn't wasted — the surplus folds into damage,
+     capped at what the rune-less gun would earn so it can never become a net gain */
+  const foldRate = rateFold(m, runes);
+  foldRate();
     /* Swift accelerates the projectile and dash along with the player's run speed. */
     m.speed *= m.moveMul;
-  m.rate = clamp(m.rate, 0.8, 20);
+  m.rate = clamp(m.rate, 0.8, RATE_CAP);
   m.count = Math.min(m.count, 40);
   m.twin = Math.min(m.twin, 6);                           // parallel shots × fire rate is the puddle/perf multiplier
   /* Extra TWIN stacks still matter after the six-parallel cap, but taper like other piled-up bonuses. */
@@ -487,7 +534,7 @@ function buildWeaponModsFrom(runes, p) {
     m.sawReach = clamp((CHARS[p.char].sawReach || 76) + (m.size - 4) * 1.5 + Math.max(0, m.speed - 540) * 0.1 + scatter * 60, 48, 220);
     m.dmg *= 1 + m.twin * 0.4;
     m.rate *= 1 + m.twin * 0.25;
-    if (m.rate > 20) { m.dmg *= m.rate / 20; m.rate = 20; }
+    foldRate();
     /* SCATTER splits its bite across the debris pellets — that split is a
        projectile concern and must not soften the blade, so the saw swings with
        the undivided figure. */
