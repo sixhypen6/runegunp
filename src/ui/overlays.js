@@ -738,17 +738,42 @@ function lbRuneGlyphs(csv) {
 function lbRow(entry, me, pending) {
   const d = document.createElement("div");
   d.className = "lb-row" + (me ? " me" : "") + (pending ? " pending" : "");
-  const rank = document.createElement("span"); rank.className = "lb-rank"; rank.textContent = entry.rank || "—";
-  const name = document.createElement("span"); name.className = "lb-name"; name.textContent = entry.name + (me ? " · YOU" : "");
-  /* the loadout behind that score — absent on rows written before the tag existed */
+  
+  const rank = document.createElement("span"); 
+  rank.className = "lb-rank"; 
+  rank.textContent = entry.rank || "—";
+  
+  // Safeguard: checks displayName, name, or falls back to "WARDEN"
+  const rowName = entry.displayName || entry.name || "WARDEN";
+  const name = document.createElement("span"); 
+  name.className = "lb-name"; 
+  name.textContent = rowName + (me ? " · YOU" : "");
+
+  /* Loadout details */
   const who = lbCharName(entry.char), runes = lbRuneGlyphs(entry.runes);
   const chal = (typeof challengeName === "function") ? challengeName(entry.challenge) : "";
+  
   if (who || runes || chal) {
     const sub = document.createElement("small");
     sub.textContent = [who, runes, chal].filter(Boolean).join(" · ");
     name.appendChild(sub);
   }
-  const score = document.createElement("span"); score.className = "lb-score"; score.textContent = entry.score;
+
+  /* Place indicator */
+  if (entry.place) {
+    const placeSub = document.createElement("small");
+    placeSub.className = "lb-place-sub";
+    placeSub.textContent = entry.place.toUpperCase();
+    placeSub.style.display = "block";
+    placeSub.style.opacity = "0.6";
+    placeSub.style.fontSize = "0.8em";
+    name.appendChild(placeSub);
+  }
+
+  const score = document.createElement("span"); 
+  score.className = "lb-score"; 
+  score.textContent = entry.displayScore || entry.score;
+  
   d.append(rank, name, score);
   return d;
 }

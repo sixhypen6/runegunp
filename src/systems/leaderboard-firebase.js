@@ -259,6 +259,7 @@ function toEntry(id, row, key, slot) {
     const raw = Math.max(0, Math.floor(Number(row && row[key]) || 0));
     const tag = (row && row[slot]) || null;
     
+    // Check manual display, then database name, then callsign, fallback to WARDEN
     const preferredName = (row && typeof row.display === "string" && row.display) || 
                           (row && typeof row.name === "string" && row.name) || 
                           "WARDEN";
@@ -266,10 +267,12 @@ function toEntry(id, row, key, slot) {
     return {
       rank: 0,
       displayName: preferredName,
+      name: preferredName, // <-- ADDED THIS so entry.name exists too!
+      place: (row && typeof row.place === "string") ? row.place : "",
       displayScore: "",
       rawScore: raw,
       playerId: id,
-      place: (row && typeof row.place === "string") ? row.place : "", // Exposes place for the UI
+      place: (row && typeof row.place === "string") ? row.place : "",
       char: (tag && typeof tag.char === "string") ? tag.char : "",
       runes: (tag && typeof tag.runes === "string") ? tag.runes : "",
       challenge: (tag && typeof tag.challenge === "string") ? tag.challenge : "",
