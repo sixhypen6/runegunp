@@ -14,9 +14,17 @@
      /rooms/<CODE>/peers/<jid>/hc/<push>    host ICE candidate (JSON string)
      /rooms/<CODE>/peers/<jid>/gc/<push>    guest ICE candidate (JSON string)
      /rooms/<CODE>/peers/<jid>/reject       "full" / "closed" when the host refuses a join
+     /open/<CODE>                           { v, mode, char, skin, seats, at }  DISPLAY ONLY
 
    One key per guest keeps the mailbox flat: no slot negotiation, no
    collisions, and a guest that retries simply brings a fresh key.
+
+   /open is a public bulletin board, not a second room: it carries only
+   what a browse list shows (the host's warden, the mode, how many are
+   seated) and a heartbeat. Joining still goes through /rooms/<CODE>, so
+   the gate itself remains the single source of truth and a stale or
+   forged listing can never grant access. Entries whose heartbeat stops
+   are pruned by every reader after OPEN_TTL_MS.
    ========================================================= */
 "use strict";
 
@@ -26,6 +34,11 @@ const Signal = {
   CODE_LEN: 5,
   JOIN_LEN: 10,
   ROOM_TTL_MS: 10 * 60 * 1000,
+  /* the public index is only as honest as its heartbeat: a host refreshes
+     while its gate stands, and a reader hides anything older than this */
+  OPEN_TTL_MS: 90 * 1000,
+  OPEN_REFRESH_MS: 25 * 1000,
+  OPEN_MAX: 24,          // rows a browse list will show (flood guard)
 
   app: null, db: null,
   code: null,
@@ -33,6 +46,7 @@ const Signal = {
   joinId: null,       // a guest's key inside the room (null on the host)
   _refs: [],          // listeners to detach on cleanup
   _skew: 0,           // serverTime - deviceTime, so a wrong device clock can't expire rooms
+  _skewKnown: false,  // has the offset actually arrived? (see _openRow's pruning)
   online: false,      // is the RTDB socket actually up right now
   OP_TIMEOUT_MS: 12000,
 
@@ -45,7 +59,10 @@ const Signal = {
        honest clock here: createdAt is written with ServerValue.TIMESTAMP, so
        comparing it against a device Date.now() expires rooms wrongly whenever
        the phone's clock drifts. */
-    this.db.ref("/.info/serverTimeOffset").on("value", s => { this._skew = s.val() || 0; });
+    this.db.ref("/.info/serverTimeOffset").on("value", s => {
+      this._skew = s.val() || 0;
+      this._skewKnown = true;
+    });
     /* `/.info/connected` is how we tell "the database is unreachable" apart from
        "that code doesn't exist" — the SDK itself never errors on a refused or
        dropped connection, it just retries in silence forever. */
@@ -165,9 +182,17 @@ const Signal = {
     for (let i = 0; i < this.JOIN_LEN; i++) c += this.ALPHABET[Math.floor(Math.random() * this.ALPHABET.length)];
     return c;
   },
+  /* a real gate code and nothing else — the public index is written by
+     strangers, so every key read back from it is checked before use */
+  validCode(c) {
+    if (typeof c !== "string" || c.length !== this.CODE_LEN) return false;
+    for (const ch of c) if (this.ALPHABET.indexOf(ch) === -1) return false;
+    return true;
+  },
 
   roomRef(code) { return this.db.ref("rooms/" + code); },
   peerRef(jid) { return this.roomRef(this.code).child("peers/" + jid); },
+  openRef(code) { return this.db.ref("open/" + code); },
 
   /* One-shot listener: fire once, then detach every listener it owns. */
   _offRef(ref, ev, cb) {
@@ -201,6 +226,7 @@ const Signal = {
       this.code = code;
       this.owner = "host";
       this.joinId = null;
+      this._openPublished = false;
       return code;
     }
     throw new Error("no-free-code");
@@ -302,6 +328,80 @@ const Signal = {
   },
 
   /* =========================================================
+     THE OPEN GATES INDEX
+     ========================================================= */
+
+  /* Host: (re)publish this gate to the public board. Display metadata plus a
+     heartbeat — nothing a guest could use to skip the real handshake. Called
+     on creation, on every roster/mode change, and on a slow timer; failures
+     are swallowed because the index is a convenience, not the gate itself
+     (a room whose rules block /open still works perfectly by code). */
+  publishOpen(info) {
+    if (this.owner !== "host" || !this.code || !this.init()) return;
+    this._wake();
+    const row = {
+      v: PROTOCOL_VERSION,
+      mode: (info && info.mode) || "normal",
+      char: (info && info.char) || "",
+      skin: (info && info.skin) || "",
+      seats: Math.max(1, (info && info.seats) | 0),
+      at: firebase.database.ServerValue.TIMESTAMP,
+    };
+    const code = this.code;
+    this._guard(this.openRef(code).set(row), "open")
+      .then(() => {
+        /* a publish that lands after the gate closed must not re-arm the
+           cleanup flag for a room that no longer exists */
+        if (this.code === code && this.owner === "host") this._openPublished = true;
+      }, () => {});
+  },
+
+  /* Read the board. Returns an unsubscribe fn. Rows are sorted newest first,
+     capped, and every stale entry is retired as it is noticed — the board
+     cleans itself without a server-side job. */
+  watchOpen(fn) {
+    if (!this.init()) { fn([]); return () => {}; }
+    this._wake();
+    const ref = this.db.ref("open");
+    const cb = snap => {
+      const rows = [];
+      snap.forEach(ch => {
+        const row = this._openRow(ch);
+        if (row) rows.push(row);
+      });
+      rows.sort((a, b) => b.at - a.at);
+      fn(rows.slice(0, this.OPEN_MAX));
+    };
+    /* no /open rules yet, or the socket is down: an empty board, not an error */
+    const err = () => fn([]);
+    ref.on("value", cb, err);
+    return () => { try { ref.off("value", cb); } catch (e) {} };
+  },
+
+  _openRow(ch) {
+    const v = ch.val() || {};
+    const stale = typeof v.at !== "number" || v.at < this.now() - this.OPEN_TTL_MS;
+    if (stale) {
+      /* Hide at once, but only RETIRE when the server clock has told us how
+         wrong this device's clock is. A phone five minutes fast would
+         otherwise sweep live gates off the board for everyone. */
+      if (this._skewKnown) { try { ch.ref.remove().catch(() => {}); } catch (e) {} }
+      return null;
+    }
+    /* the key is the only thing that decides which gate is opened; a junk key
+       is dropped before it can reach the UI list */
+    if (!this.validCode(ch.key)) return null;
+    return {
+      code: ch.key,
+      at: v.at,
+      mode: typeof v.mode === "string" ? v.mode : "normal",
+      char: typeof v.char === "string" ? v.char : "",
+      skin: typeof v.skin === "string" ? v.skin : "",
+      seats: Math.min(MAX_WARDENS, Math.max(1, v.seats | 0)),
+    };
+  },
+
+  /* =========================================================
      TEARDOWN
      ========================================================= */
   /* The handshake is done (or abandoned): drop listeners and tidy up.
@@ -316,6 +416,11 @@ const Signal = {
       const ref = this.roomRef(this.code);
       if (deleteRoom && this.owner === "host") {
         try { ref.remove(); } catch (e) {}
+        /* the public listing dies with its gate, so nobody browses into a
+           room that no longer exists */
+        if (this._openPublished) {
+          try { this.openRef(this.code).remove().catch(() => {}); } catch (e) {}
+        }
       } else if (this.owner === "guest" && this.joinId) {
         try { ref.child("joins/" + this.joinId).remove(); } catch (e) {}
         try { ref.child("peers/" + this.joinId).remove(); } catch (e) {}
@@ -324,6 +429,7 @@ const Signal = {
     this.code = null;
     this.owner = null;
     this.joinId = null;
+    this._openPublished = false;
   },
 
   /* Host: the descent is firing — retire the gate and give the socket back. */
