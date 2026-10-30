@@ -138,8 +138,8 @@ async function submit(id, amount, tag) {
         rows are never "pending" and need no stamp. */
     if (p === pg()) stampSubmit(id, amount);
     
-    // Automatically determine place based on where the game is hosted
-    const host = window.location.hostname;
+    // Automatically detect host environment (GitHub vs Live Server)
+    const host = typeof window !== "undefined" && window.location ? window.location.hostname : "";
     const placeVal = host.includes("github.io") ? "github" : "vscode live server";
 
     try { 
@@ -147,11 +147,11 @@ async function submit(id, amount, tag) {
         leaderboardID: id, 
         totalScoreAmount: amount, 
         tag,
-        place: placeVal // <--- This sends the place to your Firebase database!
+        place: placeVal // Automatically submits the environment place
       }); 
     } catch (e) {}
   }
-
+  
   /* Re-post the stored bests the moment sign-in succeeds. A best earned while
      signed out (first sessions before the player accepted Play Games, a launch
      the sign-in failed, or a run played offline) would otherwise wait for the
