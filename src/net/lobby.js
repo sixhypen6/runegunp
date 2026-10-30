@@ -9,12 +9,14 @@
 "use strict";
 
 const Lobby = {
-  view: "entry",           // entry | host | join | ready
+  view: "entry",           // entry | host | join | browse | ready
   mode: "normal",          // shared descent mode (COOP_MODES) — the host chooses
   code: "",                // join view: what's been typed
   selfReady: false,
   roster: [],              // guest: the host's [{idx, cfg, ready}]
-  _pingTimer: 0, _connectTimer: 0, _linkTimer: 0,
+  _pingTimer: 0, _connectTimer: 0, _linkTimer: 0, _openTimer: 0,
+  _openWatch: null,        // fn that detaches the public-board listener
+  _openRows: null,         // last board snapshot, so re-entering browse is instant
 
   open() {
     if (!firebaseConfigured()) {
@@ -33,6 +35,9 @@ const Lobby = {
     clearInterval(this._pingTimer); this._pingTimer = 0;
     clearInterval(this._linkTimer); this._linkTimer = 0;
     clearTimeout(this._connectTimer); this._connectTimer = 0;
+    clearInterval(this._openTimer); this._openTimer = 0;
+    this._stopWatch();
+    this._openRows = null;
     this.render();
   },
 
@@ -45,15 +50,18 @@ const Lobby = {
   },
 
   render() {
-    for (const [id, v] of [["coopEntry", "entry"], ["coopHostView", "host"], ["coopJoinView", "join"], ["coopReadyView", "ready"]])
+    for (const [id, v] of [["coopEntry", "entry"], ["coopHostView", "host"], ["coopJoinView", "join"],
+                           ["coopBrowseView", "browse"], ["coopReadyView", "ready"]])
       $(id).style.display = this.view === v ? "" : "none";
     if (this.view === "join") this.renderCode();
+    if (this.view === "browse") this.renderOpen(this._openRows || []);
     if (this.view === "ready") this.renderReady();
   },
 
   /* ---------- HOST ---------- */
   async host() {
     this.view = "host"; this.render();
+    this._stopWatch();
     $("coopCode").textContent = "·····";
     $("coopHostStatus").textContent = "FORGING THE GATE…";
     this._wireNet();
@@ -63,11 +71,105 @@ const Lobby = {
       $("coopCode").textContent = code;
       this._hostStatusLine();
       this._watchLink();
+      /* the gate is standing: put it on the public board and keep the
+         heartbeat going for as long as the lobby holds it open */
+      this._publishOpen();
+      this._startOpenRefresh();
     } catch (e) {
       $("coopCode").textContent = "·····";
       $("coopHostStatus").textContent = this._errText(e);
       Net.hangUp();
     }
+  },
+
+  /* ---------- PUBLIC BOARD ---------- */
+  /* what a stranger may see about this gate: the host's warden, the mode,
+     and how full it is. Everything else stays in the mailbox. */
+  _publishOpen() {
+    if (Net.role !== "host" || !this.code) return;
+    const cfg = localPlayerCfg();
+    Signal.publishOpen({
+      mode: this.mode,
+      char: (cfg && cfg.char) || "",
+      skin: (cfg && cfg.skin) || "",
+      seats: Net.peers.length + 1,
+    });
+  },
+  _startOpenRefresh() {
+    clearInterval(this._openTimer);
+    this._openTimer = setInterval(() => {
+      if (Game.state !== "lobby" || Net.role !== "host" || !this.code) {
+        clearInterval(this._openTimer); this._openTimer = 0; return;
+      }
+      this._publishOpen();
+    }, Signal.OPEN_REFRESH_MS);
+  },
+  _stopWatch() {
+    if (this._openWatch) { try { this._openWatch(); } catch (e) {} this._openWatch = null; }
+  },
+
+  browse() {
+    /* leaving a half-open join behind would keep a seat ringing on the host */
+    clearTimeout(this._connectTimer);
+    if (Net.role !== "none") Net.hangUp();
+    this.view = "browse"; this.code = "";
+    this.render();
+    if (this._openWatch) return;                 // already listening — render() just painted it
+    $("coopBrowseStatus").textContent = "LISTENING FOR OPEN GATES…";
+    this._openWatch = Signal.watchOpen(rows => {
+      this._openRows = rows;
+      if (this.view === "browse") this.renderOpen(rows);
+    });
+  },
+
+  renderOpen(rows) {
+    const box = $("coopOpenList");
+    if (!box) return;
+    box.innerHTML = "";
+    if (!rows || !rows.length) {
+      $("coopBrowseStatus").textContent =
+        "NO OPEN GATES RIGHT NOW — HOST ONE AND IT APPEARS HERE FOR EVERYONE";
+      return;
+    }
+    $("coopBrowseStatus").textContent =
+      rows.length + " OPEN GATE" + (rows.length === 1 ? "" : "S") + " — TAP ONE TO CROSS";
+    for (const r of rows) {
+      const c = CHARS[r.char];
+      const el = document.createElement("button");
+      el.className = "coop-open";
+      el.type = "button";
+      /* every value here came back from the database: code is alphabet-checked
+         in Signal._openRow, char/skin/mode are looked up, seats is a number —
+         so text nodes only, never innerHTML */
+      const glyph = document.createElement("span");
+      glyph.className = "co-glyph";
+      glyph.style.color = SKINS[r.skin] ? SKINS[r.skin].color : "#e8e2d0";
+      glyph.textContent = (c && c.glyph) || "ᛟ";
+      const main = document.createElement("span");
+      main.className = "co-main";
+      const nm = document.createElement("span");
+      nm.className = "co-nm";
+      nm.textContent = (c && c.name) || "A WARDEN";
+      const sub = document.createElement("span");
+      sub.className = "co-sub";
+      sub.textContent = (COOP_MODE_LABEL[r.mode] || "NORMAL") + " · " + r.seats + "/" + MAX_WARDENS + " WARDENS";
+      main.appendChild(nm); main.appendChild(sub);
+      const code = document.createElement("span");
+      code.className = "co-code";
+      code.textContent = r.code;
+      el.appendChild(glyph); el.appendChild(main); el.appendChild(code);
+      el.addEventListener("click", () => this.crossGate(r.code));
+      box.appendChild(el);
+    }
+  },
+
+  /* a browsed gate takes the ordinary join path — same mailbox, same rules */
+  crossGate(code) {
+    this._stopWatch();
+    this.view = "join"; this.code = code;
+    this.render();
+    $("coopJoinStatus").textContent = "";
+    this.tryJoin();
   },
 
   _hostStatusLine() {
@@ -93,6 +195,7 @@ const Lobby = {
   /* ---------- JOIN ---------- */
   join() {
     this.view = "join"; this.code = ""; this.render();
+    this._stopWatch();
     $("coopJoinStatus").textContent = "";
   },
   key(ch) {
@@ -264,6 +367,7 @@ const Lobby = {
   _broadcastRoster() {
     this.roster = this._buildRoster();
     Net.sendR({ t: "lobbyRoster", roster: this.roster, mode: this.mode });
+    this._publishOpen();          // seat count / mode just changed — say so publicly
     this.renderReady();
   },
 
@@ -359,7 +463,9 @@ const Lobby = {
     if (Net.peers.some(p => !p.ready)) return;
     const cfgs = [];
     for (const e of roster) cfgs[e.idx] = e.cfg;
-    /* the gate has served its purpose — retire it before the world starts */
+    /* the gate has served its purpose — retire it (and its public listing)
+       before the world starts */
+    clearInterval(this._openTimer); this._openTimer = 0;
     Signal.closeRoom();
     Net.sendR({ t: "start", cfgs, mode: this.mode });
     Coop.beginHost(cfgs, this.mode);
@@ -369,6 +475,8 @@ const Lobby = {
 $("btnCoop").addEventListener("click", () => Lobby.open());
 $("coopHostCard").addEventListener("click", () => { if (Lobby.view === "entry") Lobby.host(); });
 $("coopJoinCard").addEventListener("click", () => { if (Lobby.view === "entry") Lobby.join(); });
+$("coopBrowseCard").addEventListener("click", () => { if (Lobby.view === "entry") Lobby.browse(); });
+$("coopBrowseBack").addEventListener("click", () => Lobby.browse());
 $("coopReadyBtn").addEventListener("click", () => Lobby.toggleReady());
 $("coopBack").addEventListener("click", () => Lobby.close());
 for (const b of document.querySelectorAll("#coopModes .coop-mode"))

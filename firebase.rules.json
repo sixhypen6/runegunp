@@ -53,6 +53,19 @@
         }
       }
     },
+    "open": {
+      ".read": true,
+      "$code": {
+        ".write": true,
+        ".validate": "root.child('rooms').child($code).child('host').exists() && newData.hasChildren(['v', 'mode', 'char', 'skin', 'seats', 'at'])",
+        "v": { ".validate": "newData.isNumber()" },
+        "mode": { ".validate": "newData.isString() && newData.val().length <= 16" },
+        "char": { ".validate": "newData.isString() && newData.val().length <= 32" },
+        "skin": { ".validate": "newData.isString() && newData.val().length <= 32" },
+        "seats": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 4" },
+        "at": { ".validate": "newData.isNumber()" }
+      }
+    },
     "console": {
       "coop": {
         ".read": "auth != null",

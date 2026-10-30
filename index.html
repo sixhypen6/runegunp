@@ -567,6 +567,32 @@
 .coop-warden .cw-sub { font-size:calc(10px * var(--text-scale, 1)); color: var(--dim, #6a6584); margin-top: 4px; }
 .coop-warden.ready { border-color: #7dff5e; box-shadow: 0 0 12px rgba(125, 255, 94, 0.35); }
 .coop-warden.empty { opacity: 0.45; border-style: dashed; }
+/* three entry cards share the 720px panel without wrapping 2+1 */
+.coop-choice .bc-card { width: min(200px, 80vw); }
+/* the public board: one row per open gate, tap to cross */
+.coop-open-list {
+  display: flex; flex-direction: column; gap: 8px;
+  max-width: 520px; max-height: 46vh; overflow-y: auto;
+  margin: 0 auto; padding-right: 2px;
+}
+.coop-open {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  font-family: inherit; text-align: left; cursor: pointer;
+  background: rgba(14, 12, 26, 0.8); color: var(--bone, #e8e2d0);
+  border: 1px solid #3a3654; border-radius: 8px; padding: 10px 14px;
+  transition: border-color .12s, box-shadow .12s;
+}
+.coop-open:hover, .coop-open:focus-visible { border-color: var(--gold); box-shadow: 0 0 12px rgba(255, 210, 61, 0.28); }
+.coop-open:active { transform: scale(.99); }
+.coop-open .co-glyph { font-size: 26px; line-height: 1; text-shadow: 0 0 10px currentColor; }
+.coop-open .co-main { flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.coop-open .co-nm { font-size: calc(12px * var(--text-scale, 1)); letter-spacing: .16em; }
+.coop-open .co-sub { font-size: calc(9px * var(--text-scale, 1)); letter-spacing: .16em; color: var(--dim, #6a6584); }
+.coop-open .co-code {
+  font-family: monospace; font-weight: bold;
+  font-size: calc(15px * var(--text-scale, 1)); letter-spacing: .22em;
+  color: var(--gold); text-shadow: 0 0 10px rgba(255, 210, 61, 0.5);
+}
 /* the shared descent's mode — the host picks, the guest watches */
 .coop-modes { margin: 10px 0 2px; }
 .coop-modes-label { font-size: calc(9px * var(--text-scale, 1)); letter-spacing: .3em; color: var(--dim, #6a6584); margin-bottom: 6px; }
@@ -830,27 +856,37 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
   <div class="panel">
     <h2>DESCEND TOGETHER</h2>
     <div class="coop-experimental">⚠ EXPERIMENTAL — CO-OP IS NEW AND MAY BE BUGGY</div>
-    <div class="hint" id="coopHint">two wardens, one catacomb · choose your warden in THE VAULT before you gather</div>
+    <div class="hint" id="coopHint">up to four wardens, one catacomb · choose your warden in THE VAULT before you gather</div>
     <div id="coopEntry">
-      <div class="big-choice">
+      <div class="big-choice coop-choice">
         <div class="bc-card" id="coopHostCard" style="color:var(--arcane)">
           <div class="ic">ᛝ</div><div class="nm">HOST</div>
-          <div class="ds">Forge a five-mark code and hold the gate open for your partner.</div>
+          <div class="ds">Forge a five-mark code and hold the gate open for your wardens.</div>
         </div>
         <div class="bc-card" id="coopJoinCard" style="color:var(--gold)">
           <div class="ic">ᛟ</div><div class="nm">JOIN</div>
-          <div class="ds">Speak the five-mark code your partner holds.</div>
+          <div class="ds">Speak the five-mark code your host holds.</div>
+        </div>
+        <div class="bc-card" id="coopBrowseCard" style="color:var(--frost)">
+          <div class="ic">ᛉ</div><div class="nm">OPEN GATES</div>
+          <div class="ds">See every gate left open to strangers and cross without a code.</div>
         </div>
       </div>
     </div>
     <div id="coopHostView" style="display:none">
       <div class="coop-code" id="coopCode">·····</div>
       <div class="hint" id="coopHostStatus">FORGING THE GATE…</div>
+      <div class="hint" style="margin-top:-6px">listed on OPEN GATES — strangers may cross until the descent begins</div>
     </div>
     <div id="coopJoinView" style="display:none">
       <div class="coop-code" id="coopCodeEntry">─────</div>
       <div class="coop-pad" id="coopPad"></div>
       <div class="hint" id="coopJoinStatus" style="margin-top:8px"></div>
+      <button class="menu-btn small" id="coopBrowseBack" style="width:100%;margin-top:10px">BROWSE OPEN GATES</button>
+    </div>
+    <div id="coopBrowseView" style="display:none">
+      <div class="hint" id="coopBrowseStatus">LISTENING FOR OPEN GATES…</div>
+      <div class="coop-open-list" id="coopOpenList"></div>
     </div>
     <div id="coopReadyView" style="display:none">
       <div class="coop-wardens" id="coopCards"></div>
