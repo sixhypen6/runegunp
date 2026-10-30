@@ -828,13 +828,13 @@ function reviveTimeFor()   { return REVIVE_TIME + PARTY.reviveTime * partyExtra(
 function reviveHpFracFor() { return Math.max(0.15, REVIVE_HP_FRAC - PARTY.reviveHp * partyExtra()); }
 function downPlayer(p) {
   p.hp = 0;
-  const partnerUp = players.some(o => o !== p && o.hp > 0 && !o.downed);
+  const partnerUp = players.some(o => o !== p && o.hp > 0 && !o.downed && !o.gone);
   if (!partnerUp) { gameOver(); return; }
   p.downed = true; p.reviveT = 0;
   p.dashT = 0; p.veilT = 0; p.autoFire = false;
   floatText(p.x, p.y - 26, "DOWN", "#ff4d5e", 20);
-  toast(p === localPlayer() ? "YOU ARE DOWN — YOUR PARTNER CAN LIFT YOU"
-                            : "YOUR PARTNER IS DOWN — REACH THEM");
+  toast(p === localPlayer() ? "YOU ARE DOWN — A WARDEN CAN LIFT YOU"
+                            : "A WARDEN IS DOWN — REACH THEM");
   screenFlash(0.2);
   Game.shake = Math.max(Game.shake, 10);
   AudioFX.hurt();

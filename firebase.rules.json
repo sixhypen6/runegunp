@@ -6,10 +6,39 @@
         ".write": true,
         ".validate": "newData.hasChild('host')",
         "host": {
-          ".validate": "newData.hasChildren(['v', 'createdAt', 'offer'])",
+          ".validate": "newData.hasChildren(['v', 'createdAt'])",
           "v": { ".validate": "newData.isNumber()" },
           "createdAt": { ".validate": "newData.isNumber()" },
+          "open": { ".validate": "newData.isBoolean()" },
           "offer": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 16000" }
+        },
+        "joins": {
+          "$jid": {
+            ".validate": "newData.hasChildren(['v', 'at'])",
+            "v": { ".validate": "newData.isNumber()" },
+            "at": { ".validate": "newData.isNumber()" }
+          }
+        },
+        "peers": {
+          "$jid": {
+            "offer": {
+              ".validate": "newData.hasChildren(['v', 'sdp'])",
+              "v": { ".validate": "newData.isNumber()" },
+              "sdp": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 16000" }
+            },
+            "answer": {
+              ".validate": "newData.hasChildren(['v', 'sdp'])",
+              "v": { ".validate": "newData.isNumber()" },
+              "sdp": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 16000" }
+            },
+            "hc": {
+              "$cand": { ".validate": "newData.isString() && newData.val().length <= 2000" }
+            },
+            "gc": {
+              "$cand": { ".validate": "newData.isString() && newData.val().length <= 2000" }
+            },
+            "reject": { ".validate": "newData.isString() && newData.val().length <= 16" }
+          }
         },
         "guest": {
           ".validate": "newData.hasChildren(['v', 'answer'])",

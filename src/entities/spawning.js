@@ -13,7 +13,7 @@ function assignId(e) { e.id = Game.nextId++; return e; }
 function makePlayer(cfg, idx) {
   const c = CHARS[cfg.char];
   return { idx, char: cfg.char, skin: cfg.skin || "bone", gunSkin: cfg.gunSkin || null, pet: cfg.pet || null,
-    x: MAP.w / 2 + (idx ? 44 : 0), y: MAP.h / 2 + 220, r: 13, hp: c.hp, maxHp: c.hp,
+    x: MAP.w / 2 + idx * 44, y: MAP.h / 2 + 220, r: 13, hp: c.hp, maxHp: c.hp,
     vx: 0, vy: 0, speed: c.speed, aim: 0, fireT: 0, iframes: 0,
     dashT: 0, dashCd: 0, dashCdBase: c.dashCd, dashDur: c.dashDur || 0.18, dashSpeed: c.dashSpeed || 720, dashAng: 0, puddleTick: 0, autoFire: false,
     sawT: 0, sawRot: 0, sawHitTarget: null,
@@ -107,7 +107,7 @@ function setupFloor(first) {
   Game.chestsTotal = Game.mapIdx === 4 ? 0 : Math.min(6, 4 + Game.loop);
   Game.chestsOpened = 0;
   if (!first) for (const p of players) {
-    p.x = MAP.w / 2 + (p.idx ? 44 : 0); p.y = MAP.h / 2 + 220; p.iframes = 1.5;
+    p.x = MAP.w / 2 + p.idx * 44; p.y = MAP.h / 2 + 220; p.iframes = 1.5;
     /* a floor change never carries a corpse through the portal */
     if (p.downed) { p.downed = false; p.hp = Math.max(p.hp, Math.round(p.maxHp * 0.3)); p.reviveT = 0; }
   }
