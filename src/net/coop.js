@@ -59,6 +59,7 @@ const Coop = {
     this.applyMode(mode);
     resetRun(cfgs);
     this._markAbsent();
+    updateHp();                          // absent seats get no partner bar
     Game.riftOffered = true;              // no rift in co-op
     setState("play");
     this.sendFloor();
@@ -497,8 +498,8 @@ const Coop = {
       case "i":
         if (Net.role === "host" && peer) this._inputs.set(peer.idx, { m, at: performance.now() });
         break;
-      case "runePick": if (Net.role === "host") this._hostGrant(m.id); break;
-      case "reroll": if (Net.role === "host") this._hostReroll(m.slot); break;
+      case "runePick": if (Net.role === "host" && peer && peer.idx === Game.pendingPickupBy) this._hostGrant(m.id); break;
+      case "reroll": if (Net.role === "host" && peer && peer.idx === Game.pendingPickupBy) this._hostReroll(m.slot); break;
       /* explicit rather than a toggle: a pause request that raced the host's own
          pause must not resume the game instead */
       case "pauseReq": if (Net.role === "host" && Game.state === "play") togglePause(); break;
@@ -760,7 +761,10 @@ const Coop = {
        because it began as a shared descent. */
     const p = peer && players[peer.idx];
     if (p) { p.gone = true; p.downed = true; p.hp = 0; }
+    /* a rune hand that belonged to the departed warden can never be answered */
+    if (p && Game.pendingPickupBy === p.idx) Game.pendingPickup = null;
     if (Game.state === "wait" || Game.state === "pause") setState("play");
+    if (typeof updateHp === "function") updateHp();
     if (Net.peers.length > 0) toast("A WARDEN IS LOST TO THE DARK — FIGHT ON");
     else toast("YOUR PARTNERS ARE LOST TO THE DARK — FIGHT ON");
   },

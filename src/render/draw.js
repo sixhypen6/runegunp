@@ -1861,32 +1861,36 @@ function drawAfterWardens() {
      darkest part of the gradient and would swallow them — but UNDER the flash */
   drawSoulMotes();
   if (Game.flash > 0) { cx.fillStyle = `rgba(${Game.flashCol || FLASH_RED},${Game.flash * 0.9})`; cx.fillRect(0, 0, W, H); }
-  /* co-op: an edge chevron marks the partner whenever they're off-screen —
+  /* co-op: an edge chevron marks every partner who is off-screen —
      doubly important when they're DOWN and bleeding out somewhere unseen */
   if (typeof Net !== "undefined" && Net.active && Game.state === "play") {
     const me = localPlayer();
-    const partner = players.find(o => o !== me && !o.gone);
-    if (partner) {
-      const tx = (partner.x - Game.cam.x) * ZOOM, ty = (partner.y - Game.cam.y) * ZOOM;
-      if (tx < 20 || tx > W - 20 || ty < 20 || ty > H - 20) {
-        const M = 40;
-        const dx = tx - W / 2, dy = ty - H / 2;
-        const s = Math.min((W / 2 - M) / Math.abs(dx || 0.0001), (H / 2 - M) / Math.abs(dy || 0.0001));
-        const ax = W / 2 + dx * s, ay = H / 2 + dy * s, ang = Math.atan2(dy, dx);
-        const col = partner.downed ? "#ff4d5e" : skinColorFor(partner);
-        cx.save();
-        cx.translate(ax, ay); cx.rotate(ang);
-        cx.globalAlpha = partner.downed ? 0.65 + 0.35 * Math.sin(Game.time * 8) : 0.8;
-        cx.fillStyle = col; cx.shadowColor = col; cx.shadowBlur = 10;
-        cx.beginPath(); cx.moveTo(10, 0); cx.lineTo(-6, -8); cx.lineTo(-6, 8); cx.closePath(); cx.fill();
-        cx.shadowBlur = 0;
-        if (partner.downed) {
-          cx.rotate(-ang);
-          cx.font = "bold 9px monospace"; cx.textAlign = "center";
-          cx.fillText("DOWN", 0, 20);
-        }
-        cx.restore(); cx.globalAlpha = 1;
+    const mates = players.filter(o => o !== me && !o.gone);
+    const M = 40;
+    for (let k = 0; k < mates.length; k++) {
+      const mate = mates[k];
+      const tx = (mate.x - Game.cam.x) * ZOOM, ty = (mate.y - Game.cam.y) * ZOOM;
+      if (!(tx < 20 || tx > W - 20 || ty < 20 || ty > H - 20)) continue;
+      const dx = tx - W / 2, dy = ty - H / 2;
+      const s = Math.min((W / 2 - M) / Math.abs(dx || 0.0001), (H / 2 - M) / Math.abs(dy || 0.0001));
+      const ang = Math.atan2(dy, dx);
+      /* fan the chevrons apart so a party sharing a corner never stacks them */
+      const spread = mates.length > 1 ? (k - (mates.length - 1) / 2) * 24 : 0;
+      const ax = W / 2 + dx * s + Math.cos(ang + Math.PI / 2) * spread;
+      const ay = H / 2 + dy * s + Math.sin(ang + Math.PI / 2) * spread;
+      const col = mate.downed ? "#ff4d5e" : skinColorFor(mate);
+      cx.save();
+      cx.translate(ax, ay); cx.rotate(ang);
+      cx.globalAlpha = mate.downed ? 0.65 + 0.35 * Math.sin(Game.time * 8) : 0.8;
+      cx.fillStyle = col; cx.shadowColor = col; cx.shadowBlur = 10;
+      cx.beginPath(); cx.moveTo(10, 0); cx.lineTo(-6, -8); cx.lineTo(-6, 8); cx.closePath(); cx.fill();
+      cx.shadowBlur = 0;
+      if (mate.downed) {
+        cx.rotate(-ang);
+        cx.font = "bold 9px monospace"; cx.textAlign = "center";
+        cx.fillText("DOWN", 0, 20);
       }
+      cx.restore(); cx.globalAlpha = 1;
     }
   }
   /* objective arrows ride above the vignette (they live at the darkened edges)

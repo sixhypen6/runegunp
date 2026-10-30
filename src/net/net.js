@@ -147,16 +147,21 @@ const Net = {
      offer. Resolves with the code as soon as the room exists; guests connect
      in the background, one peer record each. */
   async host() {
+    if (this.role !== "none") this.hangUp();   // a retry must not leave a stale room behind
     this.role = "host"; this.localIdx = 0;
     this.peers = [];
     this.iceStats = { gathered: 0, relay: 0, srflx: 0, rescued: 0, state: "", route: "" };
     const code = await Signal.createRoom();
-    Signal.watchJoins(jid => { this._acceptJoin(jid).catch(() => {}); });
+    Signal.watchJoins((jid, at) => { this._acceptJoin(jid, at).catch(() => {}); });
     return code;
   },
 
-  async _acceptJoin(jid) {
+  /* a knock that sat in the mailbox from a guest who has since given up would
+     otherwise claim a seat and stall the gate for 25 seconds */
+  JOIN_STALE_MS: 45000,
+  async _acceptJoin(jid, at) {
     if (this.role !== "host" || this.peerById(jid)) return;
+    if (at && Signal.now() - at > this.JOIN_STALE_MS) { Signal.dropJoin(jid); return; }
     if (this.peers.length >= MAX_GUESTS) { Signal.rejectJoin(jid, "full"); return; }
     const peer = this._newPeer(jid, this._nextIdx());
     this.peers.push(peer);
@@ -171,6 +176,7 @@ const Net = {
       await pc.setLocalDescription(offer);
       await Signal.postOffer(jid, offer.sdp);
       this._iceSendReady(peer);                  // peer node exists — flush everything gathered
+      Signal.dropJoin(jid);                      // the knock is served; the mailbox is the peers node now
       Signal.onCandidates(jid, "guest", c => this._addRemoteIce(peer, c));
       Signal.waitForAnswer(jid).then(sdp =>
         pc.setRemoteDescription({ type: "answer", sdp })
@@ -184,6 +190,7 @@ const Net = {
   /* GUEST: ask to join a code. The host answers with an offer; the answer and
      the peer connection follow. */
   async join(code) {
+    if (this.role !== "none") this.hangUp();   // a retry must withdraw the previous join key
     this.role = "guest"; this.localIdx = 1;
     this.peers = [];
     this.iceStats = { gathered: 0, relay: 0, srflx: 0, rescued: 0, state: "", route: "" };

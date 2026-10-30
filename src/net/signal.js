@@ -210,9 +210,16 @@ const Signal = {
      guests who joined while the listener was still being attached. */
   watchJoins(fn) {
     const ref = this.roomRef(this.code).child("joins");
-    const cb = snap => { if (snap.exists()) fn(snap.key); };
+    const cb = snap => { if (snap.exists()) fn(snap.key, (snap.val() || {}).at); };
     ref.on("child_added", cb);
     this._refs.push([ref, "child_added", cb]);
+  },
+
+  /* Host: drop a knock that can never be served (stale, or refused). The guest
+     already holds everything it needs under peers/<jid>, so the join key is
+     only clutter — and leaving it would replay the knock on the next attach. */
+  dropJoin(jid) {
+    try { this.roomRef(this.code).child("joins/" + jid).remove(); } catch (e) {}
   },
 
   async postOffer(jid, offerSdp) {
@@ -233,6 +240,7 @@ const Signal = {
   /* Host: refuse a join (gate already full, or the descent has begun). */
   async rejectJoin(jid, reason) {
     try { await this.peerRef(jid).child("reject").set(reason || "closed"); } catch (e) {}
+    this.dropJoin(jid);
   },
 
   /* =========================================================
