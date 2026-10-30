@@ -743,13 +743,12 @@ function lbRow(entry, me, pending) {
   rank.className = "lb-rank"; 
   rank.textContent = entry.rank || "—";
   
-  // Safeguard: checks displayName, name, or falls back to "WARDEN"
   const rowName = entry.displayName || entry.name || "WARDEN";
   const name = document.createElement("span"); 
   name.className = "lb-name"; 
   name.textContent = rowName + (me ? " · YOU" : "");
 
-  /* Loadout details */
+  /* Loadout details (character, runes, challenge) */
   const who = lbCharName(entry.char), runes = lbRuneGlyphs(entry.runes);
   const chal = (typeof challengeName === "function") ? challengeName(entry.challenge) : "";
   
@@ -759,7 +758,7 @@ function lbRow(entry, me, pending) {
     name.appendChild(sub);
   }
 
-  /* Place indicator */
+  /* Place indicator (github / vscode live server) displayed right below the name/loadout */
   if (entry.place) {
     const placeSub = document.createElement("small");
     placeSub.className = "lb-place-sub";
