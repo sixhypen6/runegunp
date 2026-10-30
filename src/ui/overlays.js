@@ -780,8 +780,19 @@ function lbRow(entry, me, pending) {
 /* The simulated pending row: the local best at its projected position, with the
    loadout the local record was set with. */
 function lbSimRow(rank, best, tag) {
-  return lbRow({ rank, name: Leaderboard.myName() || "—", score: best.toLocaleString(),
-                 char: tag && tag.char, runes: tag && tag.runes, challenge: tag && tag.challenge }, true, true);
+  const host = typeof window !== "undefined" && window.location ? window.location.hostname : "";
+  const currentPlace = host.includes("github.io") ? "github" : "live server";
+
+  return lbRow({ 
+    rank, 
+    displayName: Leaderboard.myDisplayName?.() || Leaderboard.myName() || "WARDEN",
+    name: Leaderboard.myName() || "—", 
+    score: best.toLocaleString(),
+    place: currentPlace, // <--- Passes place to the simulated row
+    char: tag && tag.char, 
+    runes: tag && tag.runes, 
+    challenge: tag && tag.challenge 
+  }, true, true);
 }
 function lbHint(list, text) {
   const h = document.createElement("div");
@@ -798,7 +809,7 @@ const LB_HINT_HIDDEN = "YOUR SCORE IS RECORDED, YET A VEIL HIDES IT FROM OTHER P
 
 async function renderLeaderboard() {
   const list = $("lbList");
-  const tab = lbTab, mode = lbMode;                     // pin the view this request is for
+  const tab = lbTab, mode = lbMode;                    // pin the view this request is for
   list.innerHTML = "<div class='lb-empty'>CONSULTING THE VOID…</div>";
   const best = Leaderboard.localBest(mode);   // local data, read at render time — keyed by the overlay's own mode toggle
   const tag = Leaderboard.tagFor(mode);
@@ -848,7 +859,7 @@ async function renderLeaderboard() {
   proj.rest.forEach(e => list.appendChild(lbRow(e, Leaderboard.isMine(e))));
   if (proj.kind === "insert") {
     list.insertBefore(lbSimRow("≈" + proj.rank, best, tag), list.children[proj.index] || null);
-    lbHint(list, hintPending);
+    lbHint(list, hintPENDING);
   } else if (proj.kind === "beyond") {
     /* veiled beats "see around you" — a veiled player is unranked in the public
        collection, so the around-you tab would only show the same simulation */
