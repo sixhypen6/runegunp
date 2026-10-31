@@ -509,31 +509,56 @@ function update(dt) {
   }
 
   /* --- pickups: whichever warden touches the orb rolls from THEIR pool ---
-     One choice at a time. With two orbs down (a chest each, or the boss toll)
-     both wardens can touch on the SAME frame, and Game.pendingPickup is a
-     single slot — so a second claim while one is unresolved is dropped here
-     rather than overwriting the first. The untouched orb simply waits and
-     opens its own choice on a later frame. */
-  if (!Game.pendingPickup) {
+     PAUSE MODE (party ≤ RUNE_PAUSE_MAX_PLAYERS): one choice at a time.
+     Legacy single-slot behavior — a second claim while one is unresolved
+     is dropped; the untouched orb waits for a later frame.
+     NO-PAUSE MODE (party > RUNE_PAUSE_MAX_PLAYERS): each player picks
+     independently. Multiple pending pickups can exist simultaneously. */
+  const noPause = typeof shouldPauseForRune === "function" && !shouldPauseForRune();
+  if (noPause) {
+    /* no-pause: check all pickups against all alive players who aren't already choosing */
     for (let i = pickups.length - 1; i >= 0; i--) {
       const pk = pickups[i]; pk.t += dt;
       for (const p of alivePlayers()) {
         if (dist2(pk.x, pk.y, p.x, p.y) < (pk.r + p.r + 8) ** 2) {
-          /* RUNELESS: the orb is a boon, not a question — take it and keep moving */
           if (Game.challenge === "runeless") {
             pickups.splice(i, 1);
             runelessBoon(p);
             break;
           }
-          Game.pendingPickup = pk;
-          Game.pendingPickupBy = p.idx;
+          /* already choosing? ignore this orb for now */
+          if (Game.pendingPickups.some(e => e.by === p.idx)) continue;
+          pickups.splice(i, 1);
           if (!pk.ids) pk.ids = genThreeRunes(p);
-          openRuneChoice();
-          return;
+          Game.pendingPickups.push({ pk, by: p.idx, state: "offered" });
+          /* also populate legacy fields for the first entry so existing UI paths work */
+          if (!Game.pendingPickup) { Game.pendingPickup = pk; Game.pendingPickupBy = p.idx; }
+          openRuneChoice(p.idx);
         }
       }
     }
-  } else for (const pk of pickups) pk.t += dt;   // still bob while one is open
+  } else {
+    /* pause mode: legacy single-slot behavior */
+    if (!Game.pendingPickup) {
+      for (let i = pickups.length - 1; i >= 0; i--) {
+        const pk = pickups[i]; pk.t += dt;
+        for (const p of alivePlayers()) {
+          if (dist2(pk.x, pk.y, p.x, p.y) < (pk.r + p.r + 8) ** 2) {
+            if (Game.challenge === "runeless") {
+              pickups.splice(i, 1);
+              runelessBoon(p);
+              break;
+            }
+            Game.pendingPickup = pk;
+            Game.pendingPickupBy = p.idx;
+            if (!pk.ids) pk.ids = genThreeRunes(p);
+            openRuneChoice();
+            return;
+          }
+        }
+      }
+    } else for (const pk of pickups) pk.t += dt;   // still bob while one is open
+  }
 
   /* --- waves keep coming until the warden falls --- */
   const ambient = enemies.filter(e => !e.ambush && !e.boss && e.team !== "p").length;

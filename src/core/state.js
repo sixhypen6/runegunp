@@ -33,6 +33,10 @@ const Game = {
   bossRocks: [],
   pendingPickup: null,
   pendingPickupBy: 0,     // index into players[] of the warden choosing the rune
+  /* no-pause rune picks: one entry per player who is currently choosing.
+     Each entry: { pk: pickupObj, by: playerIdx, state: "offered"|"granted" }.
+     Only used when RUNE_PAUSE_MAX_PLAYERS < party size. */
+  pendingPickups: [],
   banked: false,
   continuesUsed: 0,      // revives taken this run (souls or ad) — capped at MAX_CONTINUES
   flawless: true,         // no damage taken the ENTIRE run so far — one hit forfeits it for every stage after
