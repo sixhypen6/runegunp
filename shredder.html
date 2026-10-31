@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>runegunp - Shredder Render & Export</title>
+  <title>RuneGunP - Character Render & Export</title>
   <style>
     body {
       background: #0b0b14;
@@ -25,7 +25,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 15px;
+      gap: 12px;
       max-width: 320px;
       width: 100%;
     }
@@ -87,15 +87,23 @@
 <body>
 
   <div class="container">
-    <!-- Tighter preview canvas (160x160 fits the saw blade snugly) -->
+    <!-- Snug 160x160 canvas frame -->
     <canvas id="spriteCanvas" width="160" height="160"></canvas>
+
+    <div class="control-row">
+      <label for="charSelect">Character</label>
+      <select id="charSelect">
+        <option value="shredder">Shredder</option>
+        <option value="necromancer" selected>Necromancer</option>
+      </select>
+    </div>
 
     <div class="control-row">
       <label for="bodyColorSelect">Body Color</label>
       <select id="bodyColorSelect"></select>
     </div>
 
-    <div class="control-row">
+    <div class="control-row" id="sawColorRow">
       <label for="sawColorSelect">Saw Color</label>
       <select id="sawColorSelect"></select>
     </div>
@@ -144,8 +152,10 @@
       sulfur:   { name: "SULFUR",      color: "#ccff00" }
     };
 
+    const charSel = document.getElementById("charSelect");
     const bodySel = document.getElementById("bodyColorSelect");
     const sawSel = document.getElementById("sawColorSelect");
+    const sawRow = document.getElementById("sawColorRow");
 
     Object.keys(COLORS).forEach(key => {
       const opt1 = document.createElement("option");
@@ -159,8 +169,13 @@
       sawSel.appendChild(opt2);
     });
 
-    bodySel.value = COLORS.gore.color;
+    bodySel.value = COLORS.hex.color;
     sawSel.value = COLORS.emberg.color;
+
+    charSel.addEventListener("change", () => {
+      sawRow.style.display = charSel.value === "shredder" ? "flex" : "none";
+    });
+    sawRow.style.display = charSel.value === "shredder" ? "flex" : "none";
 
     const speedRange = document.getElementById("speedRange");
     const speedVal = document.getElementById("speedVal");
@@ -175,13 +190,9 @@
     const TAU = Math.PI * 2;
     function drawCracks(cx, hpFrac, radius) {}
 
-    const P = {
-      char: "shredder",
-      mods: { sawReach: 76 },
-      sawRot: 0
-    };
+    let gameTime = 0;
 
-    function renderShredder(targetCtx, width, height, scale, sawRotation, bodyColor, sawColor) {
+    function renderSprite(targetCtx, width, height, scale, timeVal, bodyColor, sawColor, charType) {
       targetCtx.save();
       targetCtx.clearRect(0, 0, width, height);
       targetCtx.scale(scale, scale);
@@ -192,6 +203,10 @@
       const py = Math.floor(baseH / 2);
       const aim = 0;
       const hpFrac = 1.0;
+      const tint = bodyColor;
+
+      const P = { char: charType, mods: { sawReach: 76 }, sawRot: timeVal };
+      const Game = { time: timeVal };
 
       if (P.char === "shredder") {
         targetCtx.save(); targetCtx.translate(px, py);
@@ -199,7 +214,7 @@
         // 1. Draw independent saw
         targetCtx.save();
         const sawR = P.mods.sawReach || 76;
-        targetCtx.rotate(sawRotation);
+        targetCtx.rotate(P.sawRot || 0);
         targetCtx.strokeStyle = sawColor; targetCtx.lineWidth = 3;
         targetCtx.beginPath(); targetCtx.arc(0, 0, sawR * 0.65, 0, TAU); targetCtx.stroke();
         targetCtx.fillStyle = sawColor;
@@ -229,29 +244,53 @@
 
         drawCracks(targetCtx, hpFrac, 12);
         targetCtx.restore();
+
+      } else if (P.char === "necromancer") {
+        /* Reanimator: a ragged robe, floating skull, soul core and runic staff. */
+        targetCtx.save(); targetCtx.translate(px, py);
+        targetCtx.fillStyle = bodyColor;
+        targetCtx.beginPath(); targetCtx.moveTo(0, -10); targetCtx.quadraticCurveTo(12, -8, 10, 8);
+        targetCtx.lineTo(-10, 8); targetCtx.quadraticCurveTo(-12, -8, 0, -10); targetCtx.closePath(); targetCtx.fill();
+        targetCtx.fillStyle = "#e8e2d0";
+        for (const side of [-1, 1]) { targetCtx.beginPath(); targetCtx.arc(side * 9, -5, 4, 0, TAU); targetCtx.fill(); }
+        const pulse = 0.6 + 0.4 * Math.sin(Game.time * 5);
+        targetCtx.fillStyle = "#9d6bff"; targetCtx.shadowColor = "#9d6bff"; targetCtx.shadowBlur = 10 * pulse;
+        targetCtx.beginPath(); targetCtx.arc(0, 0, 4, 0, TAU); targetCtx.fill(); targetCtx.shadowBlur = 0;
+        targetCtx.save(); targetCtx.translate(0, -14 + Math.sin(Game.time * 2.5) * 2);
+        targetCtx.fillStyle = "#e8e2d0"; targetCtx.beginPath(); targetCtx.arc(0, 0, 5, 0, TAU); targetCtx.fill();
+        targetCtx.fillRect(-2.5, 3, 5, 2); targetCtx.fillStyle = "#0b0b14";
+        targetCtx.beginPath(); targetCtx.arc(-1.5, 0, 1.2, 0, TAU); targetCtx.fill();
+        targetCtx.beginPath(); targetCtx.arc(1.5, 0, 1.2, 0, TAU); targetCtx.fill(); targetCtx.restore();
+        targetCtx.rotate(aim); targetCtx.strokeStyle = tint; targetCtx.lineWidth = 2.5;
+        targetCtx.beginPath(); targetCtx.moveTo(0, 0); targetCtx.lineTo(24, 0); targetCtx.stroke();
+        targetCtx.save(); targetCtx.translate(24, 0); targetCtx.rotate(-aim + Game.time * 2);
+        targetCtx.fillStyle = tint; targetCtx.font = "bold 10px monospace"; targetCtx.textAlign = "center"; targetCtx.textBaseline = "middle";
+        targetCtx.fillText("ᚻ", 0, 0); targetCtx.restore();
+        drawCracks(targetCtx, hpFrac, 11); targetCtx.restore();
       }
+
       targetCtx.restore();
     }
 
     function animate() {
-      P.sawRot += parseFloat(speedRange.value);
-      renderShredder(cx, canvas.width, canvas.height, 1, P.sawRot, bodySel.value, sawSel.value);
+      gameTime += parseFloat(speedRange.value);
+      renderSprite(cx, canvas.width, canvas.height, 1, gameTime, bodySel.value, sawSel.value, charSel.value);
       requestAnimationFrame(animate);
     }
     requestAnimationFrame(animate);
 
     document.getElementById("pngBtn").addEventListener("click", () => {
-      P.sawRot = 0; 
       const scale = parseInt(scaleSelect.value);
       const exportCanvas = document.createElement("canvas");
       exportCanvas.width = 160 * scale;
       exportCanvas.height = 160 * scale;
       const exportCtx = exportCanvas.getContext("2d");
 
-      renderShredder(exportCtx, exportCanvas.width, exportCanvas.height, scale, P.sawRot, bodySel.value, sawSel.value);
+      // Reset time to 0 for a consistent PNG posture
+      renderSprite(exportCtx, exportCanvas.width, exportCanvas.height, scale, 0, bodySel.value, sawSel.value, charSel.value);
 
       const link = document.createElement("a");
-      link.download = `shredder-${scale}x.png`;
+      link.download = `${charSel.value}-${scale}x.png`;
       link.href = exportCanvas.toDataURL("image/png");
       link.click();
     });
@@ -279,7 +318,7 @@
         const blob = new Blob(chunks, { type: 'video/webm' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
-        link.download = `shredder-spinning-${scale}x.webm`;
+        link.download = `${charSel.value}-animated-${scale}x.webm`;
         link.href = url;
         link.click();
         status.textContent = "WebM saved!";
@@ -293,8 +332,8 @@
       let startTime = Date.now();
       
       function recordLoop() {
-        P.sawRot += speed;
-        renderShredder(recordCtx, recordCanvas.width, recordCanvas.height, scale, P.sawRot, bodySel.value, sawSel.value);
+        gameTime += speed;
+        renderSprite(recordCtx, recordCanvas.width, recordCanvas.height, scale, gameTime, bodySel.value, sawSel.value, charSel.value);
         if (Date.now() - startTime < 3000) {
           requestAnimationFrame(recordLoop);
         } else {
