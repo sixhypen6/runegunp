@@ -367,8 +367,8 @@
       { id: "gunsmith",      name: "GUNSMITH",           symbol: "ᚠ", color: "#e8e2d0", desc: "The baseline. 100 vitality, steady hands." },
       { id: "wraith",        name: "WRAITH",             symbol: "ᚹ", color: "#5ee6ff", desc: "70 vitality, fast dash that barely cools down — and dashes far longer than anyone else. Fires no bullets — instead it VEIL BURSTS: vanishing between worlds and wounding everything in a circle around it. Foes slain inside the circle discharge your full gunshot." },
       { id: "juggernaut",    name: "JUGGERNAUT",         symbol: "ᛞ", color: "#ff8a3d", desc: "160 vitality of stubborn meat. Slow. Fires one MASSIVE slug at a time — a glacial rate of fire, but the hardest-hitting base shot of any gunslinger, and it punches clean through the first body it hits." },
-      { id: "demolitionist", name: "DEMOLITIONIST",      symbol: "ᛥ", color: "#7dff5e", desc: "110 vitality. Works a stub MORTAR: each round a fat shell lobbed a short arc that clips whatever it crosses mid-air, then SLAMS on arrival — a crater ring, and the charge splinters into flying shot. Dashing sows waiting mines along the whole path; one shard always finds the fool who wakes one. Slow to load — the Juggernaut's glacial cadence." },
-      { id: "alchemist",     name: "ALCHEMIST",          symbol: "ᛜ", color: "#9d6bff", desc: "Alchemist has no sprite here? 90 vitality. Carves a fifth rune slot the others can't, and gets 4 re-rolls to find the path." },
+      { id: "demolitionist", name: "DEMOLITIONIST",      symbol: "ᛥ", color: "#ff5e2e", desc: "110 vitality. Works a stub MORTAR: each round a fat shell lobbed a short arc that clips whatever it crosses mid-air, then SLAMS on arrival — a crater ring, and the charge splinters into flying shot. Dashing sows waiting mines along the whole path; one shard always finds the fool who wakes one. Slow to load — the Juggernaut's glacial cadence." },
+      { id: "alchemist",     name: "ALCHEMIST",          symbol: "ᛜ", color: "#7dff5e", desc: "Alchemist has no sprite here? 90 vitality. Carves a fifth rune slot the others can't, and gets 4 re-rolls to find the path." },
       { id: "shredder",      name: "SHREDDER",           symbol: "ᛃ", color: "#7a62bd", desc: "80 vitality. Wields a whirling void-saw that grinds nearby horrors and launches rune-etched debris when you fire. Dashing makes the saw hit harder." },
       { id: "necromancer",   name: "REANIMATOR",         symbol: "ᚻ", color: "#8a86a0", desc: "85 vitality. Slain horrors have a 40% chance to rise as ghost thralls. Thralls keep half their vitality and fight for you; their deaths feed your soul. Every 24s the pack is recalled to your side — or press recall. Below 35% vitality, a surplus of thralls is spent for doubled healing." },
       { id: "unknown",       name: "THE UNKNOWN",        symbol: "?", color: "#e8e2d0", desc: "225 vitality. Fires a spread of rune bolts, dashing cuts everything in its path. Every death carves one more rune into its gun." },
@@ -449,6 +449,7 @@
 
     function renderGrids() {
       // 1. Render Gunslingers Warden Cards Grid
+      //oh yo vscode copilot suggestions think ty for ${gs.color}
       gunslingerGrid.innerHTML = "";
       GUNSLINGERS.forEach(gs => {
         const isEquipped = gs.id === selectedChar;
@@ -457,7 +458,7 @@
         card.innerHTML = `
           <div class="card-tag ${isEquipped ? "equipped" : "owned"}" ${!isEquipped ? 'style="color:#7dff5e"' : ""}>${isEquipped ? "EQUIPPED" : "OWNED"}</div>
           <div class="card-top">
-            <span class="color-symbol" style="color: var(--gold);">${gs.symbol}</span>
+            <span class="color-symbol" style="color: ${gs.color};">${gs.symbol}</span>
             <div class="card-name">${gs.name}</div>
           </div>
           <div class="card-desc">${gs.desc}</div>
