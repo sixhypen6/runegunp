@@ -1,0 +1,125 @@
+{
+  "rules": {
+    "rooms": {
+      "$code": {
+        ".read": "auth != null",
+        ".write": "auth != null && (!data.exists() || data.child('hostId').val() === auth.uid)",
+        ".validate": "newData.hasChild('host') && newData.hasChild('hostId')",
+        "hostId": {
+          ".validate": "newData.val() === auth.uid"
+        },
+        "host": {
+          ".validate": "newData.hasChildren(['v', 'createdAt'])",
+          "v": { ".validate": "newData.isNumber()" },
+          "createdAt": { ".validate": "newData.isNumber()" },
+          "open": { ".validate": "newData.isBoolean()" },
+          "offer": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 16000" }
+        },
+        "joins": {
+          "$jid": {
+            ".write": "auth != null && ($jid === auth.uid || data.parent().parent().child('hostId').val() === auth.uid)",
+            ".validate": "newData.hasChildren(['v', 'at'])",
+            "v": { ".validate": "newData.isNumber()" },
+            "at": { ".validate": "newData.isNumber()" }
+          }
+        },
+        "peers": {
+          "$jid": {
+            ".write": "auth != null && ($jid === auth.uid || data.parent().parent().child('hostId').val() === auth.uid)",
+            "offer": {
+              ".validate": "newData.hasChildren(['v', 'sdp'])",
+              "v": { ".validate": "newData.isNumber()" },
+              "sdp": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 16000" }
+            },
+            "answer": {
+              ".validate": "newData.hasChildren(['v', 'sdp'])",
+              "v": { ".validate": "newData.isNumber()" },
+              "sdp": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 16000" }
+            },
+            "hc": {
+              "$cand": { ".validate": "newData.isString() && newData.val().length <= 2000" }
+            },
+            "gc": {
+              "$cand": { ".validate": "newData.isString() && newData.val().length <= 2000" }
+            },
+            "reject": { ".validate": "newData.isString() && newData.val().length <= 16" }
+          }
+        },
+        "guest": {
+          ".write": "auth != null && data.parent().child('hostId').val() !== auth.uid && (!data.exists() || !newData.exists())",
+          ".validate": "!newData.exists() || newData.hasChildren(['v', 'answer'])",
+          "v": { ".validate": "!newData.exists() || newData.isNumber()" },
+          "answer": { ".validate": "!newData.exists() || (newData.isString() && newData.val().length > 0 && newData.val().length <= 16000)" }
+        },
+        "hc": {
+          "$cand": { ".validate": "newData.isString() && newData.val().length <= 2000" }
+        },
+        "gc": {
+          "$cand": { ".validate": "newData.isString() && newData.val().length <= 2000" }
+        }
+      }
+    },
+    "open": {
+      ".read": "auth != null",
+      "$code": {
+        ".write": "auth != null && root.child('rooms').child($code).child('hostId').val() === auth.uid",
+        ".validate": "root.child('rooms').child($code).child('host').exists() && newData.hasChildren(['v', 'mode', 'char', 'skin', 'seats', 'at'])",
+        "v": { ".validate": "newData.isNumber()" },
+        "mode": { ".validate": "newData.isString() && newData.val().length <= 16" },
+        "char": { ".validate": "newData.isString() && newData.val().length <= 32" },
+        "skin": { ".validate": "newData.isString() && newData.val().length <= 32" },
+        "seats": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 4" },
+        "at": { ".validate": "newData.isNumber()" }
+      }
+    },
+    "console": {
+      "coop": {
+        ".read": "auth != null",
+        ".write": false
+      }
+    },
+    "scores": {
+      ".read": "auth != null",
+      ".indexOn": ["score", "hardScore", "chaosScore"],
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.hasChildren(['name', 'score', 'hardScore'])",
+        "name": {
+          ".validate": "newData.isString() && newData.val().length >= 3 && newData.val().length <= 20"
+        },
+        "score": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000 && (!data.exists() || newData.val() >= data.val())"
+        },
+        "hardScore": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000 && (!data.exists() || newData.val() >= data.val())"
+        },
+        "chaosScore": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000000 && (!data.exists() || newData.val() >= data.val())"
+        },
+        "updatedAt": {
+          ".validate": "newData.isNumber()"
+        },
+        "normal": {
+          ".validate": "newData.hasChildren(['char', 'runes'])",
+          "char": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 24" },
+          "runes": { ".validate": "newData.isString() && newData.val().length <= 96" },
+          "challenge": { ".validate": "newData.isString() && newData.val().length <= 24" }
+        },
+        "hard": {
+          ".validate": "newData.hasChildren(['char', 'runes'])",
+          "char": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 24" },
+          "runes": { ".validate": "newData.isString() && newData.val().length <= 96" },
+          "challenge": { ".validate": "newData.isString() && newData.val().length <= 24" }
+        },
+        "chaos": {
+          ".validate": "newData.hasChildren(['char', 'runes'])",
+          "char": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 24" },
+          "runes": { ".validate": "newData.isString() && newData.val().length <= 96" },
+          "challenge": { ".validate": "newData.isString() && newData.val().length <= 24" }
+        }
+      }
+    }
+  }
+}
+
+//why doth it not work
