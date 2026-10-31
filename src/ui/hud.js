@@ -181,37 +181,50 @@ function refreshRuneStrip() {
 }
 
 /* ---------- rune choice: pick one of three, reroll per-slot ---------- */
-function openRuneChoice() {
+function openRuneChoice(pickerIdx) {
+  /* pickerIdx is the player index who touched the orb.
+     If omitted, falls back to legacy single-slot (pause mode). */
+  const idx = (typeof pickerIdx === "number") ? pickerIdx : Game.pendingPickupBy;
+  const chooser = players[idx] || localPlayer();
   /* RUNELESS: a rune source never asks — it mends and hastens. update() consumes
      orbs on touch, so this is the belt-and-braces path for any other caller. */
   if (Game.challenge === "runeless") {
-    const ch = players[Game.pendingPickupBy] || localPlayer();
-    const pk = Game.pendingPickup;
-    Game.pendingPickup = null;
-    if (pk) { const idx = pickups.indexOf(pk); if (idx !== -1) pickups.splice(idx, 1); }
+    const ch = chooser;
+    const pk = (typeof pickerIdx === "number") ? Game.pendingPickups.find(e => e.by === idx)?.pk : Game.pendingPickup;
+    if (typeof pickerIdx === "number") {
+      Game.pendingPickups = Game.pendingPickups.filter(e => e.by !== idx);
+    } else {
+      Game.pendingPickup = null;
+    }
+    if (pk) { const pidx = pickups.indexOf(pk); if (pidx !== -1) pickups.splice(pidx, 1); }
     if (ch) runelessBoon(ch);
     return;
   }
-  const chooser = players[Game.pendingPickupBy] || localPlayer();
   /* an orb always has a hand to roll from by the time it is opened — co-op orbs
      roll on touch, so this is the last line of defence against an empty offer */
-  if (Game.pendingPickup && !Game.pendingPickup.ids)
-    Game.pendingPickup.ids = genThreeRunes(chooser);
-  /* co-op: the sim freezes for both, but only the CHOOSER sees the cards.
-     A remote chooser gets the ids over the wire; this side shows the wait. */
+  const entry = (typeof pickerIdx === "number") ? Game.pendingPickups.find(e => e.by === idx) : { pk: Game.pendingPickup };
+  const pk = entry?.pk;
+  if (pk && !pk.ids) pk.ids = genThreeRunes(chooser);
+  const noPause = typeof shouldPauseForRune === "function" && !shouldPauseForRune();
+  /* co-op: in no-pause mode, only the chooser sees cards; others keep playing.
+     In pause mode, the sim freezes for all and remote chooser shows wait screen. */
   if (Net.active && chooser !== localPlayer()) {
-    if (Net.role === "host") Coop._sendRuneOffer();
-    $("waitTitle").textContent = "YOUR PARTNER IS CHOOSING A RUNE";
-    setState("wait");
+    if (Net.role === "host") Coop._sendRuneOffer(idx);
+    if (!noPause) {
+      $("waitTitle").textContent = "YOUR PARTNER IS CHOOSING A RUNE";
+      setState("wait");
+    }
     return;
   }
   setState("rune");
-  renderRuneChoice();
+  renderRuneChoice(idx);
 }
-function renderRuneChoice() {
-  const p = Game.pendingPickup;
+function renderRuneChoice(pickerIdx) {
+  const idx = (typeof pickerIdx === "number") ? pickerIdx : Game.pendingPickupBy;
+  const entry = (typeof pickerIdx === "number") ? Game.pendingPickups.find(e => e.by === idx) : { pk: Game.pendingPickup };
+  const p = entry?.pk;
   /* whose hand carves: the warden that touched the orb */
-  const ch = players[Game.pendingPickupBy] || localPlayer();
+  const ch = players[idx] || localPlayer();
   const container = $("rcCards");
   container.innerHTML = "";
   /* Never leave a blank modal. This runs from a DataChannel callback on the
@@ -220,7 +233,7 @@ function renderRuneChoice() {
   if (!p || !p.ids || p.ids.length < 3 || p.ids.some(id => !runeDefFor(ch, id))) {
     container.innerHTML = "<div class='empty-note'>THE RUNES ARE SLOW TO ANSWER…</div>";
     if (Net.role === "guest") Net.sendR({ t: "reofferReq" });
-    else if (p) { p.ids = genThreeRunes(ch); renderRuneChoice(); }
+    else if (p) { p.ids = genThreeRunes(ch); renderRuneChoice(idx); }
     return;
   }
   for (let i = 0; i < 3; i++) {
@@ -246,20 +259,39 @@ function renderRuneChoice() {
     takeBtn.className = "menu-btn";
     takeBtn.textContent = "CARVE IT IN";
     takeBtn.addEventListener("click", () => {
-      if (!Game.pendingPickup) return;
+      if (!p) return;
+      const noPause = typeof shouldPauseForRune === "function" && !shouldPauseForRune();
       /* GUEST chooser: the pick travels to the host, who grants and resumes */
       if (Net.role === "guest") {
-        Net.sendR({ t: "runePick", id: p.ids[slotIdx] });
-        Game.pendingPickup = null;
-        AudioFX.equip();
-        $("waitTitle").textContent = "CARVED — THE DESCENT RESUMES";
-        setState("wait");        // the next snapshot flips both back to play
+        Net.sendR({ t: "runePick", id: p.ids[slotIdx], pickerIdx: idx });
+        if (noPause) {
+          /* in no-pause, we don't go to wait state locally */
+          AudioFX.equip();
+          setState("play");
+        } else {
+          Game.pendingPickup = null;
+          AudioFX.equip();
+          $("waitTitle").textContent = "CARVED — THE DESCENT RESUMES";
+          setState("wait");
+        }
         return;
       }
-      const idx = pickups.indexOf(Game.pendingPickup);
-      if (idx !== -1) pickups.splice(idx, 1);
+      /* HOST chooser: grant immediately */
+      if (noPause) {
+        const entry = Game.pendingPickups.find(e => e.by === idx);
+        if (entry) entry.state = "granted";
+        const pidx = pickups.indexOf(p);
+        if (pidx !== -1) pickups.splice(pidx, 1);
+      } else {
+        const pidx = pickups.indexOf(Game.pendingPickup);
+        if (pidx !== -1) pickups.splice(pidx, 1);
+      }
       grantRune(ch, p.ids[slotIdx]);
-      Game.pendingPickup = null;
+      if (noPause) {
+        Game.pendingPickups = Game.pendingPickups.filter(e => e.by !== idx);
+      } else {
+        Game.pendingPickup = null;
+      }
       /* the carve lands: a flourish in the rune's color as play resumes */
       floatText(ch.x, ch.y - 30, R.name, R.color, 16);
       shockwaves.push({ x: ch.x, y: ch.y, r: 8, max: 160, speed: 640, dmg: 0,
@@ -267,26 +299,33 @@ function renderRuneChoice() {
       for (let k = 0; k < 12; k++) particles.push({ x: ch.x, y: ch.y,
         vx: rnd(-220, 220), vy: rnd(-220, 220), t: 0, life: rnd(0.3, 0.6), r: rnd(2, 4), color: R.color });
       AudioFX.equip();
-      if (Net.role === "host") Net.sendR({ t: "runeGranted", idx: ch.idx, id: p.ids[slotIdx] });
-      setState("play");
+      if (Net.role === "host") Net.sendR({ t: "runeGranted", idx: ch.idx, id: p.ids[slotIdx], pickerIdx: idx });
+      if (noPause) {
+        /* in no-pause, we never left play state for other players */
+        /* just ensure local state is play */
+        if (Game.state === "rune") setState("play");
+      } else {
+        setState("play");
+      }
     });
     const rerollBtn = document.createElement("button");
     rerollBtn.className = "menu-btn small";
     rerollBtn.textContent = "RE-ROLL " + rerollLabel(ch.rerolls);
     rerollBtn.disabled = ch.rerolls <= 0;
     rerollBtn.addEventListener("click", () => {
-      if (ch.rerolls <= 0 || !Game.pendingPickup) return;
+      if (ch.rerolls <= 0 || !p) return;
+      const noPause = typeof shouldPauseForRune === "function" && !shouldPauseForRune();
       /* GUEST chooser: the host owns the pool and the reroll count */
-      if (Net.role === "guest") { Net.sendR({ t: "reroll", slot: slotIdx }); AudioFX.reroll(); return; }
+      if (Net.role === "guest") { Net.sendR({ t: "reroll", slot: slotIdx, pickerIdx: idx }); AudioFX.reroll(); return; }
       ch.rerolls--;
       updateRerolls();
       const pool = runePool(ch);
-      const onScreen = new Set(p.ids);                 // remember the three runes on the cards right now
-      let avail = pool.filter(id => !onScreen.has(id)); // reroll into something NOT currently shown...
-      if (!avail.length) avail = pool.filter(id => id !== p.ids[slotIdx]); // ...sealed pool too small: at least never repeat this slot
-      if (avail.length) p.ids[slotIdx] = pick(avail);  // (a one-rune pool has nothing else to offer — leave it)
+      const onScreen = new Set(p.ids);
+      let avail = pool.filter(id => !onScreen.has(id));
+      if (!avail.length) avail = pool.filter(id => id !== p.ids[slotIdx]);
+      if (avail.length) p.ids[slotIdx] = pick(avail);
       AudioFX.reroll();
-      renderRuneChoice();
+      renderRuneChoice(idx);
     });
     card.appendChild(takeBtn);
     card.appendChild(rerollBtn);

@@ -31,6 +31,17 @@ const COOP_MODE_DESC = {
   chaos: "No seal on either gun. Every rune answers — and kills leave orbs.",
 };
 
+/* Rune pause policy — maximum party size that pauses the whole run for a pick.
+   0 = never pause (everyone picks independently)
+   2 = pause for 2 players (legacy behavior)
+   4 = always pause (4 players)
+   Change RUNE_PAUSE_MAX_PLAYERS to toggle the feel. */
+window.RUNE_PAUSE_MAX_PLAYERS = 0;
+
+function shouldPauseForRune() {
+  return alivePlayers().length <= window.RUNE_PAUSE_MAX_PLAYERS;
+}
+
 const Coop = {
   running: false,
   _snapT: 0, _inputT: 0,
@@ -87,6 +98,10 @@ const Coop = {
     Net.onPeerLost = (why, peer) => this._peerLost(why, peer);
     Protocol._snapN = 0; Protocol._fx = [];
     this._resetRetryBtn();
+    /* reset any stale per-player rune choices from a previous descent */
+    if (Game.pendingPickups) Game.pendingPickups.length = 0;
+    else Game.pendingPickups = [];
+    Game.pendingPickup = null; Game.pendingPickupBy = 0;
   },
 
   /* A seat with no live peer (a leaver on DESCEND AGAIN, or a host that
@@ -98,6 +113,9 @@ const Coop = {
       if (p.idx === 0) continue;
       if (!Net.peerByIdx(p.idx)) { p.gone = true; p.downed = true; p.hp = 0; }
     }
+  },
+  _peerByIdx(idx) {
+    return Net.peers.find(p => p.idx === idx);
   },
   end() {
     this.running = false;
@@ -317,6 +335,12 @@ const Coop = {
     if (!this._floorReady) return;
     const mine = Game.state;
     if (mine === "held") return;   // the guest may browse its codex while the world runs
+    const noPause = typeof shouldPauseForRune === "function" && !shouldPauseForRune();
+    /* in no-pause mode, a guest with an open rune choice stays in "rune" even
+       while the host keeps playing — only the chooser's own state matters */
+    if (noPause && mine === "rune" && Game.pendingPickups.some(e => e.by === Net.localIdx && e.state === "offered")) {
+      return;
+    }
     let want;
     if (hs === "play") want = "play";
     else if (hs === "wait") want = "rune";          // host waits while I choose
@@ -498,8 +522,8 @@ const Coop = {
       case "i":
         if (Net.role === "host" && peer) this._inputs.set(peer.idx, { m, at: performance.now() });
         break;
-      case "runePick": if (Net.role === "host" && peer && peer.idx === Game.pendingPickupBy) this._hostGrant(m.id); break;
-      case "reroll": if (Net.role === "host" && peer && peer.idx === Game.pendingPickupBy) this._hostReroll(m.slot); break;
+      case "runePick": if (Net.role === "host") { const peer = this._peerByIdx(m.pickerIdx ?? m.idx); if (peer && peer.idx === (m.pickerIdx ?? m.idx)) this._hostGrant(m.id, m.pickerIdx); } break;
+      case "reroll": if (Net.role === "host") { const peer = this._peerByIdx(m.pickerIdx ?? m.idx); if (peer && peer.idx === (m.pickerIdx ?? m.idx)) this._hostReroll(m.slot, m.pickerIdx); } break;
       /* explicit rather than a toggle: a pause request that raced the host's own
          pause must not resume the game instead */
       case "pauseReq": if (Net.role === "host" && Game.state === "play") togglePause(); break;
@@ -509,7 +533,7 @@ const Coop = {
          reset a run that has just begun. */
       case "retryReq": if (Net.role === "host" && !this.running) this.retry(); break;
       /* a guest is frozen with nothing to choose — resend what it's owed */
-      case "reofferReq": if (Net.role === "host") this._sendRuneOffer(); break;
+      case "reofferReq": if (Net.role === "host") this._sendRuneOffer(m.pickerIdx); break;
       case "guestQuit": this._peerLost("quit", peer); break;
 
       /* --- guest receives --- */
@@ -543,7 +567,7 @@ const Coop = {
       case "ambush": if (Net.role === "guest") { screenFlash(0.25); Game.shake = Math.max(Game.shake, 10); AudioFX.bossRoar(); toast("THE SEAL BREAKS — SURVIVE"); } break;
       case "bossSpawn": if (Net.role === "guest") this._guestBossIntro(m); break;
       case "runeOffer": if (Net.role === "guest") this._guestRuneOffer(m); break;
-      case "runeGranted": if (Net.role === "guest") { grantRune(players[m.idx], m.id, m.idx !== Net.localIdx); } break;
+      case "runeGranted": if (Net.role === "guest") { grantRune(players[m.idx], m.id, m.idx !== Net.localIdx); if (m.pickerIdx !== undefined && m.pickerIdx === Net.localIdx) { if (Game.state === "rune") setState("play"); } } break;
       case "over": if (Net.role === "guest") { doGameOver(); } break;
       /* CLASSIC: the host felled THE EVENT HORIZON — the shared descent is complete */
       case "victory": if (Net.role === "guest") {
@@ -565,6 +589,35 @@ const Coop = {
      truly unreachable, take the choice ourselves and carry on.
      ========================================================= */
   _runeWatchdog(dt) {
+    const noPause = typeof shouldPauseForRune === "function" && !shouldPauseForRune();
+    if (noPause) {
+      /* per-player watchdog: each pending pickup is independent.
+         If a player leaves while they have an open offer, drop it.
+         If they don't answer within ~12s, grant the first rune for them. */
+      for (let i = Game.pendingPickups.length - 1; i >= 0; i--) {
+        const entry = Game.pendingPickups[i];
+        const ch = players[entry.by];
+        if (!ch || ch.gone) {
+          Game.pendingPickups.splice(i, 1);
+          continue;
+        }
+        if (entry.state !== "offered") continue;
+        entry._waitT = (entry._waitT || 0) + dt;
+        if (entry._waitT > 3 && entry._reoffers < 4) {
+          entry._waitT = 0; entry._reoffers = (entry._reoffers || 0) + 1;
+          this._sendRuneOffer(entry.by);
+          continue;
+        }
+        if (entry._reoffers >= 4 && entry._waitT > 3) {
+          const id = entry.pk.ids && entry.pk.ids[0];
+          toast("A WARDEN DID NOT ANSWER — THE RUNE CHOSE ITSELF");
+          if (id) this._hostGrant(id, entry.by);
+          else { Game.pendingPickups.splice(i, 1); }
+        }
+      }
+      return;
+    }
+    /* pause mode: legacy single-slot watchdog */
     const chooser = players[Game.pendingPickupBy];
     /* the hand belonged to a warden who has left: nobody can answer it, so
        release the run rather than re-offering into the dark */
@@ -592,32 +645,67 @@ const Coop = {
       this._waitT = 0; this._reoffers = 0;
     }
   },
-  _sendRuneOffer() {
-    const ch = players[Game.pendingPickupBy];
-    const pk = Game.pendingPickup;
+  _sendRuneOffer(pickerIdx) {
+    const noPause = typeof shouldPauseForRune === "function" && !shouldPauseForRune();
+    let ch, pk;
+    if (noPause && typeof pickerIdx === "number") {
+      const entry = Game.pendingPickups.find(e => e.by === pickerIdx);
+      if (!entry) return;
+      ch = players[pickerIdx];
+      pk = entry.pk;
+    } else {
+      ch = players[Game.pendingPickupBy];
+      pk = Game.pendingPickup;
+    }
     if (!ch || !pk) return;
     if (!pk.ids) pk.ids = genThreeRunes(ch);       // never offer an empty hand
-    Net.sendR({ t: "runeOffer", idx: ch.idx, ids: pk.ids, rerolls: ch.rerolls });
+    Net.sendR({ t: "runeOffer", idx: ch.idx, ids: pk.ids, rerolls: ch.rerolls, pickerIdx });
   },
 
   /* ---------------- rune choice over the wire ---------------- */
   /* Idempotent on purpose: keyed off "is a pickup pending" rather than an exact
      state, so a pick that arrives a frame late — or twice, after a re-offer —
      resolves once and is then harmlessly ignored. */
-  _hostGrant(id) {
-    const ch = players[Game.pendingPickupBy];
-    if (!ch || !Game.pendingPickup) return;
-    const idx = pickups.indexOf(Game.pendingPickup);
-    if (idx !== -1) pickups.splice(idx, 1);
-    Game.pendingPickup = null;
-    this._waitT = 0; this._reoffers = 0;
+  _hostGrant(id, pickerIdx) {
+    const noPause = typeof shouldPauseForRune === "function" && !shouldPauseForRune();
+    let ch, pk;
+    if (noPause && typeof pickerIdx === "number") {
+      const entry = Game.pendingPickups.find(e => e.by === pickerIdx);
+      if (!entry) return;
+      ch = players[pickerIdx];
+      pk = entry.pk;
+      entry.state = "granted";
+    } else {
+      ch = players[Game.pendingPickupBy];
+      pk = Game.pendingPickup;
+      if (!ch || !pk) return;
+    }
+    if (pk) {
+      const idx = pickups.indexOf(pk);
+      if (idx !== -1) pickups.splice(idx, 1);
+    }
+    if (!noPause) {
+      Game.pendingPickup = null;
+      this._waitT = 0; this._reoffers = 0;
+    } else {
+      Game.pendingPickups = Game.pendingPickups.filter(e => e.by !== pickerIdx);
+    }
     grantRune(ch, id, true);
-    Net.sendR({ t: "runeGranted", idx: ch.idx, id });
-    setState("play");
+    Net.sendR({ t: "runeGranted", idx: ch.idx, id, pickerIdx });
+    if (!noPause) setState("play");
   },
-  _hostReroll(slot) {
-    const ch = players[Game.pendingPickupBy];
-    const pk = Game.pendingPickup;
+  _hostReroll(slot, pickerIdx) {
+    const noPause = typeof shouldPauseForRune === "function" && !shouldPauseForRune();
+    let ch, pk;
+    if (noPause && typeof pickerIdx === "number") {
+      const entry = Game.pendingPickups.find(e => e.by === pickerIdx);
+      if (!entry) return;
+      ch = players[pickerIdx];
+      pk = entry.pk;
+    } else {
+      ch = players[Game.pendingPickupBy];
+      pk = Game.pendingPickup;
+    }
     if (!ch || !pk || ch.rerolls <= 0) return;
     ch.rerolls--;
     const pool = runePool(ch);
@@ -625,22 +713,39 @@ const Coop = {
     let avail = pool.filter(id => !onScreen.has(id));
     if (!avail.length) avail = pool.filter(id => id !== pk.ids[slot]);
     if (avail.length) pk.ids[slot] = pick(avail);
-    this._waitT = 0; this._reoffers = 0;          // they're clearly alive — reset the watchdog
-    Net.sendR({ t: "runeOffer", idx: ch.idx, ids: pk.ids, rerolls: ch.rerolls });
+    if (!noPause) {
+      this._waitT = 0; this._reoffers = 0;
+    }
+    Net.sendR({ t: "runeOffer", idx: ch.idx, ids: pk.ids, rerolls: ch.rerolls, pickerIdx });
   },
   _guestRuneOffer(m) {
-    if (m.idx !== Net.localIdx) return;           // somebody else's hand
+    const pickerIdx = m.pickerIdx ?? m.idx;
+    if (pickerIdx !== Net.localIdx) return;           // somebody else's hand
+    const noPause = typeof shouldPauseForRune === "function" && !shouldPauseForRune();
     /* a re-offer for a choice already on screen must not reset the cards under
        the player's finger — only adopt it if something actually changed */
-    const same = Game.state === "rune" && Game.pendingPickup && Game.pendingPickup.ids &&
-                 String(Game.pendingPickup.ids) === String(m.ids);
+    const entry = Game.pendingPickups.find(e => e.by === pickerIdx);
+    const legacyEntry = !noPause ? { pk: Game.pendingPickup } : null;
+    const activeEntry = entry || legacyEntry;
+    const same = Game.state === "rune" && activeEntry && activeEntry.pk && activeEntry.pk.ids &&
+                 String(activeEntry.pk.ids) === String(m.ids);
     if (same) return;
-    if (!m.ids || m.ids.length < 3) { Net.sendR({ t: "reofferReq" }); return; }
-    Game.pendingPickup = { ids: m.ids.slice() };
-    Game.pendingPickupBy = Net.localIdx;
+    if (!m.ids || m.ids.length < 3) { Net.sendR({ t: "reofferReq", pickerIdx }); return; }
+    const pk = { ids: m.ids.slice() };
+    if (noPause) {
+      /* store in pendingPickups array for this player */
+      const existing = Game.pendingPickups.findIndex(e => e.by === pickerIdx);
+      if (existing >= 0) Game.pendingPickups[existing] = { pk, by: pickerIdx, state: "offered" };
+      else Game.pendingPickups.push({ pk, by: pickerIdx, state: "offered" });
+      /* also update legacy fields if this is the first/only entry */
+      if (!Game.pendingPickup) { Game.pendingPickup = pk; Game.pendingPickupBy = pickerIdx; }
+    } else {
+      Game.pendingPickup = pk;
+      Game.pendingPickupBy = pickerIdx;
+    }
     localPlayer().rerolls = m.rerolls;
     setState("rune");
-    renderRuneChoice();
+    renderRuneChoice(pickerIdx);
   },
 
   /* ---------------- guest-side event juice ---------------- */
@@ -763,6 +868,7 @@ const Coop = {
     if (p) { p.gone = true; p.downed = true; p.hp = 0; }
     /* a rune hand that belonged to the departed warden can never be answered */
     if (p && Game.pendingPickupBy === p.idx) Game.pendingPickup = null;
+    if (Game.pendingPickups) Game.pendingPickups = Game.pendingPickups.filter(e => e.by !== p.idx);
     if (Game.state === "wait" || Game.state === "pause") setState("play");
     if (typeof updateHp === "function") updateHp();
     if (Net.peers.length > 0) toast("A WARDEN IS LOST TO THE DARK — FIGHT ON");
