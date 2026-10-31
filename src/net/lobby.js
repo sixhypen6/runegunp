@@ -452,7 +452,7 @@ const Lobby = {
       }
     } else if (m.t === "lobbySlot") {
       if (Net.role === "guest" && Number.isInteger(m.idx)) { Net.localIdx = m.idx; this.renderReady(); }
-    } else if (m.t === "start" && Net.role === "guest") Coop.beginGuest(m.cfgs, m.mode);
+    } else if (m.t === "start" && Net.role === "guest") Coop.beginGuest(m.cfgs, m.mode, m.runePause);
   },
   _maybeStart() {
     /* the HOST fires the descent once every connected hand is raised */
@@ -467,7 +467,10 @@ const Lobby = {
        before the world starts */
     clearInterval(this._openTimer); this._openTimer = 0;
     Signal.closeRoom();
-    Net.sendR({ t: "start", cfgs, mode: this.mode });
+    /* the host's rune-pause answer travels with the start so every screen
+       freezes (or keeps fighting) in step */
+    const runePause = Coop.pausePolicy(roster.length);
+    Net.sendR({ t: "start", cfgs, mode: this.mode, runePause });
     Coop.beginHost(cfgs, this.mode);
   },
 };

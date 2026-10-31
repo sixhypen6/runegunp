@@ -180,6 +180,34 @@ function refreshRuneStrip() {
   }
 }
 
+/* ---------- no-pause rune picks: a choice that rides over live play ----------
+   With pausing off, the warden still needs to read three cards while the fight
+   goes on. The choice is drawn as an overlay with the sim left in "play", so
+   the host keeps simulating (and streaming) for everyone else. */
+function showRuneOverlay(idx) {
+  Game.runeOverlayBy = idx;
+  const el = $("runeChoice");
+  if (el) el.classList.add("on");
+  document.body.classList.add("inGame");
+  renderRuneChoice(idx);
+}
+function hideRuneOverlay(idx) {
+  if (idx !== undefined && Game.runeOverlayBy !== idx) return;
+  Game.runeOverlayBy = null;
+  const el = $("runeChoice");
+  if (el) el.classList.remove("on");
+}
+
+/* the rune hand a given warden is holding: the per-player queue when the run
+   keeps playing, or the legacy single slot when the world is frozen for the pick */
+function runeEntryFor(idx) {
+  if (Game.pendingPickups) {
+    const e = Game.pendingPickups.find(x => x.by === idx);
+    if (e) return e;
+  }
+  return (Game.pendingPickup && Game.pendingPickupBy === idx) ? { pk: Game.pendingPickup } : null;
+}
+
 /* ---------- rune choice: pick one of three, reroll per-slot ---------- */
 function openRuneChoice(pickerIdx) {
   /* pickerIdx is the player index who touched the orb.
@@ -190,7 +218,7 @@ function openRuneChoice(pickerIdx) {
      orbs on touch, so this is the belt-and-braces path for any other caller. */
   if (Game.challenge === "runeless") {
     const ch = chooser;
-    const pk = (typeof pickerIdx === "number") ? Game.pendingPickups.find(e => e.by === idx)?.pk : Game.pendingPickup;
+    const pk = runeEntryFor(idx)?.pk;
     if (typeof pickerIdx === "number") {
       Game.pendingPickups = Game.pendingPickups.filter(e => e.by !== idx);
     } else {
@@ -202,27 +230,27 @@ function openRuneChoice(pickerIdx) {
   }
   /* an orb always has a hand to roll from by the time it is opened — co-op orbs
      roll on touch, so this is the last line of defence against an empty offer */
-  const entry = (typeof pickerIdx === "number") ? Game.pendingPickups.find(e => e.by === idx) : { pk: Game.pendingPickup };
-  const pk = entry?.pk;
+  const pk = runeEntryFor(idx)?.pk;
   if (pk && !pk.ids) pk.ids = genThreeRunes(chooser);
-  const noPause = typeof shouldPauseForRune === "function" && !shouldPauseForRune();
-  /* co-op: in no-pause mode, only the chooser sees cards; others keep playing.
-     In pause mode, the sim freezes for all and remote chooser shows wait screen. */
+  const paused = shouldPauseForRune();
+  /* co-op: the offer travels to a remote chooser. With pausing on, this side
+     freezes and shows the wait notice; with it off, play simply continues and
+     the chooser's own overlay opens on their screen. */
   if (Net.active && chooser !== localPlayer()) {
     if (Net.role === "host") Coop._sendRuneOffer(idx);
-    if (!noPause) {
+    if (paused) {
       $("waitTitle").textContent = "YOUR PARTNER IS CHOOSING A RUNE";
       setState("wait");
     }
     return;
   }
+  if (!paused) { showRuneOverlay(idx); return; }
   setState("rune");
   renderRuneChoice(idx);
 }
 function renderRuneChoice(pickerIdx) {
   const idx = (typeof pickerIdx === "number") ? pickerIdx : Game.pendingPickupBy;
-  const entry = (typeof pickerIdx === "number") ? Game.pendingPickups.find(e => e.by === idx) : { pk: Game.pendingPickup };
-  const p = entry?.pk;
+  const p = runeEntryFor(idx)?.pk;
   /* whose hand carves: the warden that touched the orb */
   const ch = players[idx] || localPlayer();
   const container = $("rcCards");
@@ -232,7 +260,7 @@ function renderRuneChoice(pickerIdx) {
      players staring at an empty choice — the exact playtest freeze. */
   if (!p || !p.ids || p.ids.length < 3 || p.ids.some(id => !runeDefFor(ch, id))) {
     container.innerHTML = "<div class='empty-note'>THE RUNES ARE SLOW TO ANSWER…</div>";
-    if (Net.role === "guest") Net.sendR({ t: "reofferReq" });
+    if (Net.role === "guest") Net.sendR({ t: "reofferReq", pickerIdx: idx });
     else if (p) { p.ids = genThreeRunes(ch); renderRuneChoice(idx); }
     return;
   }
@@ -260,34 +288,27 @@ function renderRuneChoice(pickerIdx) {
     takeBtn.textContent = "CARVE IT IN";
     takeBtn.addEventListener("click", () => {
       if (!p) return;
-      const noPause = typeof shouldPauseForRune === "function" && !shouldPauseForRune();
-      /* GUEST chooser: the pick travels to the host, who grants and resumes */
+      const paused = shouldPauseForRune();
+      /* GUEST chooser: the pick travels to the host, who grants it */
       if (Net.role === "guest") {
         Net.sendR({ t: "runePick", id: p.ids[slotIdx], pickerIdx: idx });
-        if (noPause) {
-          /* in no-pause, we don't go to wait state locally */
-          AudioFX.equip();
-          setState("play");
+        AudioFX.equip();
+        if (!paused) {
+          /* overlay over live play: just fold it away */
+          Game.pendingPickups = Game.pendingPickups.filter(e => e.by !== idx);
+          hideRuneOverlay(idx);
         } else {
           Game.pendingPickup = null;
-          AudioFX.equip();
           $("waitTitle").textContent = "CARVED — THE DESCENT RESUMES";
           setState("wait");
         }
         return;
       }
       /* HOST chooser: grant immediately */
-      if (noPause) {
-        const entry = Game.pendingPickups.find(e => e.by === idx);
-        if (entry) entry.state = "granted";
-        const pidx = pickups.indexOf(p);
-        if (pidx !== -1) pickups.splice(pidx, 1);
-      } else {
-        const pidx = pickups.indexOf(Game.pendingPickup);
-        if (pidx !== -1) pickups.splice(pidx, 1);
-      }
+      const pidx = pickups.indexOf(p);
+      if (pidx !== -1) pickups.splice(pidx, 1);
       grantRune(ch, p.ids[slotIdx]);
-      if (noPause) {
+      if (!paused) {
         Game.pendingPickups = Game.pendingPickups.filter(e => e.by !== idx);
       } else {
         Game.pendingPickup = null;
@@ -300,13 +321,8 @@ function renderRuneChoice(pickerIdx) {
         vx: rnd(-220, 220), vy: rnd(-220, 220), t: 0, life: rnd(0.3, 0.6), r: rnd(2, 4), color: R.color });
       AudioFX.equip();
       if (Net.role === "host") Net.sendR({ t: "runeGranted", idx: ch.idx, id: p.ids[slotIdx], pickerIdx: idx });
-      if (noPause) {
-        /* in no-pause, we never left play state for other players */
-        /* just ensure local state is play */
-        if (Game.state === "rune") setState("play");
-      } else {
-        setState("play");
-      }
+      if (!paused) hideRuneOverlay(idx);
+      else setState("play");
     });
     const rerollBtn = document.createElement("button");
     rerollBtn.className = "menu-btn small";
@@ -314,7 +330,6 @@ function renderRuneChoice(pickerIdx) {
     rerollBtn.disabled = ch.rerolls <= 0;
     rerollBtn.addEventListener("click", () => {
       if (ch.rerolls <= 0 || !p) return;
-      const noPause = typeof shouldPauseForRune === "function" && !shouldPauseForRune();
       /* GUEST chooser: the host owns the pool and the reroll count */
       if (Net.role === "guest") { Net.sendR({ t: "reroll", slot: slotIdx, pickerIdx: idx }); AudioFX.reroll(); return; }
       ch.rerolls--;

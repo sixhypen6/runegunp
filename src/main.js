@@ -73,6 +73,12 @@ function frame(now) {
         else { menuFrame(dt + bgDt); bgDt = 0; }
       }
       else draw();
+      /* no-pause rune cards ride on top of live play: any setState hides every
+         overlay, so a pause/resume cycle must put the choice back up */
+      if (Game.runeOverlayBy != null && Game.state === "play" &&
+          !$("runeChoice").classList.contains("on")) {
+        $("runeChoice").classList.add("on");
+      }
     }
   } catch (e) {
     noteCrash("frame", e);

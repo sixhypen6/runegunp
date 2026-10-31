@@ -111,6 +111,8 @@ const Protocol = {
         flawless: Game.flawless, bossId: Game.boss ? Game.boss.id : 0,
         pickupBy: Game.pendingPickupBy,
         seal: SEAL.state,
+        /* the saloon's shared buzz rides wherever the party carries it */
+        drunk: Q2(Game.drunk), dh: Q2(Game.drunkHold), dt: Q2(Game.drunkT), ds: Q2(Game.drunkSpan),
       },
       pl: players.map(p => {
         const o = pluck(p, PLAYER_FIELDS);
@@ -214,10 +216,18 @@ const Protocol = {
       s.sh.push({ sx: sl.sx, sy: sl.sy, x: NUM3(sl.x), y: NUM3(sl.y), lx: sl.lx, ly: sl.ly,
         t: NUM3(sl.t), T: sl.T, r: sl.r, o: sl.owner ? sl.owner.idx : 0 });
     }
-    /* terrain reconciliation rides every 15th snapshot (~1Hz) — rocks change rarely */
+    /* terrain reconciliation rides every 15th snapshot (~1Hz) — rocks change rarely.
+       In the saloon the `sal` tag is what tells the guest which rocks are walls,
+       bars and the swinging door, so it must survive the round trip. */
     if (this._snapN % 15 === 1) {
-      s.rk = MAP.rocks.map(rc => ({ id: rc.id, x: rc.x, y: rc.y, w: rc.w, h: rc.h, tone: rc.tone, boss: !!rc.boss }));
+      s.rk = MAP.rocks.map(rc => {
+        const o = { id: rc.id, x: rc.x, y: rc.y, w: rc.w, h: rc.h, tone: rc.tone, boss: !!rc.boss };
+        if (rc.sal) o.sal = rc.sal;
+        return o;
+      });
     }
+    /* the saloon's live conversation/greeting/tab — only while the party is in it */
+    if (Game.inSaloon && Game.saloon && typeof encodeSaloon === "function") s.sal = encodeSaloon();
     return s;
   },
 
@@ -236,6 +246,17 @@ const Protocol = {
     Game.flawless = g.flawless;
     Game.pendingPickupBy = g.pickupBy;
     SEAL.state = g.seal;
+    /* the saloon's shared buzz. The host owns the clock; the guest mirrors it and
+       rebuilds every warden when the tier itself changes (the buffs ride recalc). */
+    if (g.drunk !== undefined) {
+      const lvl = Math.floor(g.drunk);
+      Game.drunk = g.drunk; Game.drunkHold = g.dh; Game.drunkT = g.dt; Game.drunkSpan = g.ds;
+      if (lvl !== (Game._netDrunkLvl ?? -1)) {
+        Game._netDrunkLvl = lvl; Game.drunkBuffLvl = lvl;
+        for (const p of players) recalc(p);
+      }
+      if (typeof paintDrunkHud === "function") paintDrunkHud();
+    }
 
     /* players: the partner fully; own warden's non-predicted fields only */
     for (let i = 0; i < s.pl.length && i < players.length; i++) {
@@ -379,6 +400,9 @@ const Protocol = {
       for (let i = MAP.rocks.length - 1; i >= 0; i--) if (!want.has(MAP.rocks[i].id)) MAP.rocks.splice(i, 1);
       for (const rc of s.rk) if (!have.has(rc.id)) MAP.rocks.push(rc);
     }
+    /* the saloon's live state (greeting, questions, tab, speech, doors) */
+    if (s.sal && Game.inSaloon && Game.saloon && typeof applySaloonState === "function")
+      applySaloonState(s.sal);
 
     /* the host's floaters replay verbatim — damage numbers, callouts, all of it */
     for (const f of s.fx) floatText(f.x, f.y, f.txt, f.color, f.size, f.opt);

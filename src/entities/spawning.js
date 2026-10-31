@@ -56,6 +56,10 @@ function resetRun(cfgs) {
   Game.riftOffered = false; Game.riftDone = false; Game.inRift = false; Game.riftCreature = null; Game.riftPicks = null;
   Game.inSaloon = false; Game.saloon = null; Game.saloonVisits = 0;
   Game.drunk = 0; Game.drunkHold = 0; Game.drunkSpan = 0; Game.drunkJolt = 0;
+  /* rune choices never carry across descents */
+  Game.pendingPickup = null; Game.pendingPickupBy = 0; Game.pendingPickups = [];
+  Game.runeOverlayBy = null;
+  if (typeof hideRuneOverlay === "function") hideRuneOverlay();
   Game.starConquered = false; Game.horizonFed = 0;
   Game.unknownDue = false; Game.unknownConquered = false;
   if (!cfgs) cfgs = [localPlayerCfg()];
