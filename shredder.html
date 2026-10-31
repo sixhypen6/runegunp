@@ -2,197 +2,539 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>RuneGunP - Character Render & Export</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RUNEGUN — The Vault Studio</title>
   <style>
-    body {
-      background: #0b0b14;
-      color: #e8e2d0;
-      font-family: monospace;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
+    :root {
+      --void: #090810;
+      --card-bg: rgba(7, 5, 14, 0.75);
+      --line: #1c1a2e;
+      --gold: #ffd23d;
+      --arcane: #9d6bff;
+      --bone: #e8e2d0;
+      --dim: #a09cb8;
+      --equipped-orange: #ff8a3d;
+      --green-tag: #7dff5e;
+    }
+
+    * {
+      box-sizing: border-box;
       margin: 0;
-      padding: 10px;
+      padding: 0;
+      user-select: none;
     }
-    .container {
-      background: #12121c;
-      border: 1px solid #222233;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+
+    body {
+      background-color: var(--void);
+      background-image: 
+        linear-gradient(rgba(28, 26, 46, 0.25) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(28, 26, 46, 0.25) 1px, transparent 1px);
+      background-size: 32px 32px;
+      color: var(--bone);
+      font-family: "Courier New", ui-monospace, Menlo, Consolas, monospace;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 12px;
-      max-width: 320px;
-      width: 100%;
+      min-height: 100vh;
+      padding: 24px 16px;
     }
+
+    .vault-header {
+      width: min(960px, 98vw);
+      font-size: 13px;
+      letter-spacing: 0.3em;
+      color: var(--dim);
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      text-align: center;
+    }
+
+    /* Vault Navigation Tabs (Screenshot 1) */
+    .vault-tabs {
+      width: min(960px, 98vw);
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .vtab {
+      background: rgba(7, 5, 14, 0.8);
+      border: 1px solid var(--line);
+      padding: 12px 8px;
+      text-align: center;
+      font-family: inherit;
+      font-size: 11px;
+      letter-spacing: 0.25em;
+      color: var(--bone);
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all 0.15s;
+    }
+
+    .vtab:hover {
+      border-color: var(--arcane);
+    }
+
+    .vtab.active {
+      border-color: var(--gold);
+      box-shadow: 0 0 14px rgba(255, 210, 61, 0.35);
+      color: #fff;
+    }
+
+    /* Main Layout: Left Preview / Right Scrollable Content */
+    .studio-layout {
+      width: min(960px, 98vw);
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+
+    /* Left Frame: Character Preview & Quick Controls */
+    .preview-frame {
+      width: 230px;
+      background: rgba(11, 10, 20, 0.95);
+      border: 1px solid var(--line);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      position: sticky;
+      top: 20px;
+      flex-shrink: 0;
+    }
+
+    .preview-card {
+      border: 1px solid var(--gold);
+      background: #100f1a;
+      box-shadow: 0 0 12px rgba(255, 210, 61, 0.2);
+      padding: 10px;
+      display: flex;
+      justify-content: center;
+    }
+
     canvas {
-      border: 2px solid #222;
+      border: 1px solid var(--line);
       background: #171724;
-      border-radius: 6px;
       display: block;
     }
-    .control-row {
+
+    .ctrl-group {
       display: flex;
-      justify-content: space-between;
-      width: 100%;
-      align-items: center;
-      gap: 10px;
+      flex-direction: column;
+      gap: 4px;
     }
-    label {
-      font-size: 13px;
-      font-weight: bold;
-      color: #b8c4d6;
+
+    .ctrl-group label {
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      color: var(--dim);
+      text-transform: uppercase;
     }
-    select, button, input[type="range"] {
-      padding: 6px 10px;
+
+    select, input[type="range"] {
       font-family: inherit;
-      font-size: 13px;
-      background: #1a1a28;
-      color: #fff;
-      border: 1px solid #444;
-      border-radius: 4px;
-      cursor: pointer;
-      flex-grow: 1;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      background: rgba(0, 0, 0, 0.6);
+      color: var(--bone);
+      border: 1px solid var(--line);
+      padding: 4px 6px;
+      outline: none;
+      width: 100%;
     }
+
     input[type="range"] {
-      padding: 0;
-      accent-color: #ff4d5e;
+      accent-color: var(--arcane);
     }
-    button {
-      background: #ff4d5e;
-      border: none;
-      font-weight: bold;
-      width: 100%;
-      padding: 10px;
-      margin-top: 5px;
-    }
-    button:hover { background: #ff6b7a; }
-    .button-group {
+
+    .export-btns {
       display: flex;
-      gap: 10px;
-      width: 100%;
+      gap: 6px;
+      margin-top: 4px;
     }
-    #status {
-      font-size: 11px;
-      color: #5ee6ff;
-      height: 15px;
+
+    .menu-btn {
+      font-family: inherit;
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      color: var(--bone);
+      background: rgba(7, 5, 16, 0.8);
+      border: 1px solid var(--line);
+      padding: 8px 4px;
+      cursor: pointer;
+      flex: 1;
+      text-transform: uppercase;
       text-align: center;
+      transition: all 0.15s;
+    }
+
+    .menu-btn:hover {
+      border-color: var(--gold);
+      color: #fff;
+      box-shadow: 0 0 10px rgba(255, 210, 61, 0.3);
+    }
+
+    /* Right Scrolling Sections Container */
+    .vault-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      max-height: 85vh;
+      overflow-y: auto;
+      padding-right: 6px;
+    }
+
+    .section-title {
+      font-size: 12px;
+      letter-spacing: 0.3em;
+      color: var(--gold);
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      font-weight: bold;
+    }
+
+    .section-title span {
+      color: var(--dim);
+      font-size: 10px;
+    }
+
+    /* 4-Column Card Grid (Matching In-Game Layout Screenshot 3) */
+    .warpaint-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      background: var(--card-bg);
+      padding: 12px 10px;
+      min-height: 180px;
+      cursor: pointer;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      transition: border-color 0.12s, box-shadow 0.12s;
+    }
+
+    .card:hover {
+      border-color: #3b3759;
+    }
+
+    .card.equipped {
+      border: 1px solid var(--equipped-orange);
+      box-shadow: 0 0 14px rgba(255, 138, 61, 0.4), inset 0 0 10px rgba(255, 138, 61, 0.15);
+    }
+
+    .card-top {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+      padding-right: 48px;
+    }
+
+    .color-symbol {
+      font-size: 18px;
+      line-height: 1;
+      flex-shrink: 0;
+      filter: drop-shadow(0 0 4px currentColor);
+    }
+
+    .card-name {
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      color: var(--bone);
+      font-weight: bold;
+    }
+
+    .card-tag {
+      position: absolute;
+      top: 6px;
+      right: 8px;
+      font-size: 8px;
+      letter-spacing: 0.18em;
+      font-weight: bold;
+    }
+
+    .card-tag.equipped { color: var(--equipped-orange); }
+
+    .card-desc {
+      font-size: 9.5px;
+      line-height: 1.5;
+      color: #c4c0db; /* Bright legible description text */
+      letter-spacing: 0.03em;
+    }
+
+    #status {
+      font-size: 9px;
+      letter-spacing: 0.18em;
+      color: #5ee6ff;
+      height: 12px;
+      text-align: center;
+      margin-top: 4px;
+    }
+
+    @media (max-width: 900px) {
+      .warpaint-grid { grid-template-columns: repeat(2, 1fr); }
+      .studio-layout { flex-direction: column; }
+      .preview-frame { width: 100%; position: static; }
+      .vault-tabs { grid-template-columns: repeat(2, 1fr); }
     }
   </style>
 </head>
 <body>
 
-  <div class="container">
-    <!-- Snug 160x160 canvas frame -->
-    <canvas id="spriteCanvas" width="160" height="160"></canvas>
+  <div class="vault-header">THE VAULT — TRADES IN SOULS</div>
 
-    <div class="control-row">
-      <label for="charSelect">Character</label>
-      <select id="charSelect">
-        <option value="shredder">Shredder</option>
-        <option value="necromancer" selected>Necromancer</option>
-      </select>
+  <!-- Top Navigation Tabs (Screenshot 1) -->
+  <div class="vault-tabs">
+    <button class="vtab active" id="tabGunslingers">GUNSLINGERS</button>
+    <button class="vtab" id="tabWarpaint">WARPAINT</button>
+    <button class="vtab" id="tabRerun">RERUN BUFFS</button>
+    <button class="vtab" id="tabPets">PETS</button>
+  </div>
+
+  <div class="studio-layout">
+    <!-- Left Preview Panel -->
+    <div class="preview-frame">
+      <div class="preview-card">
+        <canvas id="spriteCanvas" width="160" height="160"></canvas>
+      </div>
+
+      <div class="ctrl-group">
+        <label for="aimRange">Aim Angle (<span id="aimVal">0°</span>)</label>
+        <input type="range" id="aimRange" min="0" max="6.28" step="0.05" value="0">
+      </div>
+
+      <div class="ctrl-group">
+        <label for="speedRange">Spin Speed (<span id="speedVal">0.08</span>)</label>
+        <input type="range" id="speedRange" min="0" max="0.3" step="0.01" value="0.08">
+      </div>
+
+      <div class="ctrl-group">
+        <label for="hpSelect">Vitality</label>
+        <select id="hpSelect">
+          <option value="1.0" selected>Healthy (100%)</option>
+          <option value="0.2">Critical (&lt;30%)</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label for="scaleSelect">Export Scale</label>
+        <select id="scaleSelect">
+          <option value="1">1x (160px)</option>
+          <option value="2">2x (320px)</option>
+          <option value="4" selected>4x (640px)</option>
+          <option value="8">8x (1280px)</option>
+        </select>
+      </div>
+
+      <div class="export-btns">
+        <button class="menu-btn" id="pngBtn">PNG</button>
+        <button class="menu-btn" id="recordBtn">WEBM</button>
+      </div>
+      <div id="status"></div>
     </div>
 
-    <div class="control-row">
-      <label for="bodyColorSelect">Body Color</label>
-      <select id="bodyColorSelect"></select>
-    </div>
+    <!-- Right Scrolling Sections -->
+    <div class="vault-content" id="vaultContent">
+      
+      <div id="gunslingerSection">
+        <div class="section-title">GUNSLINGERS <span>— warden class catalog</span></div>
+        <div class="warpaint-grid" id="gunslingerGrid"></div>
+      </div>
 
-    <div class="control-row" id="sawColorRow">
-      <label for="sawColorSelect">Saw Color</label>
-      <select id="sawColorSelect"></select>
-    </div>
+      <div id="bodySection" style="margin-top: 15px;">
+        <div class="section-title">BODY WARPAINT</div>
+        <div class="warpaint-grid" id="bodyGrid"></div>
+      </div>
 
-    <div class="control-row">
-      <label for="speedRange">Speed (<span id="speedVal">0.08</span>)</label>
-      <input type="range" id="speedRange" min="0" max="0.3" step="0.01" value="0.08">
-    </div>
+      <div id="gunSection" style="margin-top: 15px;">
+        <div class="section-title">GUN WARPAINT <span>— the same paints, bought once, worn on either</span></div>
+        <div class="warpaint-grid" id="gunGrid"></div>
+      </div>
 
-    <div class="control-row">
-      <label for="scaleSelect">Export Scale</label>
-      <select id="scaleSelect">
-        <option value="1">1x (160px)</option>
-        <option value="2">2x (320px)</option>
-        <option value="4" selected>4x (640px)</option>
-        <option value="8">8x (1280px)</option>
-      </select>
     </div>
-
-    <div class="button-group">
-      <button id="pngBtn">Save PNG</button>
-      <button id="recordBtn">Record WebM</button>
-    </div>
-    
-    <div id="status"></div>
   </div>
 
   <script>
-    const COLORS = {
-      bone:     { name: "BONE",        color: "#e8e2d0" },
-      emberg:   { name: "EMBERGLOW",   color: "#ff8a3d" },
-      toxin:    { name: "TOXIN",       color: "#7dff5e" },
-      rime:     { name: "RIME",        color: "#5ee6ff" },
-      hex:      { name: "HEX",         color: "#9d6bff" },
-      gore:     { name: "GORE",        color: "#ff4d5e" },
-      fathom:   { name: "FATHOM",      color: "#4d7dff" },
-      witch:    { name: "WITCHLIGHT",  color: "#ff6bd6" },
-      gilded:   { name: "GILDED",      color: "#ffd23d" },
-      quick:    { name: "QUICKSILVER", color: "#b8c4d6" },
-      voidt:    { name: "VOIDTOUCH",   color: "#c9b8ff" },
-      pure:     { name: "SUPERNOVA",   color: "#ffffff" },
-      darkness: { name: "ABYSS",       color: "#05050a" },
-      jade:     { name: "EMERALD",     color: "#2eff8a" },
-      crimson:  { name: "SANGUINE",    color: "#880011" },
-      nebula:   { name: "NEBULA",      color: "#5d00ff" },
-      sulfur:   { name: "SULFUR",      color: "#ccff00" }
-    };
+    // Exact Lore Texts & Symbols from Screenshot 3
+    const GUNSLINGERS = [    //gemini how could you get the symbols wrong :sob:
+      { id: "gunsmith",      name: "GUNSMITH",           symbol: "ᚠ", color: "#e8e2d0", desc: "The baseline. 100 vitality, steady hands." },
+      { id: "wraith",        name: "WRAITH",             symbol: "ᚹ", color: "#5ee6ff", desc: "70 vitality, fast dash that barely cools down — and dashes far longer than anyone else. Fires no bullets — instead it VEIL BURSTS: vanishing between worlds and wounding everything in a circle around it. Foes slain inside the circle discharge your full gunshot." },
+      { id: "juggernaut",    name: "JUGGERNAUT",         symbol: "ᛞ", color: "#ff8a3d", desc: "160 vitality of stubborn meat. Slow. Fires one MASSIVE slug at a time — a glacial rate of fire, but the hardest-hitting base shot of any gunslinger, and it punches clean through the first body it hits." },
+      { id: "demolitionist", name: "DEMOLITIONIST",      symbol: "ᛥ", color: "#7dff5e", desc: "110 vitality. Works a stub MORTAR: each round a fat shell lobbed a short arc that clips whatever it crosses mid-air, then SLAMS on arrival — a crater ring, and the charge splinters into flying shot. Dashing sows waiting mines along the whole path; one shard always finds the fool who wakes one. Slow to load — the Juggernaut's glacial cadence." },
+      { id: "alchemist",     name: "ALCHEMIST",          symbol: "ᛜ", color: "#9d6bff", desc: "Alchemist has no sprite here? 90 vitality. Carves a fifth rune slot the others can't, and gets 4 re-rolls to find the path." },
+      { id: "shredder",      name: "SHREDDER",           symbol: "ᛃ", color: "#7a62bd", desc: "80 vitality. Wields a whirling void-saw that grinds nearby horrors and launches rune-etched debris when you fire. Dashing makes the saw hit harder." },
+      { id: "necromancer",   name: "REANIMATOR",         symbol: "ᚻ", color: "#8a86a0", desc: "85 vitality. Slain horrors have a 40% chance to rise as ghost thralls. Thralls keep half their vitality and fight for you; their deaths feed your soul. Every 24s the pack is recalled to your side — or press recall. Below 35% vitality, a surplus of thralls is spent for doubled healing." },
+      { id: "unknown",       name: "THE UNKNOWN",        symbol: "?", color: "#e8e2d0", desc: "225 vitality. Fires a spread of rune bolts, dashing cuts everything in its path. Every death carves one more rune into its gun." },
+      { id: "passenger",     name: "WAYWARD PASSENGER",  symbol: "ᚥ", color: "#9d6bff", desc: "Non working character." }
+    ];
 
-    const charSel = document.getElementById("charSelect");
-    const bodySel = document.getElementById("bodyColorSelect");
-    const sawSel = document.getElementById("sawColorSelect");
-    const sawRow = document.getElementById("sawColorRow");
+    const BODY_WARPAINTS = [
+      { id: "bone",       name: "BONE",        color: "#e8e2d0", desc: "Pale as what's under the floor." },
+      { id: "emberg",     name: "EMBERGLOW",   color: "#ff8a3d", desc: "Forge-orange warpaint." },
+      { id: "toxin",      name: "TOXIN",       color: "#7dff5e", desc: "Don't lick it." },
+      { id: "rime",       name: "RIME",        color: "#5ee6ff", desc: "Cold-blooded." },
+      { id: "hex",        name: "HEX",         color: "#9d6bff", desc: "Seal-violet, the Warden's own shade." },
+      { id: "gore",       name: "GORE",        color: "#ff4d5e", desc: "It isn't paint." },
+      { id: "fathom",     name: "FATHOM",      color: "#4d7dff", desc: "Pressure-blue, dredged from beneath the Nave." },
+      { id: "witch",      name: "WITCHLIGHT",  color: "#ff6bd6", desc: "A colour with no honest business underground." },
+      { id: "gilded",     name: "GILDED",      color: "#ffd23d", desc: "Soul-gold. Pure vanity. Worth it." },
+      { id: "quick",      name: "QUICKSILVER", color: "#b8c4d6", desc: "Mirror-steel. The horrors see themselves arrive." },
+      { id: "voidt",      name: "VOIDTOUCH",   color: "#c9b8ff", desc: "The Horizon looked back, and it left this." },
+      { id: "pure",       name: "SUPERNOVA",   color: "#ffffff", desc: "The blinding radiance of a star at the instant of its collapse." },
+      { id: "darkness",   name: "ABYSS",       color: "#05050a", desc: "True nothingness. Not even your own shadow survives here." },
+      { id: "jade",       name: "EMERALD",     color: "#2eff8a", desc: "A sharp, crystalline green that pulses with trapped, ancient life." },
+      { id: "crimson",    name: "SANGUINE",    color: "#880011", desc: "The deep, dark red of a thousand cycles. It smells of ancient iron." },
+      { id: "nebula",     name: "NEBULA",      color: "#5d00ff", desc: "A saturated, deep cosmic purple that seems to pull at the air around it." },
+      { id: "sulfur",     name: "SULFUR",      color: "#ccff00", desc: "A violent, neon yellow-green that warns of imminent danger." },
+      { id: "rainbow",    name: "RAINBOW",     color: "#ffffff", desc: "A shifting spectrum of colours that dances across the surface." }
+    ];
 
-    Object.keys(COLORS).forEach(key => {
-      const opt1 = document.createElement("option");
-      opt1.value = COLORS[key].color;
-      opt1.textContent = COLORS[key].name;
-      bodySel.appendChild(opt1);
+    const GUN_WARPAINTS = [
+      { id: "bone",       name: "BONE",        color: "#e8e2d0", desc: "Pale as what's under the floor." },
+      { id: "emberg",     name: "EMBERGLOW",   color: "#ff8a3d", desc: "Forge-orange warpaint." },
+      { id: "toxin",      name: "TOXIN",       color: "#7dff5e", desc: "Don't lick it." },
+      { id: "rime",       name: "RIME",        color: "#5ee6ff", desc: "Cold-blooded." },
+      { id: "hex",        name: "HEX",         color: "#9d6bff", desc: "Seal-violet, the Warden's own shade." },
+      { id: "gore",       name: "GORE",        color: "#ff4d5e", desc: "It isn't paint." },
+      { id: "fathom",     name: "FATHOM",      color: "#4d7dff", desc: "Pressure-blue, dredged from beneath the Nave." },
+      { id: "witch",      name: "WITCHLIGHT",  color: "#ff6bd6", desc: "A colour with no honest business underground." },
+      { id: "gilded",     name: "GILDED",      color: "#ffd23d", desc: "Soul-gold. Pure vanity. Worth it." },
+      { id: "quick",      name: "QUICKSILVER", color: "#b8c4d6", desc: "Mirror-steel. The horrors see themselves arrive." },
+      { id: "voidt",      name: "VOIDTOUCH",   color: "#c9b8ff", desc: "The Horizon looked back, and it left this." },
+      { id: "pure",       name: "SUPERNOVA",   color: "#ffffff", desc: "The blinding radiance of a star at the instant of its collapse." },
+      { id: "darkness",   name: "ABYSS",       color: "#05050a", desc: "True nothingness. Not even your own shadow survives here." },
+      { id: "jade",       name: "EMERALD",     color: "#2eff8a", desc: "A sharp, crystalline green that pulses with trapped, ancient life." },
+      { id: "crimson",    name: "SANGUINE",    color: "#880011", desc: "The deep, dark red of a thousand cycles. It smells of ancient iron." },
+      { id: "nebula",     name: "NEBULA",      color: "#5d00ff", desc: "A saturated, deep cosmic purple that seems to pull at the air around it." },
+      { id: "sulfur",     name: "SULFUR",      color: "#ccff00", desc: "A violent, neon yellow-green that warns of imminent danger." },
+      { id: "rainbow",    name: "RAINBOW",     color: "#ffffff", desc: "A shifting spectrum of colours that dances across the surface." }
+    ];
 
-      const opt2 = document.createElement("option");
-      opt2.value = COLORS[key].color;
-      opt2.textContent = COLORS[key].name;
-      sawSel.appendChild(opt2);
+    let selectedChar = "gunsmith";
+    let selectedBodyColor = BODY_WARPAINTS[1].color; // Ember-orange default
+    let selectedGunColor = GUN_WARPAINTS[0].color; // Runelight default
+
+    const gunslingerGrid = document.getElementById("gunslingerGrid");
+    const bodyGrid = document.getElementById("bodyGrid");
+    const gunGrid = document.getElementById("gunGrid");
+    const vtabs = document.querySelectorAll(".vtab");
+
+    // Tab Switching Smooth Scrolling
+    vtabs.forEach((tab, index) => {
+      tab.addEventListener("click", () => {
+        vtabs.forEach(t => t.classList.remove("active"));
+        tab.classList.add("active");
+        
+        const gunslingerSec = document.getElementById("gunslingerSection");
+        const bodySec = document.getElementById("bodySection");
+
+        if (index === 0) {
+          gunslingerSec.scrollIntoView({ behavior: 'smooth' });
+        } else if (index === 1) {
+          bodySec.scrollIntoView({ behavior: 'smooth' });
+        } else {
+          const status = document.getElementById("status");
+          status.textContent = "TAB UNLOCKED IN VAULT!";
+          setTimeout(() => status.textContent = "", 2500);
+        }
+      });
     });
 
-    bodySel.value = COLORS.hex.color;
-    sawSel.value = COLORS.emberg.color;
+    function renderGrids() {
+      // 1. Render Gunslingers Warden Cards Grid
+      gunslingerGrid.innerHTML = "";
+      GUNSLINGERS.forEach(gs => {
+        const isEquipped = gs.id === selectedChar;
+        const card = document.createElement("div");
+        card.className = `card ${isEquipped ? "equipped" : ""}`;
+        card.innerHTML = `
+          <div class="card-tag ${isEquipped ? "equipped" : "owned"}" ${!isEquipped ? 'style="color:#7dff5e"' : ""}>${isEquipped ? "EQUIPPED" : "OWNED"}</div>
+          <div class="card-top">
+            <span class="color-symbol" style="color: var(--gold);">${gs.symbol}</span>
+            <div class="card-name">${gs.name}</div>
+          </div>
+          <div class="card-desc">${gs.desc}</div>
+        `;
+        card.addEventListener("click", () => {
+          selectedChar = gs.id;
+          renderGrids();
+        });
+        gunslingerGrid.appendChild(card);
+      });
 
-    charSel.addEventListener("change", () => {
-      sawRow.style.display = charSel.value === "shredder" ? "flex" : "none";
-    });
-    sawRow.style.display = charSel.value === "shredder" ? "flex" : "none";
+      // 2. Render Body Warpaint Grid
+      bodyGrid.innerHTML = "";
+      BODY_WARPAINTS.forEach(wp => {
+        const isEquipped = wp.color === selectedBodyColor;
+        const card = document.createElement("div");
+        card.className = `card ${isEquipped ? "equipped" : ""}`;
+        card.style.minHeight = "115px";
+        card.innerHTML = `
+          <div class="card-tag ${isEquipped ? "equipped" : "owned"}" ${!isEquipped ? `style="color:${wp.color}"` : ""}>${isEquipped ? "EQUIPPED" : "OWNED"}</div>
+          <div class="card-top">
+            <span class="color-symbol" style="color: ${wp.color};">◉</span>
+            <div class="card-name">${wp.name}</div>
+          </div>
+          <div class="card-desc">${wp.desc}</div>
+        `;
+        card.addEventListener("click", () => {
+          selectedBodyColor = wp.color;
+          renderGrids();
+        });
+        bodyGrid.appendChild(card);
+      });
+
+      // 3. Render Gun Warpaint Grid
+      gunGrid.innerHTML = "";
+      GUN_WARPAINTS.forEach(wp => {
+        const isEquipped = wp.color === selectedGunColor;
+        const card = document.createElement("div");
+        card.className = `card ${isEquipped ? "equipped" : ""}`;
+        card.style.minHeight = "115px";
+        card.innerHTML = `
+          <div class="card-tag ${isEquipped ? "equipped" : "owned"}" ${!isEquipped ? `style="color:${wp.color}"` : ""}>${isEquipped ? "EQUIPPED" : "OWNED"}</div>
+          <div class="card-top">
+            <span class="color-symbol" style="color: ${wp.color};">${wp.symbol || "◉"}</span>
+            <div class="card-name">${wp.name}</div>
+          </div>
+          <div class="card-desc">${wp.desc}</div>
+        `;
+        card.addEventListener("click", () => {
+          selectedGunColor = wp.color;
+          renderGrids();
+        });
+        gunGrid.appendChild(card);
+      });
+    }
+    renderGrids();
 
     const speedRange = document.getElementById("speedRange");
     const speedVal = document.getElementById("speedVal");
+    const aimRange = document.getElementById("aimRange");
+    const aimVal = document.getElementById("aimVal");
+    const hpSelect = document.getElementById("hpSelect");
     const scaleSelect = document.getElementById("scaleSelect");
 
-    speedRange.addEventListener("input", () => {
-      speedVal.textContent = speedRange.value;
+    speedRange.addEventListener("input", () => speedVal.textContent = speedRange.value);
+    aimRange.addEventListener("input", () => {
+      const deg = Math.round((parseFloat(aimRange.value) * 180) / Math.PI);
+      aimVal.textContent = `${deg}°`;
     });
 
     const canvas = document.getElementById("spriteCanvas");
     const cx = canvas.getContext("2d");
     const TAU = Math.PI * 2;
-    function drawCracks(cx, hpFrac, radius) {}
 
     let gameTime = 0;
 
-    function renderSprite(targetCtx, width, height, scale, timeVal, bodyColor, sawColor, charType) {
+    function renderSprite(targetCtx, width, height, scale, timeVal, bodyColor, weaponColor, charType, hpFrac, customAim) {
       targetCtx.save();
       targetCtx.clearRect(0, 0, width, height);
       targetCtx.scale(scale, scale);
@@ -201,9 +543,15 @@
       const baseH = height / scale;
       const px = Math.floor(baseW / 2);
       const py = Math.floor(baseH / 2);
-      const aim = 0;
-      const hpFrac = 1.0;
-      const tint = bodyColor;
+      const aim = customAim;
+      const perpX = -Math.sin(aim);
+      const perpY = Math.cos(aim);
+      
+      let finalBodyColor = bodyColor;
+      if (bodyColor === "#ffffff") {
+        const hue = (timeVal * 120) % 360;
+        finalBodyColor = `hsl(${hue}, 100%, 65%)`;
+      }
 
       const P = { char: charType, mods: { sawReach: 76 }, sawRot: timeVal };
       const Game = { time: timeVal };
@@ -211,13 +559,12 @@
       if (P.char === "shredder") {
         targetCtx.save(); targetCtx.translate(px, py);
 
-        // 1. Draw independent saw
         targetCtx.save();
         const sawR = P.mods.sawReach || 76;
         targetCtx.rotate(P.sawRot || 0);
-        targetCtx.strokeStyle = sawColor; targetCtx.lineWidth = 3;
+        targetCtx.strokeStyle = weaponColor; targetCtx.lineWidth = 3;
         targetCtx.beginPath(); targetCtx.arc(0, 0, sawR * 0.65, 0, TAU); targetCtx.stroke();
-        targetCtx.fillStyle = sawColor;
+        targetCtx.fillStyle = weaponColor;
         const teeth = 12;
         for (let i = 0; i < teeth; i++) {
           targetCtx.rotate(TAU / teeth);
@@ -229,44 +576,108 @@
         }
         targetCtx.restore();
 
-        // 2. Draw body
         targetCtx.rotate(aim);
-        targetCtx.fillStyle = bodyColor;
+        targetCtx.fillStyle = finalBodyColor;
         targetCtx.beginPath(); targetCtx.moveTo(-10, -12); targetCtx.lineTo(12, -8); targetCtx.lineTo(12, 8); targetCtx.lineTo(-10, 12); targetCtx.closePath(); targetCtx.fill();
         targetCtx.fillStyle = "#0b0b14"; targetCtx.fillRect(2, -3, 6, 6);
-
-        // Central hub
         targetCtx.fillStyle = "#0b0b14"; targetCtx.beginPath(); targetCtx.arc(0, 0, 8, 0, TAU); targetCtx.fill();
         
-        targetCtx.fillStyle = bodyColor; 
+        targetCtx.fillStyle = finalBodyColor; 
         targetCtx.font = "bold 9px monospace"; targetCtx.textAlign = "center"; targetCtx.textBaseline = "middle";
         targetCtx.fillText("ᛃ", 0, 1);
-
-        drawCracks(targetCtx, hpFrac, 12);
         targetCtx.restore();
 
       } else if (P.char === "necromancer") {
-        /* Reanimator: a ragged robe, floating skull, soul core and runic staff. */
         targetCtx.save(); targetCtx.translate(px, py);
-        targetCtx.fillStyle = bodyColor;
+        targetCtx.fillStyle = finalBodyColor;
         targetCtx.beginPath(); targetCtx.moveTo(0, -10); targetCtx.quadraticCurveTo(12, -8, 10, 8);
         targetCtx.lineTo(-10, 8); targetCtx.quadraticCurveTo(-12, -8, 0, -10); targetCtx.closePath(); targetCtx.fill();
+        
         targetCtx.fillStyle = "#e8e2d0";
         for (const side of [-1, 1]) { targetCtx.beginPath(); targetCtx.arc(side * 9, -5, 4, 0, TAU); targetCtx.fill(); }
+        
         const pulse = 0.6 + 0.4 * Math.sin(Game.time * 5);
         targetCtx.fillStyle = "#9d6bff"; targetCtx.shadowColor = "#9d6bff"; targetCtx.shadowBlur = 10 * pulse;
         targetCtx.beginPath(); targetCtx.arc(0, 0, 4, 0, TAU); targetCtx.fill(); targetCtx.shadowBlur = 0;
+        
         targetCtx.save(); targetCtx.translate(0, -14 + Math.sin(Game.time * 2.5) * 2);
         targetCtx.fillStyle = "#e8e2d0"; targetCtx.beginPath(); targetCtx.arc(0, 0, 5, 0, TAU); targetCtx.fill();
         targetCtx.fillRect(-2.5, 3, 5, 2); targetCtx.fillStyle = "#0b0b14";
         targetCtx.beginPath(); targetCtx.arc(-1.5, 0, 1.2, 0, TAU); targetCtx.fill();
         targetCtx.beginPath(); targetCtx.arc(1.5, 0, 1.2, 0, TAU); targetCtx.fill(); targetCtx.restore();
-        targetCtx.rotate(aim); targetCtx.strokeStyle = tint; targetCtx.lineWidth = 2.5;
+        
+        targetCtx.rotate(aim); targetCtx.strokeStyle = weaponColor; targetCtx.lineWidth = 2.5;
         targetCtx.beginPath(); targetCtx.moveTo(0, 0); targetCtx.lineTo(24, 0); targetCtx.stroke();
         targetCtx.save(); targetCtx.translate(24, 0); targetCtx.rotate(-aim + Game.time * 2);
-        targetCtx.fillStyle = tint; targetCtx.font = "bold 10px monospace"; targetCtx.textAlign = "center"; targetCtx.textBaseline = "middle";
+        targetCtx.fillStyle = weaponColor; targetCtx.font = "bold 10px monospace"; targetCtx.textAlign = "center"; targetCtx.textBaseline = "middle";
         targetCtx.fillText("ᚻ", 0, 0); targetCtx.restore();
-        drawCracks(targetCtx, hpFrac, 11); targetCtx.restore();
+        targetCtx.restore();
+
+      } else if (P.char === "gunsmith" || P.char === "alchemist" || P.char === "unknown" || P.char === "passenger") {
+        targetCtx.save(); targetCtx.translate(px, py); targetCtx.rotate(aim + Math.PI / 2);
+        targetCtx.fillStyle = finalBodyColor;
+        targetCtx.beginPath();
+        for (let i = 0; i < 5; i++) { const a = i / 5 * TAU - Math.PI / 2; i === 0 ? targetCtx.moveTo(Math.cos(a)*13, Math.sin(a)*13) : targetCtx.lineTo(Math.cos(a)*13, Math.sin(a)*13); }
+        targetCtx.closePath(); targetCtx.fill();
+        targetCtx.fillStyle = "#0b0b14"; targetCtx.fillRect(-7, -2.5, 14, 5);
+        targetCtx.restore();
+        targetCtx.strokeStyle = weaponColor; targetCtx.lineWidth = 3; targetCtx.lineCap = "round";
+        for (const s of [-3.5, 3.5]) {
+          targetCtx.beginPath();
+          targetCtx.moveTo(px + Math.cos(aim)*9 + perpX*s, py + Math.sin(aim)*9 + perpY*s);
+          targetCtx.lineTo(px + Math.cos(aim)*27 + perpX*s, py + Math.sin(aim)*27 + perpY*s);
+          targetCtx.stroke();
+        }
+
+      } else if (P.char === "wraith") {
+        targetCtx.save(); targetCtx.translate(px, py); targetCtx.rotate(aim);
+        targetCtx.fillStyle = finalBodyColor;
+        targetCtx.beginPath(); targetCtx.moveTo(0,-12); targetCtx.lineTo(9,0); targetCtx.lineTo(0,12); targetCtx.lineTo(-9,0); targetCtx.closePath(); targetCtx.fill();
+        targetCtx.strokeStyle = finalBodyColor; targetCtx.lineWidth = 2;
+        for (const [oy, ex] of [[-7,-27],[0,-30],[7,-27]]) {
+          targetCtx.globalAlpha = 0.45;
+          targetCtx.beginPath(); targetCtx.moveTo(-9, 0); targetCtx.quadraticCurveTo(-18, oy * 0.4, ex, oy); targetCtx.stroke();
+        }
+        targetCtx.globalAlpha = 1;
+        targetCtx.fillStyle = "#0b0b14"; targetCtx.beginPath(); targetCtx.arc(3, 0, 3, 0, TAU); targetCtx.fill();
+        targetCtx.restore();
+        targetCtx.strokeStyle = weaponColor; targetCtx.lineWidth = 2; targetCtx.lineCap = "round";
+        targetCtx.beginPath(); targetCtx.moveTo(px+Math.cos(aim)*10, py+Math.sin(aim)*10);
+        targetCtx.lineTo(px+Math.cos(aim)*31, py+Math.sin(aim)*31);
+        targetCtx.stroke();
+
+      } else if (P.char === "juggernaut") {
+        targetCtx.save(); targetCtx.translate(px, py);
+        targetCtx.fillStyle = finalBodyColor;
+        targetCtx.beginPath();
+        for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; i === 0 ? targetCtx.moveTo(Math.cos(a)*17, Math.sin(a)*17) : targetCtx.lineTo(Math.cos(a)*17, Math.sin(a)*17); }
+        targetCtx.closePath(); targetCtx.fill();
+        targetCtx.fillStyle = finalBodyColor;
+        for (const s of [-1, 1]) { targetCtx.beginPath(); targetCtx.arc(perpX*17*s, perpY*17*s, 7, 0, TAU); targetCtx.fill(); }
+        targetCtx.fillStyle = "#0b0b14"; targetCtx.save(); targetCtx.rotate(aim + Math.PI / 2); targetCtx.fillRect(-10, -2.5, 20, 5); targetCtx.restore();
+        targetCtx.restore();
+
+        targetCtx.strokeStyle = weaponColor; targetCtx.lineWidth = 10; targetCtx.lineCap = "square";
+        targetCtx.beginPath(); targetCtx.moveTo(px+Math.cos(aim)*13, py+Math.sin(aim)*13); targetCtx.lineTo(px+Math.cos(aim)*27, py+Math.sin(aim)*27); targetCtx.stroke();
+        targetCtx.strokeStyle = "#0b0b14"; targetCtx.lineWidth = 4;
+        targetCtx.beginPath(); targetCtx.moveTo(px+Math.cos(aim)*21, py+Math.sin(aim)*21); targetCtx.lineTo(px+Math.cos(aim)*28, py+Math.sin(aim)*28); targetCtx.stroke();
+
+      } else if (P.char === "demolitionist") {
+        targetCtx.save(); targetCtx.translate(px, py); targetCtx.rotate(aim + Math.PI / 2);
+        targetCtx.fillStyle = finalBodyColor;
+        targetCtx.beginPath();
+        for (let i = 0; i < 8; i++) { const a = i / 8 * TAU + Math.PI / 8; i === 0 ? targetCtx.moveTo(Math.cos(a)*14, Math.sin(a)*14) : targetCtx.lineTo(Math.cos(a)*14, Math.sin(a)*14); }
+        targetCtx.closePath(); targetCtx.fill();
+        targetCtx.fillStyle = "#0b0b14"; targetCtx.fillRect(-6, -3, 12, 5);
+        
+        targetCtx.fillStyle = "#0b0b14";
+        targetCtx.beginPath(); targetCtx.arc(0, 10, 4.5, 0, TAU); targetCtx.fill();
+        if (Math.sin(Game.time * 7) > 0) { targetCtx.fillStyle = "#ffd23d"; targetCtx.beginPath(); targetCtx.arc(0, 10, 1.8, 0, TAU); targetCtx.fill(); }
+        targetCtx.restore();
+        targetCtx.strokeStyle = weaponColor; targetCtx.lineWidth = 7; targetCtx.lineCap = "round";
+        targetCtx.beginPath(); targetCtx.moveTo(px+Math.cos(aim)*11, py+Math.sin(aim)*11); targetCtx.lineTo(px+Math.cos(aim)*21, py+Math.sin(aim)*21); targetCtx.stroke();
+        targetCtx.strokeStyle = "#0b0b14"; targetCtx.lineWidth = 3;
+        targetCtx.beginPath(); targetCtx.moveTo(px+Math.cos(aim)*16, py+Math.sin(aim)*16); targetCtx.lineTo(px+Math.cos(aim)*22, py+Math.sin(aim)*22); targetCtx.stroke();
       }
 
       targetCtx.restore();
@@ -274,23 +685,26 @@
 
     function animate() {
       gameTime += parseFloat(speedRange.value);
-      renderSprite(cx, canvas.width, canvas.height, 1, gameTime, bodySel.value, sawSel.value, charSel.value);
+      const hp = parseFloat(hpSelect.value);
+      const currentAim = parseFloat(aimRange.value);
+      renderSprite(cx, canvas.width, canvas.height, 1, gameTime, selectedBodyColor, selectedGunColor, selectedChar, hp, currentAim);
       requestAnimationFrame(animate);
     }
     requestAnimationFrame(animate);
 
     document.getElementById("pngBtn").addEventListener("click", () => {
       const scale = parseInt(scaleSelect.value);
+      const hp = parseFloat(hpSelect.value);
+      const currentAim = parseFloat(aimRange.value);
       const exportCanvas = document.createElement("canvas");
       exportCanvas.width = 160 * scale;
       exportCanvas.height = 160 * scale;
       const exportCtx = exportCanvas.getContext("2d");
 
-      // Reset time to 0 for a consistent PNG posture
-      renderSprite(exportCtx, exportCanvas.width, exportCanvas.height, scale, 0, bodySel.value, sawSel.value, charSel.value);
+      renderSprite(exportCtx, exportCanvas.width, exportCanvas.height, scale, 0, selectedBodyColor, selectedGunColor, selectedChar, hp, currentAim);
 
       const link = document.createElement("a");
-      link.download = `${charSel.value}-${scale}x.png`;
+      link.download = `${selectedChar}-${scale}x.png`;
       link.href = exportCanvas.toDataURL("image/png");
       link.click();
     });
@@ -298,6 +712,8 @@
     document.getElementById("recordBtn").addEventListener("click", () => {
       const status = document.getElementById("status");
       const scale = parseInt(scaleSelect.value);
+      const hp = parseFloat(hpSelect.value);
+      const currentAim = parseFloat(aimRange.value);
       
       const recordCanvas = document.createElement("canvas");
       recordCanvas.width = 160 * scale;
@@ -318,22 +734,22 @@
         const blob = new Blob(chunks, { type: 'video/webm' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
-        link.download = `${charSel.value}-animated-${scale}x.webm`;
+        link.download = `${selectedChar}-animated-${scale}x.webm`;
         link.href = url;
         link.click();
-        status.textContent = "WebM saved!";
+        status.textContent = "WEBM SAVED!";
         setTimeout(() => status.textContent = "", 3000);
       };
 
       recorder.start();
-      status.textContent = "Recording...";
+      status.textContent = "RECORDING...";
 
       let speed = parseFloat(speedRange.value);
       let startTime = Date.now();
       
       function recordLoop() {
         gameTime += speed;
-        renderSprite(recordCtx, recordCanvas.width, recordCanvas.height, scale, gameTime, bodySel.value, sawSel.value, charSel.value);
+        renderSprite(recordCtx, recordCanvas.width, recordCanvas.height, scale, gameTime, selectedBodyColor, selectedGunColor, selectedChar, hp, currentAim);
         if (Date.now() - startTime < 3000) {
           requestAnimationFrame(recordLoop);
         } else {
