@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Render Shredder Sprite</title>
+</head>
+<body style="background: #111; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh;">
+
+  <canvas id="spriteCanvas" width="300" height="300"></canvas>
+  <br>
+  <button id="downloadBtn" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">Download PNG</button>
+
+  <script>
+    const canvas = document.getElementById("spriteCanvas");
+    const cx = canvas.getContext("2d");
+
+    // Constants & Dummy functions required by the snippet
+    const TAU = Math.PI * 2;
+    function drawCracks(cx, hpFrac, radius) {
+      // Optional: stub or simple crack renderer based on HP
+    }
+
+    // Context & Player variables
+    const P = {
+      char: "shredder",
+      mods: { sawReach: 76 },
+      sawRot: 0.4
+    };
+    const px = canvas.width / 2;
+    const py = canvas.height / 2;
+    
+    // Separate colors for the body and the saw ring
+    const bodyCol = "#ff4444"; 
+    const sawCol  = "#ff8888"; 
+    
+    const tint = "#ffffff";
+    const aim = 0;
+    const hpFrac = 1.0;
+
+    // --- YOUR RUNEGUNP SNIPPET (ADAPTED) ---
+    if (P.char === "shredder") {
+      cx.save(); cx.translate(px, py);
+
+      // 1. Draw the independent saw first (behind the body) with sawCol
+      cx.save();
+      const sawR = P.mods.sawReach || 76;
+      cx.rotate(P.sawRot || 0); 
+      cx.strokeStyle = sawCol; cx.lineWidth = 3;
+      cx.beginPath(); cx.arc(0, 0, sawR * 0.65, 0, TAU); cx.stroke();
+      cx.fillStyle = sawCol;
+      const teeth = 12;
+      for (let i = 0; i < teeth; i++) {
+        cx.rotate(TAU / teeth);
+        cx.beginPath();
+        cx.moveTo(sawR * 0.6, -3);
+        cx.lineTo(sawR * 0.95, 0);
+        cx.lineTo(sawR * 0.6, 3);
+        cx.closePath(); cx.fill();
+      }
+      cx.restore();
+
+      // 2. Draw the body (aligned to aim) with bodyCol
+      cx.rotate(aim);
+      cx.fillStyle = bodyCol;
+      // Body: heavy industrial trapezoid
+      cx.beginPath(); cx.moveTo(-10, -12); cx.lineTo(12, -8); cx.lineTo(12, 8); cx.lineTo(-10, 12); cx.closePath(); cx.fill();
+      cx.fillStyle = "#0b0b14"; cx.fillRect(2, -3, 6, 6); // Visor
+
+      // Central hub
+      cx.fillStyle = "#0b0b14"; cx.beginPath(); cx.arc(0, 0, 8, 0, TAU); cx.fill();
+      cx.fillStyle = tint; cx.font = "bold 9px monospace"; cx.textAlign = "center"; cx.textBaseline = "middle";
+      cx.fillText("ᛃ", 0, 1);
+
+      drawCracks(cx, hpFrac, 12);
+      cx.restore();
+    }
+    // --- END SNIPPET ---
+
+    // Download functionality
+    document.getElementById("downloadBtn").addEventListener("click", () => {
+      const link = document.createElement("a");
+      link.download = "shredder-sprite.png";
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>RuneGunP - Shredder Render & Export</title>
+  <style>
+    body {
+      background: #0b0b14;
+      color: #e8e2d0;
+      font-family: monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 10px;
+    }
+    .container {
+      background: #12121c;
+      border: 1px solid #222233;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+      max-width: 320px;
+      width: 100%;
+    }
+    canvas {
+      border: 2px solid #222;
+      background: #171724;
+      border-radius: 6px;
+      display: block;
+    }
+    .control-row {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      align-items: center;
+      gap: 10px;
+    }
+    label {
+      font-size: 13px;
+      font-weight: bold;
+      color: #b8c4d6;
+    }
+    select, button, input[type="range"] {
+      padding: 6px 10px;
+      font-family: inherit;
+      font-size: 13px;
+      background: #1a1a28;
+      color: #fff;
+      border: 1px solid #444;
+      border-radius: 4px;
+      cursor: pointer;
+      flex-grow: 1;
+    }
+    input[type="range"] {
+      padding: 0;
+      accent-color: #ff4d5e;
+    }
+    button {
+      background: #ff4d5e;
+      border: none;
+      font-weight: bold;
+      width: 100%;
+      padding: 10px;
+      margin-top: 5px;
+    }
+    button:hover { background: #ff6b7a; }
+    .button-group {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+    }
+    #status {
+      font-size: 11px;
+      color: #5ee6ff;
+      height: 15px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Tighter preview canvas (160x160 fits the saw blade snugly) -->
+    <canvas id="spriteCanvas" width="160" height="160"></canvas>
+
+    <div class="control-row">
+      <label for="bodyColorSelect">Body Color</label>
+      <select id="bodyColorSelect"></select>
+    </div>
+
+    <div class="control-row">
+      <label for="sawColorSelect">Saw Color</label>
+      <select id="sawColorSelect"></select>
+    </div>
+
+    <div class="control-row">
+      <label for="speedRange">Speed (<span id="speedVal">0.08</span>)</label>
+      <input type="range" id="speedRange" min="0" max="0.3" step="0.01" value="0.08">
+    </div>
+
+    <div class="control-row">
+      <label for="scaleSelect">Export Scale</label>
+      <select id="scaleSelect">
+        <option value="1">1x (160px)</option>
+        <option value="2">2x (320px)</option>
+        <option value="4" selected>4x (640px)</option>
+        <option value="8">8x (1280px)</option>
+      </select>
+    </div>
+
+    <div class="button-group">
+      <button id="pngBtn">Save PNG</button>
+      <button id="recordBtn">Record WebM</button>
+    </div>
+    
+    <div id="status"></div>
+  </div>
+
+  <script>
+    const COLORS = {
+      bone:     { name: "BONE",        color: "#e8e2d0" },
+      emberg:   { name: "EMBERGLOW",   color: "#ff8a3d" },
+      toxin:    { name: "TOXIN",       color: "#7dff5e" },
+      rime:     { name: "RIME",        color: "#5ee6ff" },
+      hex:      { name: "HEX",         color: "#9d6bff" },
+      gore:     { name: "GORE",        color: "#ff4d5e" },
+      fathom:   { name: "FATHOM",      color: "#4d7dff" },
+      witch:    { name: "WITCHLIGHT",  color: "#ff6bd6" },
+      gilded:   { name: "GILDED",      color: "#ffd23d" },
+      quick:    { name: "QUICKSILVER", color: "#b8c4d6" },
+      voidt:    { name: "VOIDTOUCH",   color: "#c9b8ff" },
+      pure:     { name: "SUPERNOVA",   color: "#ffffff" },
+      darkness: { name: "ABYSS",       color: "#05050a" },
+      jade:     { name: "EMERALD",     color: "#2eff8a" },
+      crimson:  { name: "SANGUINE",    color: "#880011" },
+      nebula:   { name: "NEBULA",      color: "#5d00ff" },
+      sulfur:   { name: "SULFUR",      color: "#ccff00" }
+    };
+
+    const bodySel = document.getElementById("bodyColorSelect");
+    const sawSel = document.getElementById("sawColorSelect");
+
+    Object.keys(COLORS).forEach(key => {
+      const opt1 = document.createElement("option");
+      opt1.value = COLORS[key].color;
+      opt1.textContent = COLORS[key].name;
+      bodySel.appendChild(opt1);
+
+      const opt2 = document.createElement("option");
+      opt2.value = COLORS[key].color;
+      opt2.textContent = COLORS[key].name;
+      sawSel.appendChild(opt2);
+    });
+
+    bodySel.value = COLORS.gore.color;
+    sawSel.value = COLORS.emberg.color;
+
+    const speedRange = document.getElementById("speedRange");
+    const speedVal = document.getElementById("speedVal");
+    const scaleSelect = document.getElementById("scaleSelect");
+
+    speedRange.addEventListener("input", () => {
+      speedVal.textContent = speedRange.value;
+    });
+
+    const canvas = document.getElementById("spriteCanvas");
+    const cx = canvas.getContext("2d");
+    const TAU = Math.PI * 2;
+    function drawCracks(cx, hpFrac, radius) {}
+
+    const P = {
+      char: "shredder",
+      mods: { sawReach: 76 },
+      sawRot: 0
+    };
+
+    function renderShredder(targetCtx, width, height, scale, sawRotation, bodyColor, sawColor) {
+      targetCtx.save();
+      targetCtx.clearRect(0, 0, width, height);
+      targetCtx.scale(scale, scale);
+
+      const baseW = width / scale;
+      const baseH = height / scale;
+      const px = Math.floor(baseW / 2);
+      const py = Math.floor(baseH / 2);
+      const aim = 0;
+      const hpFrac = 1.0;
+
+      if (P.char === "shredder") {
+        targetCtx.save(); targetCtx.translate(px, py);
+
+        // 1. Draw independent saw
+        targetCtx.save();
+        const sawR = P.mods.sawReach || 76;
+        targetCtx.rotate(sawRotation);
+        targetCtx.strokeStyle = sawColor; targetCtx.lineWidth = 3;
+        targetCtx.beginPath(); targetCtx.arc(0, 0, sawR * 0.65, 0, TAU); targetCtx.stroke();
+        targetCtx.fillStyle = sawColor;
+        const teeth = 12;
+        for (let i = 0; i < teeth; i++) {
+          targetCtx.rotate(TAU / teeth);
+          targetCtx.beginPath();
+          targetCtx.moveTo(sawR * 0.6, -3);
+          targetCtx.lineTo(sawR * 0.95, 0);
+          targetCtx.lineTo(sawR * 0.6, 3);
+          targetCtx.closePath(); targetCtx.fill();
+        }
+        targetCtx.restore();
+
+        // 2. Draw body
+        targetCtx.rotate(aim);
+        targetCtx.fillStyle = bodyColor;
+        targetCtx.beginPath(); targetCtx.moveTo(-10, -12); targetCtx.lineTo(12, -8); targetCtx.lineTo(12, 8); targetCtx.lineTo(-10, 12); targetCtx.closePath(); targetCtx.fill();
+        targetCtx.fillStyle = "#0b0b14"; targetCtx.fillRect(2, -3, 6, 6);
+
+        // Central hub
+        targetCtx.fillStyle = "#0b0b14"; targetCtx.beginPath(); targetCtx.arc(0, 0, 8, 0, TAU); targetCtx.fill();
+        
+        targetCtx.fillStyle = bodyColor; 
+        targetCtx.font = "bold 9px monospace"; targetCtx.textAlign = "center"; targetCtx.textBaseline = "middle";
+        targetCtx.fillText("ᛃ", 0, 1);
+
+        drawCracks(targetCtx, hpFrac, 12);
+        targetCtx.restore();
+      }
+      targetCtx.restore();
+    }
+
+    function animate() {
+      P.sawRot += parseFloat(speedRange.value);
+      renderShredder(cx, canvas.width, canvas.height, 1, P.sawRot, bodySel.value, sawSel.value);
+      requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(animate);
+
+    document.getElementById("pngBtn").addEventListener("click", () => {
+      P.sawRot = 0; 
+      const scale = parseInt(scaleSelect.value);
+      const exportCanvas = document.createElement("canvas");
+      exportCanvas.width = 160 * scale;
+      exportCanvas.height = 160 * scale;
+      const exportCtx = exportCanvas.getContext("2d");
+
+      renderShredder(exportCtx, exportCanvas.width, exportCanvas.height, scale, P.sawRot, bodySel.value, sawSel.value);
+
+      const link = document.createElement("a");
+      link.download = `shredder-${scale}x.png`;
+      link.href = exportCanvas.toDataURL("image/png");
+      link.click();
+    });
+
+    document.getElementById("recordBtn").addEventListener("click", () => {
+      const status = document.getElementById("status");
+      const scale = parseInt(scaleSelect.value);
+      
+      const recordCanvas = document.createElement("canvas");
+      recordCanvas.width = 160 * scale;
+      recordCanvas.height = 160 * scale;
+      const recordCtx = recordCanvas.getContext("2d");
+
+      const stream = recordCanvas.captureStream(30);
+      let recorder;
+      try {
+        recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' });
+      } catch (e) {
+        recorder = new MediaRecorder(stream);
+      }
+
+      let chunks = [];
+      recorder.ondataavailable = e => chunks.push(e.data);
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.download = `shredder-spinning-${scale}x.webm`;
+        link.href = url;
+        link.click();
+        status.textContent = "WebM saved!";
+        setTimeout(() => status.textContent = "", 3000);
+      };
+
+      recorder.start();
+      status.textContent = "Recording...";
+
+      let speed = parseFloat(speedRange.value);
+      let startTime = Date.now();
+      
+      function recordLoop() {
+        P.sawRot += speed;
+        renderShredder(recordCtx, recordCanvas.width, recordCanvas.height, scale, P.sawRot, bodySel.value, sawSel.value);
+        if (Date.now() - startTime < 3000) {
+          requestAnimationFrame(recordLoop);
+        } else {
+          recorder.stop();
+        }
+      }
+      recordLoop();
+    });
+  </script>
+</body>
+</html>
