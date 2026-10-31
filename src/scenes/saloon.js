@@ -57,6 +57,10 @@ const SAL_SPAWN = { x: 1300, y: 1270 };                  // just inside the swin
    while you are inside, and is lifted once you are out in the void so the
    way back in never needs another dash. */
 const SAL_DOORWAY = { x: 1220, y: 1330, w: 200, h: 40 };
+/* one fixed identity for the swinging-door barrier: it is toggled open/closed
+   in place, and guests reconcile terrain by id — a fresh id every close would
+   read as a different rock to them. nextId starts at 1, so -1 is never used. */
+const SAL_DOOR_ROCK = -1;
 /* the cameo waiting beyond the doors — pure lore, no fight, no reward */
 const SAL_UNKNOWN = { x: 1300, y: 1560 };
 const SAL_PIANO = { x: 600, y: 1240, w: 210, h: 90 };
@@ -109,6 +113,33 @@ const SAL_IDLE = [
   "No tab. You'd only run it up again.",
   "You look like me on a bad day. So, any day.",
   "Door's there when you want it."];
+/* a party changes what the room notices. Every line is its own string so the
+   greeting can be retuned without touching the state machine. */
+const SAL_GREET_PAIR = "Seems like you brought a friend along.";
+const SAL_GREET_MANY = "Seems like you brought some friends along.";
+const SAL_HOST_DOWN = "That's me on the floor. Pour one for the body, will you?";
+const SAL_GUEST_DOWN = "One of yours is down. The void can wait. Get them up.";
+const SAL_MANY_DOWN = "Half your table is on the floor. The void can wait. Get them up.";
+const SAL_IDLE_PARTY = [
+  "One tab for the table. I'm not chasing you all down.",
+  "The more of me in here, the worse the singing.",
+  "Your friends drink like me. That is not a compliment.",
+  "Same souls, more glasses. House always wins."];
+
+/* the barkeep's whole greeting: the plain hello, then whatever the party needs
+   to hear — a warden down, or simply that you did not walk in alone. */
+function salGreets(hello) {
+  const out = [hello];
+  const host = players[0];
+  const downed = players.filter(p => !p.gone && p.downed);
+  if (host && host.downed) out.push(SAL_HOST_DOWN);
+  else if (downed.length > 1) out.push(SAL_MANY_DOWN);
+  else if (downed.length === 1) out.push(SAL_GUEST_DOWN);
+  const party = players.filter(p => !p.gone).length;
+  if (party > 2) out.push(SAL_GREET_MANY);
+  else if (party === 2) out.push(SAL_GREET_PAIR);
+  return out;
+}
 
 /* ---------- what waits outside the walls ----------
    THE UNKNOWN has no fight out here and gives nothing: it only answers.
@@ -198,8 +229,10 @@ const SAL_TUNE = [[392, 0.28], [440, 0.28], [523, 0.28], [659, 0.56], [587, 0.28
 
 const SAL_NOHINT = { hint: null, act: null };
 
-/* the saloon follows the Horizon only in a solo descent — co-op has no stage sync for it yet */
-function saloonAvailable() { return !(Game.coopLap || (typeof Net !== "undefined" && Net.active)); }
+/* the saloon is shared now: either screen may walk in and the host carries the
+   room for the whole party. Floors VI–VIII stay solo-only — the co-op lap is
+   still five floors (loopLen in floors.js), so the saloon sits between laps. */
+function saloonAvailable() { return true; }
 
 /* fully inside the four walls (not standing in a doorway or a wall gap) */
 function saloonInsideRoom(p) {
@@ -215,8 +248,8 @@ function salSetDoor(open) {
   if (open) {
     if (has) MAP.rocks = MAP.rocks.filter(rc => rc.sal !== "door");
   } else if (!has) {
-    MAP.rocks.push(assignId({ x: SAL_DOORWAY.x, y: SAL_DOORWAY.y, w: SAL_DOORWAY.w, h: SAL_DOORWAY.h,
-      tone: 0.5, sal: "door" }));
+    MAP.rocks.push({ id: SAL_DOOR_ROCK, x: SAL_DOORWAY.x, y: SAL_DOORWAY.y,
+      w: SAL_DOORWAY.w, h: SAL_DOORWAY.h, tone: 0.5, sal: "door" });
   }
 }
 
@@ -235,7 +268,8 @@ function saloonRocks() {
     R(560, 380, 1480, 90, "wall"),                            // back wall: the wanted posters
     R(560, 1330, 660, 40, "wall"),                            // front wall, left of the swinging doors
     R(1420, 1330, 620, 40, "wall"),                           // front wall, right of them
-    R(SAL_DOORWAY.x, SAL_DOORWAY.y, SAL_DOORWAY.w, SAL_DOORWAY.h, "door"),   // the closed doors
+    { id: SAL_DOOR_ROCK, x: SAL_DOORWAY.x, y: SAL_DOORWAY.y,   // the closed doors (stable id — see above)
+      w: SAL_DOORWAY.w, h: SAL_DOORWAY.h, tone: 0.5, sal: "door" },
     R(560, 470, 40, 860, "wall"),
     R(2000, 470, 40, 860, "wall"),
     R(SAL_SHELF.x, SAL_SHELF.y, SAL_SHELF.w, SAL_SHELF.h, "shelf"),
@@ -248,7 +282,9 @@ function saloonRocks() {
 }
 
 function makeSaloon(hello) {
-  const me = localPlayer();
+  /* the barkeep is the HOST warden on every screen (players[0]) — one face for
+     the whole party, so guests never see themselves behind the counter. */
+  const me = players[0] || localPlayer();
   /* the barkeep is you: your character, your paint, your gun, your runes — plus an apron */
   const keep = salFolk(me.char, me.skin, SAL_KEEP.x, SAL_KEEP.y, Math.PI / 2);
   keep.gunSkin = me.gunSkin; keep.runes = Object.assign({}, me.runes); keep.voice = 150;
@@ -272,7 +308,8 @@ function makeSaloon(hello) {
   const unk = salFolk("theUnknown", "voidt", SAL_UNKNOWN.x, SAL_UNKNOWN.y, -Math.PI / 2);
   unk.r = 17; unk.voice = 96;
 
-  return { t: 0, keep, regs, thralls, speech: [], hello, greet: 0, greetT: 0.9, talk: null, asked: 0, rounds: 0, roundT: 0, capI: 0, calledT: 4.5, bj: null,
+  return { t: 0, keep, regs, thralls, speech: [], sayN: 0, hello, greets: salGreets(hello),
+    greet: 0, greetI: 0, greetT: 0.9, talk: null, asked: 0, rounds: 0, roundT: 0, capI: 0, calledT: 4.5, bj: null,
     idleT: 9, idleI: 0, chatT: 2.0, holsterT: 0, scoldT: 0, warnedDoor: false,
     pianoT: 1.2, pianoI: 0, blinkT: 3,
     /* the void behind the saloon */
@@ -300,7 +337,7 @@ function enterSaloon() {
   Game.chestsTotal = 0; Game.chestsOpened = 0;
   SEAL.state = "spent";                       // no seal answers in the saloon
   for (const p of players) {
-    p.x = SAL_SPAWN.x + (p.idx ? 44 : 0); p.y = SAL_SPAWN.y;
+    p.x = SAL_SPAWN.x + p.idx * 44; p.y = SAL_SPAWN.y;
     p.aim = -Math.PI / 2; p.dashT = 0; p.iframes = 1;
   }
   pets = [];
@@ -308,6 +345,9 @@ function enterSaloon() {
   portal = { x: SAL_DOOR.x, y: SAL_DOOR.y, r: 46, t: 0 };   // open from the moment you arrive
   setupDeepFloor();                                          // no ice, no star, no stopped hour in here
   Game.saloon = makeSaloon(hello);
+  /* orbs do not follow you through the Horizon's door */
+  Game.pendingPickups = []; Game.pendingPickup = null; Game.pendingPickupBy = 0;
+  if (Game.runeOverlayBy != null && typeof hideRuneOverlay === "function") hideRuneOverlay();
   Game.floorFade = 1;
   $("mapName").textContent = "THE SINGULAR";
   updateSeals();
@@ -317,40 +357,47 @@ function enterSaloon() {
   setState("play");
   toast("YOU STEP INTO THE SINGULAR — EVERY FACE HERE IS YOURS");
   AudioFX.portal();
+  /* co-op: the reliable room setup lands before the stream of live saloon state,
+     so every guest rebuilds the same barkeep, regulars, rocks and portal */
+  if (typeof Net !== "undefined" && Net.role === "host" && typeof Coop !== "undefined" && Coop.running)
+    Coop.sendSaloon();
 }
 
-/* one line over a speaker's head; a new line from the same mouth replaces the old */
+/* one line over a speaker's head; a new line from the same mouth replaces the old.
+   `n` is monotonic so a guest can tell a NEW line from the same line re-sent. */
 function salSay(who, txt, life) {
   const S = Game.saloon; if (!S) return;
   for (let i = S.speech.length - 1; i >= 0; i--) if (S.speech[i].who === who) S.speech.splice(i, 1);
-  S.speech.push({ who, txt, t: 0, life: life || 3.0 });
+  S.sayN = (S.sayN || 0) + 1;
+  S.speech.push({ n: S.sayN, who, txt, t: 0, life: life || 3.0 });
   AudioFX.murmur(who.voice || 200, Math.min(9, 3 + Math.floor(txt.length / 7)));
 }
 
 /* [ E ] outside: the thing that waits behind the saloon answers, one line at a time */
-function salUnknownTalk() {
+function salUnknownTalk(who) {
   const S = Game.saloon; if (!S || !S.unk) return;
-  const lines = salUnknownLines(localPlayer());
+  const lines = salUnknownLines(who || localPlayer());
   S.unkSeen = true;
   salSay(S.unk, lines[S.unkIdx++ % lines.length], 3.6);
   AudioFX.click();
 }
 
-/* [ E ] at the bar: ask the next question, or hurry the current answer along */
-function salAsk() {
+/* [ E ] at the bar: ask the next question, or hurry the current answer along.
+   `who` is the warden who pressed — the tab and the questions are shared. */
+function salAsk(who) {
   const S = Game.saloon; if (!S) return;
   if (S.talk) { S.talk.t = SAL_LINE_T; return; }
   if (S.asked < SAL_ASKS.length) {
     const A = SAL_ASKS[S.asked++];
     S.talk = { lines: A.lines, i: 0, t: 0 };
     salSay(S.keep, A.lines[0], SAL_LINE_T + 0.3);
-  } else { if (S.roundT > 0) return; salRound(); }
+  } else { if (S.roundT > 0) return; salRound(who); }
   AudioFX.click();
 }
 
 /* the questions answered, [ E ] buys another round: ten souls, no healing, one more glass of effect */
-function salRound() {
-  const S = Game.saloon, me = localPlayer();
+function salRound(who) {
+  const S = Game.saloon, me = who || localPlayer();
   S.roundT = SAL_ROUND_GAP;
   if (Game.score < SALOON_ROUND) { salSay(S.keep, SAL_BROKE, 3.0); return; }
   Game.score -= SALOON_ROUND; updateScore();
@@ -467,8 +514,9 @@ function tickDrunk(dt) {
     paintDrunkHud();
     if ((Game.drunkBuffLvl || 0) > 0) {
       Game.drunkBuffLvl = 0;
-      const p = localPlayer();
-      if (p) { recalc(p); toast("SOBER — DRUNK BUFFS FADED", 2.4); }
+      /* the buzz rides every warden, not just this screen's — rebuild them all */
+      for (const p of players) recalc(p);
+      toast("SOBER — DRUNK BUFFS FADED", 2.4);
     }
     return;
   }
@@ -479,29 +527,27 @@ function tickDrunk(dt) {
   const newLvl = Math.floor(Game.drunk);
   if (newLvl !== (Game.drunkBuffLvl || 0)) {
     Game.drunkBuffLvl = newLvl;
-    const p = localPlayer();
-    if (p) {
-      /* recalc() rebuilds the build AND re-applies this tier's buffs (see data/runes.js) */
-      recalc(p);
-      if (newLvl === 0) {
-        /* the glass that finally empties is handled HERE, not on the next tick —
-           by then drunkBuffLvl is already 0 and the fade notice would never fire */
-        toast("SOBER — DRUNK BUFFS FADED", 2.4);
-      } else {
-        const B = DRUNK_BUFFS[newLvl];
-        if (B && Game.state === "play") {
-          const names = [];
-          if (B.dmgMul) names.push("DMG ×" + B.dmgMul.toFixed(2));
-          if (B.rateMul) names.push("RATE ×" + B.rateMul.toFixed(2));
-          if (B.moveMul) names.push("SPD ×" + B.moveMul.toFixed(2));
-          if (B.dashCdMul) names.push("DASH ×" + B.dashCdMul.toFixed(2));
-          if (B.leech) names.push("LEECH +" + B.leech);
-          if (B.dr) names.push("RES +" + B.dr);
-          if (B.shield) names.push("SHIELD +1");
-          if (B.pierce) names.push("PIERCE +" + B.pierce);
-          if (B.execute) names.push("EXECUTE +" + B.execute);
-          toast("DRUNK · TIER " + newLvl + " · " + names.join(" + "), 2.6);
-        }
+    /* recalc() rebuilds each build AND re-applies this tier's buffs (data/runes.js).
+       The whole party drinks from the same bottle, so every warden is rebuilt. */
+    for (const p of players) recalc(p);
+    if (newLvl === 0) {
+      /* the glass that finally empties is handled HERE, not on the next tick —
+         by then drunkBuffLvl is already 0 and the fade notice would never fire */
+      toast("SOBER — DRUNK BUFFS FADED", 2.4);
+    } else {
+      const B = DRUNK_BUFFS[newLvl];
+      if (B && Game.state === "play") {
+        const names = [];
+        if (B.dmgMul) names.push("DMG ×" + B.dmgMul.toFixed(2));
+        if (B.rateMul) names.push("RATE ×" + B.rateMul.toFixed(2));
+        if (B.moveMul) names.push("SPD ×" + B.moveMul.toFixed(2));
+        if (B.dashCdMul) names.push("DASH ×" + B.dashCdMul.toFixed(2));
+        if (B.leech) names.push("LEECH +" + B.leech);
+        if (B.dr) names.push("RES +" + B.dr);
+        if (B.shield) names.push("SHIELD +1");
+        if (B.pierce) names.push("PIERCE +" + B.pierce);
+        if (B.execute) names.push("EXECUTE +" + B.execute);
+        toast("DRUNK · TIER " + newLvl + " · " + names.join(" + "), 2.6);
       }
     }
   }
@@ -575,23 +621,31 @@ function drawDrunkFX() {
   }
 }
 
-/* per-frame saloon tick, called from update()'s interaction pass. Returns the
-   LOCAL warden's hint/act, the same shape updateRift() returns. */
+/* per-frame saloon tick, called from update()'s interaction pass. Returns one
+   {hint, act} per warden (indexed by player idx), so the host can route a
+   guest's [ E ] to the same bar the host's own warden uses. */
 function updateSaloon(dt) {
   const S = Game.saloon;
-  if (!Game.inSaloon || !S) return SAL_NOHINT;
+  if (!Game.inSaloon || !S) return [];
   S.t += dt;
-  const me = localPlayer();
+  /* the room plays to the host's warden (the barkeep IS that warden), but the
+     whole party shares everything that happens in it */
+  const focus = players[0] || localPlayer();
+  const coop = typeof Net !== "undefined" && Net.active;
 
   /* --- beyond the walls ---------------------------------------------------
      A fast enough dash can carry you through any of the four walls or the
      closed doors. Out there the middle of the front wall is lifted so the way
      back in is a walk, not a second trick; step fully inside and the doors
      seal again. A dash that is still in progress does not count — it may end
-     with the body shoved back out of the wall. */
-  const inside = saloonInsideRoom(me);
-  const settled = me.dashT <= 0;
-  if (settled && !inside && !S.outside) {
+     with the body shoved back out of the wall. Any warden out there holds the
+     door open for the party. */
+  let anyOut = false, settled = true;
+  for (const p of alivePlayers()) {
+    if (p.dashT > 0) settled = false;
+    else if (!saloonInsideRoom(p)) anyOut = true;
+  }
+  if (settled && anyOut && !S.outside) {
     S.outside = true;
     salSetDoor(true);
     if (!S.unkSeen) {
@@ -600,7 +654,7 @@ function updateSaloon(dt) {
       toast("THE VOID BEHIND THE SINGULAR — THE AIR IS THINNER OUT HERE");
       AudioFX.murmur(92, 6);
     }
-  } else if (settled && inside && S.outside) {
+  } else if (settled && !anyOut && S.outside) {
     S.outside = false;
     salSetDoor(false);
     toast("THE SINGULAR'S DOORS SWING SHUT BEHIND YOU");
@@ -610,20 +664,27 @@ function updateSaloon(dt) {
     S.murmurT -= dt;
     if (S.murmurT <= 0) { S.murmurT = rnd(8, 14); AudioFX.murmur(86 + rnd(0, 16), 3); }
   }
-  if (S.unk) S.unk.aim = angTo(S.unk.x, S.unk.y, me.x, me.y);
-  const nearUnk = !!(S.unk && S.outside && dist2(me.x, me.y, S.unk.x, S.unk.y) < 240 * 240);
-  if (nearUnk && !S.unkSpoke) {
-    /* it notices you first — the prompt is only for the rest */
-    S.unkSpoke = true;
-    S.unkIdx = 1;
-    salSay(S.unk, salUnknownLines(me)[0], 3.8);
+  if (S.unk) S.unk.aim = angTo(S.unk.x, S.unk.y, focus.x, focus.y);
+  /* the cameo notices whoever reaches it first, host or guest */
+  let nearUnkFocus = false;
+  for (const p of alivePlayers()) {
+    if (!S.outside) break;
+    if (dist2(p.x, p.y, S.unk.x, S.unk.y) < 240 * 240) {
+      nearUnkFocus = true;
+      if (!S.unkSpoke) {
+        S.unkSpoke = true;
+        S.unkIdx = 1;
+        salSay(S.unk, salUnknownLines(p)[0], 3.8);
+      }
+      break;
+    }
   }
 
   S.holsterT -= dt; S.scoldT -= dt; S.roundT -= dt;
   for (let i = S.speech.length - 1; i >= 0; i--) { const s = S.speech[i]; s.t += dt; if (s.t >= s.life) S.speech.splice(i, 1); }
 
-  /* the barkeep watches you; the regulars shift on their stools; nobody walks through anybody */
-  S.keep.aim = angTo(S.keep.x, S.keep.y, me.x, me.y);
+  /* the barkeep watches the host's face; the regulars shift on their stools; nobody walks through anybody */
+  S.keep.aim = angTo(S.keep.x, S.keep.y, focus.x, focus.y);
   for (const g of S.regs) {
     const n = g.npc;
     g.cd = Math.max(0, g.cd - dt);
@@ -647,17 +708,20 @@ function updateSaloon(dt) {
     }
   }
 
-  /* the greeting: hello, then the drink */
+  /* the greeting: hello, then any party line, then the drink */
   if (S.greet < 2) {
+    if (!S.greets) S.greets = [S.hello];       // defensive: a state made before parties spoke
     S.greetT -= dt;
     if (S.greetT <= 0) {
-      if (S.greet === 0) { salSay(S.keep, S.hello, 2.6); S.greet = 1; S.greetT = 2.3; }
-      else { salPour(); S.greet = 2; }
+      if (S.greetI < S.greets.length) {
+        salSay(S.keep, S.greets[S.greetI++], 2.6);
+        S.greet = 1; S.greetT = 2.3;
+      } else { salPour(); S.greet = 2; }
     }
   }
 
-  /* a few beats after the drink, the dealer calls you over to the felt (scenes/blackjack.js) */
-  if (S.greet === 2 && S.calledT > 0 && !S.talk) {
+  /* a few beats after the drink, the dealer calls you over to the felt — solo only */
+  if (!coop && S.greet === 2 && S.calledT > 0 && !S.talk) {
     S.calledT -= dt;
     if (S.calledT <= 0 && !(S.bj && S.bj.sat)) { const d = bjDealer(); if (d) salSay(d, "Sit down, me. I'll deal you out.", 3.4); }
   }
@@ -673,19 +737,23 @@ function updateSaloon(dt) {
     }
   }
 
-  const atBar = me.x > SAL_BAR.x && me.x < SAL_BAR.x + SAL_BAR.w && me.y < SAL_BAR.y + SAL_BAR.h + 74;
+  const focusAtBar = focus.x > SAL_BAR.x && focus.x < SAL_BAR.x + SAL_BAR.w && focus.y < SAL_BAR.y + SAL_BAR.h + 74;
   const keepTalking = S.speech.some(s => s.who === S.keep);
 
   /* heading for the door */
-  if (!S.warnedDoor && S.greet === 2 && !S.talk && dist2(me.x, me.y, SAL_DOOR.x, SAL_DOOR.y) < 230 * 230) {
+  if (!S.warnedDoor && S.greet === 2 && !S.talk && dist2(focus.x, focus.y, SAL_DOOR.x, SAL_DOOR.y) < 230 * 230) {
     S.warnedDoor = true;
     salSay(S.keep, "Already? Fair. I'd go too.", 2.6);
   }
 
-  /* the barkeep fills the quiet while you're away from the counter */
-  if (S.greet === 2 && !S.talk && !atBar && !keepTalking) {
+  /* the barkeep fills the quiet while the party is away from the counter */
+  if (S.greet === 2 && !S.talk && !focusAtBar && !keepTalking) {
     S.idleT -= dt;
-    if (S.idleT <= 0) { S.idleT = 10; salSay(S.keep, SAL_IDLE[S.idleI++ % SAL_IDLE.length], 3.0); }
+    if (S.idleT <= 0) {
+      S.idleT = 10;
+      const pool = coop ? SAL_IDLE_PARTY : SAL_IDLE;
+      salSay(S.keep, pool[S.idleI++ % pool.length], 3.0);
+    }
   }
 
   /* the regulars: the nearest one within reach says its next line, never over the barkeep */
@@ -694,7 +762,7 @@ function updateSaloon(dt) {
     S.chatT = 0.3;
     if (!S.talk) {
       let best = null, bd = 180 * 180;
-      for (const g of S.regs) { const d = dist2(me.x, me.y, g.npc.x, g.npc.y); if (d < bd) { bd = d; best = g; } }
+      for (const g of S.regs) { const d = dist2(focus.x, focus.y, g.npc.x, g.npc.y); if (d < bd) { bd = d; best = g; } }
       if (best && best.cd <= 0) {
         salSay(best.npc, best.lines[best.li++ % best.lines.length], 3.2);
         best.cd = 6; S.chatT = 2.4;
@@ -704,15 +772,112 @@ function updateSaloon(dt) {
 
   salPianoTick(dt);
 
-  if (nearUnk) return { hint: "[ E ] THE UNKNOWN", act: salUnknownTalk };
-  if (bjNearSeat(me)) return { hint: "[ E ] SIT DOWN · BLACKJACK", act: openBlackjack };
-  if (atBar && S.greet === 2) {
-    const hint = S.talk ? "[ E ] GO ON"
-               : S.asked < SAL_ASKS.length ? "[ E ] ASK: " + SAL_ASKS[S.asked].ask
-               : "[ E ] ANOTHER ROUND · " + SALOON_ROUND + " SOULS";
-    return { hint, act: salAsk };
+  /* --- one prompt per warden: a guest's [ E ] reaches the host through the
+     same per-player input frames chests and health boxes already use --- */
+  const out = [];
+  for (const p of alivePlayers()) {
+    const atBar = p.x > SAL_BAR.x && p.x < SAL_BAR.x + SAL_BAR.w && p.y < SAL_BAR.y + SAL_BAR.h + 74;
+    const nearUnk = !!(S.unk && S.outside && dist2(p.x, p.y, S.unk.x, S.unk.y) < 240 * 240);
+    if (nearUnk) { out[p.idx] = { hint: "[ E ] THE UNKNOWN", act: () => salUnknownTalk(p) }; continue; }
+    /* blackjack is deferred to solo for the first shared saloon */
+    if (!coop && bjNearSeat(p)) { out[p.idx] = { hint: "[ E ] SIT DOWN · BLACKJACK", act: openBlackjack }; continue; }
+    if (atBar && S.greet === 2) {
+      const hint = S.talk ? "[ E ] GO ON"
+                 : S.asked < SAL_ASKS.length ? "[ E ] ASK: " + SAL_ASKS[S.asked].ask
+                 : "[ E ] ANOTHER ROUND · " + SALOON_ROUND + " SOULS";
+      out[p.idx] = { hint, act: () => salAsk(p) };
+    }
   }
-  return SAL_NOHINT;
+  return out;
+}
+
+/* =========================================================
+   CO-OP MIRROR — the host owns every change in the room; a
+   guest rebuilds the same barkeep/regulars/rocks on entry and
+   then receives only what moves: the greeting stage, the shared
+   questions and tab, who is speaking, and whether the doors are
+   open. Everything else (aim, sway, the piano) is local theatre.
+   ========================================================= */
+
+/* speaker -> small wire index: 0 host-faced barkeep · 1 the thing outside · 2+i regular i */
+function salSpeakerIdx(S, who) {
+  if (who === S.keep) return 0;
+  if (who === S.unk) return 1;
+  for (let i = 0; i < S.regs.length; i++) if (S.regs[i].npc === who) return 2 + i;
+  return 0;
+}
+function salSpeakerAt(S, i) {
+  if (i === 1) return S.unk;
+  if (i >= 2) { const g = S.regs[i - 2]; if (g) return g.npc; }
+  return S.keep;
+}
+
+function encodeSaloon() {
+  const S = Game.saloon;
+  if (!S) return null;
+  const q2 = v => Math.round((v || 0) * 100) / 100;
+  /* the restless regular blinks between two stools; ship where it is now */
+  let bx = 0;
+  for (const g of S.regs) if (g.alt) bx = g.npc.x;
+  return {
+    st: q2(S.t), g: S.greet, a: S.asked, tk: S.talk ? 1 : 0,
+    o: S.outside ? 1 : 0, us: S.unkSeen ? 1 : 0, bx: q2(bx),
+    sp: S.speech.map(s => [s.n || 0, salSpeakerIdx(S, s.who), s.txt, q2(s.t), q2(s.life)]),
+  };
+}
+
+function applySaloonState(sal) {
+  const S = Game.saloon;
+  if (!S || !sal) return;
+  if (sal.st > S.t) S.t = sal.st;
+  S.greet = sal.g; S.asked = sal.a;
+  S.talk = sal.tk ? (S.talk || { lines: [], i: 0, t: 0 }) : null;
+  S.unkSeen = !!sal.us;
+  if (S.outside !== !!sal.o) { S.outside = !!sal.o; salSetDoor(S.outside); }
+  for (const g of S.regs) if (g.alt && typeof sal.bx === "number") g.npc.x = sal.bx;
+  /* speech: keep the local fade clock when the same line is re-sent, so the
+     bubble doesn't restart on every packet */
+  const prev = new Map(S.speech.map(s => [s.n, s]));
+  const next = [];
+  let newest = null;
+  for (const row of sal.sp || []) {
+    const n = row[0], who = salSpeakerAt(S, row[1]), txt = row[2], t = row[3], life = row[4];
+    const old = prev.get(n);
+    const e = { n, who, txt, t: old && old.t > t ? old.t : t, life };
+    next.push(e);
+    if (!old && n > (S._soundN || 0)) newest = e;
+  }
+  S.speech = next;
+  if (newest) {
+    S._soundN = newest.n;
+    if (typeof AudioFX !== "undefined")
+      AudioFX.murmur(newest.who.voice || 200, Math.min(9, 3 + Math.floor(newest.txt.length / 7)));
+  }
+  /* the first pour: the host's greeting just finished, so play its chime here */
+  if (sal.g === 2 && S._greetShown !== 2 && typeof AudioFX !== "undefined") AudioFX.pickup();
+  S._greetShown = sal.g;
+}
+
+/* the guest's room between packets: no state changes, just breath */
+function saloonGuestTick(dt) {
+  const S = Game.saloon;
+  if (!Game.inSaloon || !S) return;
+  S.t += dt;
+  for (let i = S.speech.length - 1; i >= 0; i--) {
+    const s = S.speech[i]; s.t += dt; if (s.t >= s.life) S.speech.splice(i, 1);
+  }
+  const focus = players[0] || localPlayer();
+  if (focus && S.keep) S.keep.aim = angTo(S.keep.x, S.keep.y, focus.x, focus.y);
+  for (const g of S.regs) {
+    const n = g.npc;
+    n.aim = g.aim + Math.sin(S.t * 0.6 + n.sway) * 0.22;
+  }
+  if (S.unk) {
+    let near = focus;
+    for (const p of alivePlayers()) if (dist2(p.x, p.y, S.unk.x, S.unk.y) < dist2(near.x, near.y, S.unk.x, S.unk.y)) near = p;
+    if (near) S.unk.aim = angTo(S.unk.x, S.unk.y, near.x, near.y);
+  }
+  salPianoTick(dt);
 }
 
 /* the piano player's one song: heard up close, seen from anywhere. Also ticked from the blackjack table */

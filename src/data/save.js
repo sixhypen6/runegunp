@@ -36,6 +36,7 @@ const Meta = {
   shake: true,        // screen shake: false zeroes it where it's drawn (draw() and the intro cutscene)
   advancedNumbers: false, // show exact character stats and marginal rune contributions
   showRuneDescriptions: true, // hide rune-choice prose for a compact, stable card layout
+  runePause: true,    // freeze the run while a rune is picked (off: the fight keeps moving)
   showHiddenRunes: false,     // easter-egg runes only appear for hidden wardens unless toggled on
   glow: "full",       // neon halo budget: "full" (default — the intended look) · "half" · "off".
                       // Trades the glow for GPU raster load; see the glow lever in canvas.js.
@@ -151,6 +152,7 @@ function metaLoad() {
       Meta.shake = d.shake !== false;       // likewise
       Meta.advancedNumbers = !!d.advancedNumbers;
       Meta.showRuneDescriptions = d.showRuneDescriptions !== false;
+      Meta.runePause = d.runePause !== false;   // freeze-for-a-pick, on unless turned off
       /* saves from before the glow toggle existed simply keep "full" — the look they already had */
       if (d.glow === "full" || d.glow === "half" || d.glow === "off") Meta.glow = d.glow;
       /* likewise: saves from before the streak juice existed default to "full" */

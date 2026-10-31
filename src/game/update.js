@@ -446,7 +446,7 @@ function update(dt) {
   SEAL.pulse += dt * 1.5;
   /* THE UNKNOWN — ticked once per frame; only the local warden communes */
   const rh = updateRift(dt);
-  /* THE SINGULAR — greeting, chatter and the bar's [ E ] prompt (local warden only) */
+  /* THE SINGULAR — greeting, chatter and the bar's [ E ] prompt (one per warden) */
   const sh = updateSaloon(dt);
   /* THE UNKNOWN — its walk-up, its runes, its challenge rounds (entities/unknown.js) */
   const uh = updateUnknown(dt);
@@ -467,9 +467,12 @@ function update(dt) {
     if (SEAL.state === "ready" && dist2(SEAL.x, SEAL.y, p.x, p.y) < (SEAL.r + 40) ** 2 && !Game.ambush) {
       pHint = "[ E ] WAKE WHAT SLEEPS BELOW"; pAct = () => spawnBoss();
     }
+    /* the saloon is shared: its prompts and actions are per-warden, so a guest's
+       [ E ] does exactly what the host's would */
+    const sp = sh[p.idx];
+    if (sp && sp.hint && !pHint) { pHint = sp.hint; pAct = sp.act; }
     if (p === localPlayer()) {
       if (rh.hint && !pHint) { pHint = rh.hint; pAct = rh.act; }
-      if (sh.hint && !pHint) { pHint = sh.hint; pAct = sh.act; }
       if (uh.hint && !pHint) { pHint = uh.hint; pAct = uh.act; }
       hint = pHint;
     }
@@ -509,32 +512,28 @@ function update(dt) {
   }
 
   /* --- pickups: whichever warden touches the orb rolls from THEIR pool ---
-     PAUSE MODE (party ≤ RUNE_PAUSE_MAX_PLAYERS): one choice at a time.
-     Legacy single-slot behavior — a second claim while one is unresolved
-     is dropped; the untouched orb waits for a later frame.
-     NO-PAUSE MODE (party > RUNE_PAUSE_MAX_PLAYERS): each player picks
-     independently. Multiple pending pickups can exist simultaneously. */
-  const noPause = typeof shouldPauseForRune === "function" && !shouldPauseForRune();
-  if (noPause) {
-    /* no-pause: check all pickups against all alive players who aren't already choosing */
+     PAUSE MODE (the shared run freezes): one choice at a time. Legacy
+     single-slot behavior — a second claim while one is unresolved is dropped;
+     the untouched orb waits for a later frame.
+     NO-PAUSE MODE: each warden picks independently while the fight runs on.
+     Multiple pending pickups can exist at once, one per warden. */
+  if (!shouldPauseForRune()) {
     for (let i = pickups.length - 1; i >= 0; i--) {
       const pk = pickups[i]; pk.t += dt;
       for (const p of alivePlayers()) {
-        if (dist2(pk.x, pk.y, p.x, p.y) < (pk.r + p.r + 8) ** 2) {
-          if (Game.challenge === "runeless") {
-            pickups.splice(i, 1);
-            runelessBoon(p);
-            break;
-          }
-          /* already choosing? ignore this orb for now */
-          if (Game.pendingPickups.some(e => e.by === p.idx)) continue;
+        if (dist2(pk.x, pk.y, p.x, p.y) >= (pk.r + p.r + 8) ** 2) continue;
+        if (Game.challenge === "runeless") {
           pickups.splice(i, 1);
-          if (!pk.ids) pk.ids = genThreeRunes(p);
-          Game.pendingPickups.push({ pk, by: p.idx, state: "offered" });
-          /* also populate legacy fields for the first entry so existing UI paths work */
-          if (!Game.pendingPickup) { Game.pendingPickup = pk; Game.pendingPickupBy = p.idx; }
-          openRuneChoice(p.idx);
+          runelessBoon(p);
+          break;
         }
+        /* already choosing? leave this orb for a warden with free hands */
+        if (Game.pendingPickups.some(e => e.by === p.idx)) continue;
+        pickups.splice(i, 1);
+        if (!pk.ids) pk.ids = genThreeRunes(p);
+        Game.pendingPickups.push({ pk, by: p.idx, state: "offered" });
+        openRuneChoice(p.idx);
+        break;                          // this orb is claimed — never two hands
       }
     }
   } else {

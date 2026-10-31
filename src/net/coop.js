@@ -31,15 +31,32 @@ const COOP_MODE_DESC = {
   chaos: "No seal on either gun. Every rune answers — and kills leave orbs.",
 };
 
-/* Rune pause policy — maximum party size that pauses the whole run for a pick.
-   0 = never pause (everyone picks independently)
-   2 = pause for 2 players (legacy behavior)
-   4 = always pause (4 players)
-   Change RUNE_PAUSE_MAX_PLAYERS to toggle the feel. */
-window.RUNE_PAUSE_MAX_PLAYERS = 0;
+/* Rune pause policy — the largest party that still freezes the run for a pick.
+   0 = never pause · 2 = only pairs pause · 4 = every party pauses (default).
+   The SETTINGS toggle (Meta.runePause, "PAUSE FOR RUNE PICKS") is the real
+   switch; this constant is the tuning ceiling above which a big party never
+   freezes even with the toggle on. The HOST owns the answer in a shared run
+   and passes it in the start message, so host and guests can never disagree. */
+window.RUNE_PAUSE_MAX_PLAYERS = 4;
+
+function coopPartySize() {
+  if (typeof players === "undefined" || !players || !players.length) return 1;
+  const n = players.filter(p => !p.gone).length;
+  return n || 1;
+}
+
+function runePauseFor(party) {
+  /* the player's own setting ("PAUSE FOR RUNE PICKS" in SETTINGS) */
+  if (typeof Meta !== "undefined" && Meta.runePause === false) return false;
+  return (party || 1) <= window.RUNE_PAUSE_MAX_PLAYERS;
+}
 
 function shouldPauseForRune() {
-  return alivePlayers().length <= window.RUNE_PAUSE_MAX_PLAYERS;
+  /* guest: obey the host's choice for this descent */
+  if (typeof Net !== "undefined" && Net.active && Net.role === "guest" &&
+      typeof Coop !== "undefined" && Coop.runePause != null)
+    return !!Coop.runePause;
+  return runePauseFor(coopPartySize());
 }
 
 const Coop = {
@@ -64,10 +81,19 @@ const Coop = {
     Game.challenge = null;              // challenges are a solo CHAOS concern
     Game.coopVictory = false;
   },
+  /* the host's rune-pause answer for THIS descent — also sent with `start` so
+     every guest freezes or keeps fighting exactly when the host does */
+  pausePolicy(party) {
+    this.runePause = runePauseFor(party || coopPartySize());
+    return this.runePause;
+  },
   beginHost(cfgs, mode) {
     this.cfgs = cfgs;                   // kept so DESCEND AGAIN can rebuild the same party
     this._start("host");
     this.applyMode(mode);
+    /* seats with no live peer do not count toward the pause ceiling */
+    const live = cfgs.filter((c, i) => i === 0 || !!Net.peerByIdx(i)).length || 1;
+    this.runePause = runePauseFor(live);
     resetRun(cfgs);
     this._markAbsent();
     updateHp();                          // absent seats get no partner bar
@@ -77,10 +103,13 @@ const Coop = {
     toast("YOU DESCEND TOGETHER" + (this.mode !== "normal" ? " — " + COOP_MODE_LABEL[this.mode] : ""));
     AudioFX.portal();
   },
-  beginGuest(cfgs, mode) {
+  beginGuest(cfgs, mode, runePause) {
     this.cfgs = cfgs;
     this._start("guest");
     this.applyMode(mode);
+    /* the host's policy rides in the start message; a host from an older build
+       sends nothing, so fall back to this client's own setting */
+    this.runePause = typeof runePause === "boolean" ? runePause : null;
     resetRun(cfgs);
     Game.riftOffered = true;
     this._floorReady = false;
@@ -102,6 +131,7 @@ const Coop = {
     if (Game.pendingPickups) Game.pendingPickups.length = 0;
     else Game.pendingPickups = [];
     Game.pendingPickup = null; Game.pendingPickupBy = 0;
+    if (typeof hideRuneOverlay === "function") hideRuneOverlay();
   },
 
   /* A seat with no live peer (a leaver on DESCEND AGAIN, or a host that
@@ -117,6 +147,13 @@ const Coop = {
   _peerByIdx(idx) {
     return Net.peers.find(p => p.idx === idx);
   },
+  /* may this warden answer a rune hand right now? Pause mode: only the one the
+     host froze on. No-pause mode: whoever holds an open entry. */
+  _canPick(idx) {
+    if (typeof idx !== "number") return false;
+    if (shouldPauseForRune()) return idx === Game.pendingPickupBy && !!Game.pendingPickup;
+    return Game.pendingPickups.some(e => e.by === idx);
+  },
   end() {
     this.running = false;
     Net.hangUp();
@@ -128,7 +165,8 @@ const Coop = {
      Returns false if the link is already gone, so the caller falls back to solo. */
   retry() {
     if (Net.role === "host") {
-      Net.sendR({ t: "start", cfgs: this.cfgs, mode: this.mode });
+      const runePause = this.pausePolicy();
+      Net.sendR({ t: "start", cfgs: this.cfgs, mode: this.mode, runePause });
       this.beginHost(this.cfgs, this.mode);
       return true;
     }
@@ -167,7 +205,11 @@ const Coop = {
       this._snapT = 1 / 3;
       /* the beacon shares the snapshot counter: both carry the host's state, so
          both must be orderable against each other on arrival (see `case "st"`) */
-      Net.sendU({ t: "st", n: ++Protocol._snapN, state: Game.state });
+      const beacon = { t: "st", n: ++Protocol._snapN, state: Game.state };
+      /* a frozen host waiting on a rune tells the party WHOSE hand it waits on,
+         so only that warden re-asks for the offer while the rest just watch */
+      if (shouldPauseForRune()) beacon.picker = Game.pendingPickupBy;
+      Net.sendU(beacon);
       return;
     }
     this._snapT = 1 / SNAP_HZ;
@@ -215,6 +257,29 @@ const Coop = {
     });
   },
 
+  /* The saloon is a stage change, not a floor: same mapIdx, different room. The
+     guest wipes its world and rebuilds the barkeep/regulars from these rocks,
+     then follows the live state in snapshots (`sal`). */
+  sendSaloon() {
+    const S = Game.saloon;
+    if (!this.running || Net.role !== "host" || !S) return;
+    Protocol.resetSeen();
+    Net.sendR({
+      t: "saloon", mapIdx: Game.mapIdx, loop: Game.loop,
+      hello: S.hello,
+      rocks: MAP.rocks.map(rc => {
+        const o = { id: rc.id, x: rc.x, y: rc.y, w: rc.w, h: rc.h, tone: rc.tone, boss: !!rc.boss };
+        if (rc.sal) o.sal = rc.sal;
+        return o;
+      }),
+      portal: portal ? { x: portal.x, y: portal.y, t: portal.t } : null,
+      runes: players.map(p => p.runes),
+      rerolls: players.map(p => p.rerolls),
+      px: players.map(p => [p.x, p.y]),
+      downed: players.map(p => !!p.downed),
+    });
+  },
+
   /* The console edits runes / the warden mid-descent, and snapshots do not
      carry either. The host sends this once after an edit so the guest's book
      (and its body) matches the world the host is actually simulating. */
@@ -250,8 +315,10 @@ const Coop = {
 
     /* camera + juice decay — same feel as the host loop */
     const camP = localPlayer();
-    Game.cam.x = lerp(Game.cam.x, clamp(camP.x - VW / 2, 0, MAP.w - VW), 1 - Math.pow(0.001, dt));
-    Game.cam.y = lerp(Game.cam.y, clamp(camP.y - VH / 2, 0, MAP.h - VH), 1 - Math.pow(0.001, dt));
+    /* a few glasses in, the camera won't hold still (scenes/saloon.js) */
+    const sway = typeof drunkSway === "function" ? drunkSway() : { x: 0, y: 0 };
+    Game.cam.x = lerp(Game.cam.x, clamp(camP.x - VW / 2 + sway.x, 0, MAP.w - VW), 1 - Math.pow(0.001, dt));
+    Game.cam.y = lerp(Game.cam.y, clamp(camP.y - VH / 2 + sway.y, 0, MAP.h - VH), 1 - Math.pow(0.001, dt));
     Game.shake = Math.max(0, Game.shake - dt * 30);
     Game.flash = Math.max(0, Game.flash - dt);
     if (Game.flash === 0) Game.flashCol = null;
@@ -303,12 +370,14 @@ const Coop = {
   /* Deadlock detector, guest side. The host reports "wait" only while it is
      waiting on US to choose — so if we're sitting there holding nothing to
      pick, the offer never arrived. Ask again rather than freezing forever. */
-  _starveCheck(hostState) {
+  _starveCheck(hostState, picker) {
     /* only the warden the host is actually waiting on should re-ask; the rest
        of the party merely sees the frozen world */
-    if (hostState === "wait" && Game.pendingPickupBy === Net.localIdx && !Game.pendingPickup) {
+    const onMe = picker === Net.localIdx ||
+                 (picker === undefined && Game.pendingPickupBy === Net.localIdx);
+    if (hostState === "wait" && onMe && !this._hasMyOffer()) {
       this._starveT = (this._starveT || 0) + 1;
-      if (this._starveT >= 6) { this._starveT = 0; Net.sendR({ t: "reofferReq" }); }
+      if (this._starveT >= 6) { this._starveT = 0; Net.sendR({ t: "reofferReq", pickerIdx: Net.localIdx }); }
     } else this._starveT = 0;
   },
 
@@ -331,19 +400,20 @@ const Coop = {
   },
 
   /* the guest's state is a pure function of the host's */
-  _applyHostState(hs) {
+  _applyHostState(hs, picker) {
     if (!this._floorReady) return;
     const mine = Game.state;
     if (mine === "held") return;   // the guest may browse its codex while the world runs
-    const noPause = typeof shouldPauseForRune === "function" && !shouldPauseForRune();
-    /* in no-pause mode, a guest with an open rune choice stays in "rune" even
-       while the host keeps playing — only the chooser's own state matters */
-    if (noPause && mine === "rune" && Game.pendingPickups.some(e => e.by === Net.localIdx && e.state === "offered")) {
-      return;
-    }
     let want;
     if (hs === "play") want = "play";
-    else if (hs === "wait") want = "rune";          // host waits while I choose
+    else if (hs === "wait") {
+      /* the host is frozen on ONE warden's pick (the beacon's `picker`). Only
+         that warden sees cards; everyone else gets the spectator notice. */
+      const mineToPick = this._hasMyOffer() &&
+        (picker === Net.localIdx || (picker === undefined && Game.pendingPickupBy === Net.localIdx));
+      if (mineToPick) want = "rune";
+      else { want = "wait"; $("waitTitle").textContent = "YOUR PARTNER IS CHOOSING A RUNE"; }
+    }
     else if (hs === "rune" || hs === "choice") { want = "wait"; $("waitTitle").textContent = "YOUR PARTNER IS CHOOSING"; }
     /* a pause is SHARED: the guest gets the real pause screen, not a spectator
        notice, and its RESUME asks the host to start the world again */
@@ -357,9 +427,10 @@ const Coop = {
        The host is frozen waiting on a pick that can now never come, so put the
        cards back rather than sitting it out until its watchdog fires. */
     if (want === "rune" && mine !== "rune") {
-      if (Game.pendingPickup && Game.pendingPickup.ids && Game.pendingPickupBy === Net.localIdx) {
+      if (this._hasMyOffer()) {
         setState("rune");
-        renderRuneChoice();
+        renderRuneChoice(Game.pendingPickups.some(e => e.by === Net.localIdx)
+          ? Net.localIdx : Game.pendingPickupBy);
       }
       return;
     }
@@ -367,6 +438,11 @@ const Coop = {
       if (want === "dead") return;                  // the `over` event owns the death screen
       setState(want);
     }
+  },
+  /* am I holding a rune offer that has not been answered yet? */
+  _hasMyOffer() {
+    if (Game.pendingPickups && Game.pendingPickups.some(e => e.by === Net.localIdx)) return true;
+    return !!(Game.pendingPickup && Game.pendingPickupBy === Net.localIdx);
   },
 
   _sendInput(f, dt) {
@@ -390,6 +466,19 @@ const Coop = {
       for (const c of chests) if (c.state === "sealed" && dist2(c.x, c.y, self.x, self.y) < 64 * 64) hint = "[ E ] BREAK THE SEAL";
       for (const h of healthBoxes) if (h.state === "sealed" && dist2(h.x, h.y, self.x, self.y) < 64 * 64) hint = "[ E ] TAKE THE VITALITY";
       if (SEAL.state === "ready" && dist2(SEAL.x, SEAL.y, self.x, self.y) < (SEAL.r + 40) ** 2) hint = "[ E ] WAKE WHAT SLEEPS BELOW";
+    }
+    /* THE SINGULAR: the host owns the state, but this screen still has to show
+       its own warden what their [ E ] would do. Blackjack is solo-only. */
+    const S = Game.saloon;
+    if (Game.inSaloon && S) {
+      const nearUnk = !!(S.unk && S.outside && dist2(self.x, self.y, S.unk.x, S.unk.y) < 240 * 240);
+      const atBar = self.x > SAL_BAR.x && self.x < SAL_BAR.x + SAL_BAR.w && self.y < SAL_BAR.y + SAL_BAR.h + 74;
+      if (nearUnk) hint = "[ E ] THE UNKNOWN";
+      else if (atBar && S.greet === 2) {
+        hint = S.talk ? "[ E ] GO ON"
+             : S.asked < SAL_ASKS.length ? "[ E ] ASK: " + SAL_ASKS[S.asked].ask
+             : "[ E ] ANOTHER ROUND · " + SALOON_ROUND + " SOULS";
+      }
     }
     if (hint) hint = hint.replace("[ E ]", "[ " + (Input.touchMode ? "SEAL" : bindLabel("use")) + " ]");
     if (hint !== lastHint) {
@@ -513,6 +602,8 @@ const Coop = {
     for (let i = floaters.length - 1; i >= 0; i--) { const fl = floaters[i]; fl.t += dt; fl.y -= (fl.vy === undefined ? 40 : fl.vy) * dt; if (fl.t > (fl.life || 0.7)) floaters.splice(i, 1); }
     for (let i = zaps.length - 1; i >= 0; i--) { zaps[i].t += dt; if (zaps[i].t > 0.15) zaps.splice(i, 1); }
     if (soulMotes.length) tickSoulMotes(dt);
+    /* the saloon breathes only in cosmetics here — the host owns its state */
+    if (Game.inSaloon && typeof saloonGuestTick === "function") saloonGuestTick(dt);
   },
 
   /* ---------------- messages (both roles) ---------------- */
@@ -522,8 +613,14 @@ const Coop = {
       case "i":
         if (Net.role === "host" && peer) this._inputs.set(peer.idx, { m, at: performance.now() });
         break;
-      case "runePick": if (Net.role === "host") { const peer = this._peerByIdx(m.pickerIdx ?? m.idx); if (peer && peer.idx === (m.pickerIdx ?? m.idx)) this._hostGrant(m.id, m.pickerIdx); } break;
-      case "reroll": if (Net.role === "host") { const peer = this._peerByIdx(m.pickerIdx ?? m.idx); if (peer && peer.idx === (m.pickerIdx ?? m.idx)) this._hostReroll(m.slot, m.pickerIdx); } break;
+      case "runePick": if (Net.role === "host") {
+        const from = m.pickerIdx ?? (peer && peer.idx);
+        if (this._canPick(from)) this._hostGrant(m.id, from);
+      } break;
+      case "reroll": if (Net.role === "host") {
+        const from = m.pickerIdx ?? (peer && peer.idx);
+        if (this._canPick(from)) this._hostReroll(m.slot, from);
+      } break;
       /* explicit rather than a toggle: a pause request that raced the host's own
          pause must not resume the game instead */
       case "pauseReq": if (Net.role === "host" && Game.state === "play") togglePause(); break;
@@ -533,13 +630,13 @@ const Coop = {
          reset a run that has just begun. */
       case "retryReq": if (Net.role === "host" && !this.running) this.retry(); break;
       /* a guest is frozen with nothing to choose — resend what it's owed */
-      case "reofferReq": if (Net.role === "host") this._sendRuneOffer(m.pickerIdx); break;
+      case "reofferReq": if (Net.role === "host") this._sendRuneOffer(m.pickerIdx ?? (peer && peer.idx)); break;
       case "guestQuit": this._peerLost("quit", peer); break;
 
       /* --- guest receives --- */
       /* a fresh descent: the first one comes from the lobby, later ones from
          the host's DESCEND AGAIN (the lobby's handler is long gone by then) */
-      case "start": if (Net.role === "guest") this.beginGuest(m.cfgs, m.mode); break;
+      case "start": if (Net.role === "guest") this.beginGuest(m.cfgs, m.mode, m.runePause); break;
       case "s": if (Net.role === "guest") {
         if (this._stale(m)) break;
         this._buf.push(m);
@@ -554,9 +651,10 @@ const Coop = {
          the one it's waiting on while holding nothing to choose */
       case "st": if (Net.role === "guest") {
         if (this._stale(m)) break;
-        this._applyHostState(m.state); this._starveCheck(m.state);
+        this._applyHostState(m.state, m.picker); this._starveCheck(m.state, m.picker);
       } break;
       case "floor": if (Net.role === "guest") this._applyFloor(m); break;
+      case "saloon": if (Net.role === "guest") this._applySaloon(m); break;
       /* a host console edit: new runes / warden, applied at once */
       case "edit": if (Net.role === "guest") this._applyEdit(m); break;
       case "kill": if (Net.role === "guest") this._guestKill(m); break;
@@ -567,7 +665,16 @@ const Coop = {
       case "ambush": if (Net.role === "guest") { screenFlash(0.25); Game.shake = Math.max(Game.shake, 10); AudioFX.bossRoar(); toast("THE SEAL BREAKS — SURVIVE"); } break;
       case "bossSpawn": if (Net.role === "guest") this._guestBossIntro(m); break;
       case "runeOffer": if (Net.role === "guest") this._guestRuneOffer(m); break;
-      case "runeGranted": if (Net.role === "guest") { grantRune(players[m.idx], m.id, m.idx !== Net.localIdx); if (m.pickerIdx !== undefined && m.pickerIdx === Net.localIdx) { if (Game.state === "rune") setState("play"); } } break;
+      case "runeGranted": if (Net.role === "guest") {
+        grantRune(players[m.idx], m.id, m.idx !== Net.localIdx);
+        const mine = (m.pickerIdx ?? m.idx) === Net.localIdx;
+        if (mine) {
+          Game.pendingPickups = Game.pendingPickups.filter(e => e.by !== Net.localIdx);
+          Game.pendingPickup = null; Game.pendingPickupBy = 0;
+          hideRuneOverlay();
+          if (Game.state === "rune") setState("play");
+        }
+      } break;
       case "over": if (Net.role === "guest") { doGameOver(); } break;
       /* CLASSIC: the host felled THE EVENT HORIZON — the shared descent is complete */
       case "victory": if (Net.role === "guest") {
@@ -596,6 +703,9 @@ const Coop = {
          If they don't answer within ~12s, grant the first rune for them. */
       for (let i = Game.pendingPickups.length - 1; i >= 0; i--) {
         const entry = Game.pendingPickups[i];
+        /* the host's own hand is never rushed — its cards are on screen and the
+           host owns the clock (the run keeps simulating either way) */
+        if (entry.by === Net.localIdx) continue;
         const ch = players[entry.by];
         if (!ch || ch.gone) {
           Game.pendingPickups.splice(i, 1);
@@ -646,9 +756,10 @@ const Coop = {
     }
   },
   _sendRuneOffer(pickerIdx) {
-    const noPause = typeof shouldPauseForRune === "function" && !shouldPauseForRune();
+    const paused = shouldPauseForRune();
     let ch, pk;
-    if (noPause && typeof pickerIdx === "number") {
+    if (!paused) {
+      if (typeof pickerIdx !== "number") return;    // no hand to re-offer
       const entry = Game.pendingPickups.find(e => e.by === pickerIdx);
       if (!entry) return;
       ch = players[pickerIdx];
@@ -659,7 +770,7 @@ const Coop = {
     }
     if (!ch || !pk) return;
     if (!pk.ids) pk.ids = genThreeRunes(ch);       // never offer an empty hand
-    Net.sendR({ t: "runeOffer", idx: ch.idx, ids: pk.ids, rerolls: ch.rerolls, pickerIdx });
+    Net.sendR({ t: "runeOffer", idx: ch.idx, ids: pk.ids, rerolls: ch.rerolls, pickerIdx: ch.idx });
   },
 
   /* ---------------- rune choice over the wire ---------------- */
@@ -667,37 +778,38 @@ const Coop = {
      state, so a pick that arrives a frame late — or twice, after a re-offer —
      resolves once and is then harmlessly ignored. */
   _hostGrant(id, pickerIdx) {
-    const noPause = typeof shouldPauseForRune === "function" && !shouldPauseForRune();
+    const paused = shouldPauseForRune();
     let ch, pk;
-    if (noPause && typeof pickerIdx === "number") {
+    if (!paused) {
+      if (typeof pickerIdx !== "number") return;      // nothing to answer
       const entry = Game.pendingPickups.find(e => e.by === pickerIdx);
       if (!entry) return;
       ch = players[pickerIdx];
       pk = entry.pk;
-      entry.state = "granted";
+      if (!ch || !pk) return;
     } else {
       ch = players[Game.pendingPickupBy];
       pk = Game.pendingPickup;
       if (!ch || !pk) return;
     }
-    if (pk) {
-      const idx = pickups.indexOf(pk);
-      if (idx !== -1) pickups.splice(idx, 1);
-    }
-    if (!noPause) {
+    const idx = pickups.indexOf(pk);
+    if (idx !== -1) pickups.splice(idx, 1);
+    if (paused) {
       Game.pendingPickup = null;
       this._waitT = 0; this._reoffers = 0;
     } else {
       Game.pendingPickups = Game.pendingPickups.filter(e => e.by !== pickerIdx);
+      if (pickerIdx === Net.localIdx) hideRuneOverlay(pickerIdx);
     }
     grantRune(ch, id, true);
     Net.sendR({ t: "runeGranted", idx: ch.idx, id, pickerIdx });
-    if (!noPause) setState("play");
+    if (paused) setState("play");
   },
   _hostReroll(slot, pickerIdx) {
-    const noPause = typeof shouldPauseForRune === "function" && !shouldPauseForRune();
+    const paused = shouldPauseForRune();
     let ch, pk;
-    if (noPause && typeof pickerIdx === "number") {
+    if (!paused) {
+      if (typeof pickerIdx !== "number") return;
       const entry = Game.pendingPickups.find(e => e.by === pickerIdx);
       if (!entry) return;
       ch = players[pickerIdx];
@@ -706,46 +818,52 @@ const Coop = {
       ch = players[Game.pendingPickupBy];
       pk = Game.pendingPickup;
     }
-    if (!ch || !pk || ch.rerolls <= 0) return;
+    if (!ch || !pk || !pk.ids || ch.rerolls <= 0) return;
     ch.rerolls--;
     const pool = runePool(ch);
     const onScreen = new Set(pk.ids);
     let avail = pool.filter(id => !onScreen.has(id));
     if (!avail.length) avail = pool.filter(id => id !== pk.ids[slot]);
     if (avail.length) pk.ids[slot] = pick(avail);
-    if (!noPause) {
-      this._waitT = 0; this._reoffers = 0;
-    }
+    if (paused) { this._waitT = 0; this._reoffers = 0; }
     Net.sendR({ t: "runeOffer", idx: ch.idx, ids: pk.ids, rerolls: ch.rerolls, pickerIdx });
+    /* the host rerolled its OWN hand: refresh the overlay in place */
+    if (!paused && pickerIdx === Net.localIdx) {
+      localPlayer().rerolls = ch.rerolls;
+      renderRuneChoice(pickerIdx);
+    }
   },
   _guestRuneOffer(m) {
     const pickerIdx = m.pickerIdx ?? m.idx;
     if (pickerIdx !== Net.localIdx) return;           // somebody else's hand
-    const noPause = typeof shouldPauseForRune === "function" && !shouldPauseForRune();
-    /* a re-offer for a choice already on screen must not reset the cards under
-       the player's finger — only adopt it if something actually changed */
-    const entry = Game.pendingPickups.find(e => e.by === pickerIdx);
-    const legacyEntry = !noPause ? { pk: Game.pendingPickup } : null;
-    const activeEntry = entry || legacyEntry;
-    const same = Game.state === "rune" && activeEntry && activeEntry.pk && activeEntry.pk.ids &&
-                 String(activeEntry.pk.ids) === String(m.ids);
-    if (same) return;
-    if (!m.ids || m.ids.length < 3) { Net.sendR({ t: "reofferReq", pickerIdx }); return; }
+    if (!Array.isArray(m.ids) || m.ids.length < 3) {
+      Net.sendR({ t: "reofferReq", pickerIdx });
+      return;
+    }
+    const paused = shouldPauseForRune();
+    /* a re-offer for a hand already on screen must not reset the cards under the
+       player's finger — only adopt it if something actually changed */
+    const entry = paused ? { pk: Game.pendingPickup }
+                         : Game.pendingPickups.find(e => e.by === pickerIdx);
+    const onScreen = paused ? Game.state === "rune" : Game.runeOverlayBy === pickerIdx;
+    const same = onScreen && entry && entry.pk && entry.pk.ids &&
+                 String(entry.pk.ids) === String(m.ids);
+    if (same) { localPlayer().rerolls = m.rerolls; return; }
     const pk = { ids: m.ids.slice() };
-    if (noPause) {
-      /* store in pendingPickups array for this player */
-      const existing = Game.pendingPickups.findIndex(e => e.by === pickerIdx);
-      if (existing >= 0) Game.pendingPickups[existing] = { pk, by: pickerIdx, state: "offered" };
-      else Game.pendingPickups.push({ pk, by: pickerIdx, state: "offered" });
-      /* also update legacy fields if this is the first/only entry */
-      if (!Game.pendingPickup) { Game.pendingPickup = pk; Game.pendingPickupBy = pickerIdx; }
-    } else {
+    localPlayer().rerolls = m.rerolls;
+    if (paused) {
       Game.pendingPickup = pk;
       Game.pendingPickupBy = pickerIdx;
+      setState("rune");
+      renderRuneChoice(pickerIdx);
+    } else {
+      /* ride the choice over live play — no world freeze */
+      const existing = Game.pendingPickups.findIndex(e => e.by === pickerIdx);
+      const e = { pk, by: pickerIdx, state: "offered" };
+      if (existing >= 0) Game.pendingPickups[existing] = e;
+      else Game.pendingPickups.push(e);
+      showRuneOverlay(pickerIdx);
     }
-    localPlayer().rerolls = m.rerolls;
-    setState("rune");
-    renderRuneChoice(pickerIdx);
   },
 
   /* ---------------- guest-side event juice ---------------- */
@@ -802,7 +920,52 @@ const Coop = {
     toast("THE HOST REWRITES THE RUN");
   },
 
+  /* THE SINGULAR, co-op: rebuild the same room on the guest. The host's entry
+     message carries the static furniture; snapshots then stream the room's
+     live state (see `encodeSaloon`/`applySaloonState`). */
+  _applySaloon(m) {
+    Game.inSaloon = true;
+    Game.mapIdx = m.mapIdx; Game.loop = m.loop;
+    MAP.rocks = m.rocks;
+    enemies = []; bullets = []; ebullets = []; puddles = [];
+    particles = []; chests = []; pickups = []; shockwaves = []; floaters = []; zaps = []; veils = []; healthBoxes = []; mines = []; shells = [];
+    soulMotes = [];
+    Game.ambush = null; Game.boss = null; Game.shake = 0;
+    Game.bossRocks.length = 0;
+    Game.chestsTotal = 0; Game.chestsOpened = 0;
+    rift = null;
+    portal = m.portal ? { x: m.portal.x, y: m.portal.y, r: 46, t: m.portal.t || 0 } : null;
+    pets = [];
+    for (const p of players) if (p.pet && PTYPES[p.pet]) pets.push(spawnPet(p.pet, p));
+    /* authoritative builds, bodies and downed states — the saloon does NOT
+       revive anyone; only the next floor does that */
+    for (let i = 0; i < players.length; i++) {
+      const p = players[i];
+      p.runes = m.runes[i] || {};
+      p.rerolls = m.rerolls[i];
+      recalc(p);
+      if (m.px[i]) { p.x = m.px[i][0]; p.y = m.px[i][1]; }
+      p.iframes = 1.5;
+      if (m.downed) p.downed = !!m.downed[i];
+    }
+    SEAL.state = "spent"; SEAL.pulse = 0;
+    Game.saloon = makeSaloon(m.hello);
+    Game.pendingPickups = []; Game.pendingPickup = null; Game.pendingPickupBy = 0;
+    if (Game.runeOverlayBy != null && typeof hideRuneOverlay === "function") hideRuneOverlay();
+    $("mapName").textContent = "THE SINGULAR";
+    updateSeals();
+    $("sealCount").textContent = "REST A WHILE";
+    $("bossBar").classList.remove("on");
+    document.body.classList.remove("bossOn");
+    Game.floorFade = 1;
+    this._floorReady = true;
+    setState("play");
+    toast("YOU STEP INTO THE SINGULAR — EVERY FACE HERE IS YOURS");
+    AudioFX.portal();
+  },
+
   _applyFloor(m) {
+    Game.inSaloon = false; Game.saloon = null;
     Game.mapIdx = m.mapIdx; Game.loop = m.loop;
     Game.chestsTotal = m.chestsTotal; Game.chestsOpened = m.chestsOpened;
     MAP.rocks = m.rocks;
@@ -868,7 +1031,10 @@ const Coop = {
     if (p) { p.gone = true; p.downed = true; p.hp = 0; }
     /* a rune hand that belonged to the departed warden can never be answered */
     if (p && Game.pendingPickupBy === p.idx) Game.pendingPickup = null;
-    if (Game.pendingPickups) Game.pendingPickups = Game.pendingPickups.filter(e => e.by !== p.idx);
+    if (p && Game.pendingPickups) {
+      Game.pendingPickups = Game.pendingPickups.filter(e => e.by !== p.idx);
+      if (Game.runeOverlayBy === p.idx) hideRuneOverlay();
+    }
     if (Game.state === "wait" || Game.state === "pause") setState("play");
     if (typeof updateHp === "function") updateHp();
     if (Net.peers.length > 0) toast("A WARDEN IS LOST TO THE DARK — FIGHT ON");

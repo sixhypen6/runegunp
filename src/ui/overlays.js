@@ -1091,6 +1091,24 @@ function toggleRuneDescriptions() {
   AudioFX.equip();
 }
 $("btnRuneDescriptions").addEventListener("click", toggleRuneDescriptions);
+
+/* ---------- pause for rune picks ----------
+   On (default): the run freezes while a warden reads three cards — the original
+   feel. Off: the choice rides over live play, so in co-op only the picker is
+   distracted. The host owns this answer for a shared run (see net/coop.js). */
+function applyRunePauseUI() {
+  const b = $("btnRunePause");
+  if (b) b.textContent = "PAUSE FOR RUNE PICKS: " + (Meta.runePause !== false ? "ON" : "OFF");
+}
+function toggleRunePause() {
+  Meta.runePause = Meta.runePause === false;
+  metaSave();
+  applyRunePauseUI();
+  AudioFX.equip();
+}
+$("btnRunePause").addEventListener("click", toggleRunePause);
+applyRunePauseUI();
+
 applyAdvancedNumbersUI();
 applyRuneDescriptionSettingsUI();
 applyTextSizeUI();
