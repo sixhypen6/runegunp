@@ -2,19 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RUNEGUN — The Vault Studio</title>
   <style>
     :root {
       --void: #090810;
-      --card-bg: rgba(7, 5, 14, 0.75);
+      --card-bg: rgba(7, 5, 14, 0.7);
       --line: #1c1a2e;
       --gold: #ffd23d;
       --arcane: #9d6bff;
       --bone: #e8e2d0;
       --dim: #a09cb8;
       --equipped-orange: #ff8a3d;
-      --green-tag: #7dff5e;
     }
 
     * {
@@ -49,7 +47,6 @@
       text-align: center;
     }
 
-    /* Vault Navigation Tabs (Screenshot 1) */
     .vault-tabs {
       width: min(960px, 98vw);
       display: grid;
@@ -72,9 +69,7 @@
       transition: all 0.15s;
     }
 
-    .vtab:hover {
-      border-color: var(--arcane);
-    }
+    .vtab:hover { border-color: var(--arcane); }
 
     .vtab.active {
       border-color: var(--gold);
@@ -82,7 +77,6 @@
       color: #fff;
     }
 
-    /* Main Layout: Left Preview / Right Scrollable Content */
     .studio-layout {
       width: min(960px, 98vw);
       display: flex;
@@ -90,7 +84,6 @@
       align-items: flex-start;
     }
 
-    /* Left Frame: Character Preview & Quick Controls */
     .preview-frame {
       width: 230px;
       background: rgba(11, 10, 20, 0.95);
@@ -144,9 +137,7 @@
       width: 100%;
     }
 
-    input[type="range"] {
-      accent-color: var(--arcane);
-    }
+    input[type="range"] { accent-color: var(--arcane); }
 
     .export-btns {
       display: flex;
@@ -175,7 +166,6 @@
       box-shadow: 0 0 10px rgba(255, 210, 61, 0.3);
     }
 
-    /* Right Scrolling Sections Container */
     .vault-content {
       flex: 1;
       display: flex;
@@ -183,7 +173,7 @@
       gap: 20px;
       max-height: 85vh;
       overflow-y: auto;
-      padding-right: 6px;
+      padding-right: 4px;
     }
 
     .section-title {
@@ -200,10 +190,9 @@
       font-size: 10px;
     }
 
-    /* 4-Column Card Grid (Matching In-Game Layout Screenshot 3) */
-    .warpaint-grid {
+    .card-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 8px;
     }
 
@@ -211,18 +200,16 @@
       border: 1px solid var(--line);
       background: var(--card-bg);
       padding: 12px 10px;
-      min-height: 180px;
+      min-height: 125px;
       cursor: pointer;
       position: relative;
       display: flex;
       flex-direction: column;
       justify-content: flex-start;
-      transition: border-color 0.12s, box-shadow 0.12s;
+      transition: border-color 0.12s;
     }
 
-    .card:hover {
-      border-color: #3b3759;
-    }
+    .card:hover { border-color: #3b3759; }
 
     .card.equipped {
       border: 1px solid var(--equipped-orange);
@@ -234,10 +221,9 @@
       align-items: center;
       gap: 6px;
       margin-bottom: 8px;
-      padding-right: 48px;
     }
 
-    .color-symbol {
+    .card-symbol {
       font-size: 18px;
       line-height: 1;
       flex-shrink: 0;
@@ -261,12 +247,13 @@
     }
 
     .card-tag.equipped { color: var(--equipped-orange); }
+    .card-tag.owned { color: #7dff5e; }
 
     .card-desc {
       font-size: 9.5px;
       line-height: 1.5;
-      color: #c4c0db; /* Bright legible description text */
-      letter-spacing: 0.03em;
+      color: #c4c0db;
+      letter-spacing: 0.04em;
     }
 
     #status {
@@ -278,8 +265,8 @@
       margin-top: 4px;
     }
 
-    @media (max-width: 900px) {
-      .warpaint-grid { grid-template-columns: repeat(2, 1fr); }
+    @media (max-width: 850px) {
+      .card-grid { grid-template-columns: repeat(2, 1fr); }
       .studio-layout { flex-direction: column; }
       .preview-frame { width: 100%; position: static; }
       .vault-tabs { grid-template-columns: repeat(2, 1fr); }
@@ -290,19 +277,31 @@
 
   <div class="vault-header">THE VAULT — TRADES IN SOULS</div>
 
-  <!-- Top Navigation Tabs (Screenshot 1) -->
   <div class="vault-tabs">
-    <button class="vtab active" id="tabGunslingers">GUNSLINGERS</button>
-    <button class="vtab" id="tabWarpaint">WARPAINT</button>
-    <button class="vtab" id="tabRerun">RERUN BUFFS</button>
-    <button class="vtab" id="tabPets">PETS</button>
+    <button class="vtab" id="tabGunslingers">GUNSLINGERS</button>
+    <button class="vtab active" id="tabWarpaint">WARPAINT</button>
+    <button class="vtab" onclick="alert('Switch to Rerun Buffs tab in-game!')">RERUN BUFFS</button>
+    <button class="vtab" onclick="alert('Switch to Pets tab in-game!')">PETS</button>
   </div>
 
   <div class="studio-layout">
-    <!-- Left Preview Panel -->
     <div class="preview-frame">
       <div class="preview-card">
         <canvas id="spriteCanvas" width="160" height="160"></canvas>
+      </div>
+
+      <div class="ctrl-group">
+        <label for="charSelect">Warden</label>
+        <select id="charSelect">
+          <option value="gunsmith">Gunsmith</option>
+          <option value="wraith">Wraith</option>
+          <option value="juggernaut">Juggernaut</option>
+          <option value="demolitionist">Demolitionist</option>
+          <option value="alchemist">Alchemist</option>
+          <option value="shredder">Shredder</option>
+          <option value="necromancer" selected>Necromancer</option>
+          <option value="theUnknown">The Unknown</option>
+        </select>
       </div>
 
       <div class="ctrl-group">
@@ -340,30 +339,13 @@
       <div id="status"></div>
     </div>
 
-    <!-- Right Scrolling Sections -->
-    <div class="vault-content" id="vaultContent">
-      
-      <div id="gunslingerSection">
-        <div class="section-title">GUNSLINGERS <span>— warden class catalog</span></div>
-        <div class="warpaint-grid" id="gunslingerGrid"></div>
-      </div>
-
-      <div id="bodySection" style="margin-top: 15px;">
-        <div class="section-title">BODY WARPAINT</div>
-        <div class="warpaint-grid" id="bodyGrid"></div>
-      </div>
-
-      <div id="gunSection" style="margin-top: 15px;">
-        <div class="section-title">GUN WARPAINT <span>— the same paints, bought once, worn on either</span></div>
-        <div class="warpaint-grid" id="gunGrid"></div>
-      </div>
-
-    </div>
+    <div class="vault-content" id="vaultContent"></div>
   </div>
 
   <script>
     // Exact Lore Texts & Symbols from Screenshot 3
-    const GUNSLINGERS = [    //gemini how could you get the symbols wrong :sob:
+    const GUNSLINGERS = [    //gemini how could you get the symbols wrong :sob: i fixed them tho
+                            // ok NOW it says undefined after returning the code back to this
       { id: "gunsmith",      name: "GUNSMITH",           symbol: "ᚠ", color: "#e8e2d0", desc: "The baseline. 100 vitality, steady hands." },
       { id: "wraith",        name: "WRAITH",             symbol: "ᚹ", color: "#5ee6ff", desc: "70 vitality, fast dash that barely cools down — and dashes far longer than anyone else. Fires no bullets — instead it VEIL BURSTS: vanishing between worlds and wounding everything in a circle around it. Foes slain inside the circle discharge your full gunshot." },
       { id: "juggernaut",    name: "JUGGERNAUT",         symbol: "ᛞ", color: "#ff8a3d", desc: "160 vitality of stubborn meat. Slow. Fires one MASSIVE slug at a time — a glacial rate of fire, but the hardest-hitting base shot of any gunslinger, and it punches clean through the first body it hits." },
@@ -397,124 +379,132 @@
     ];
 
     const GUN_WARPAINTS = [
-      { id: "bone",       name: "BONE",        color: "#e8e2d0", desc: "Pale as what's under the floor." },
-      { id: "emberg",     name: "EMBERGLOW",   color: "#ff8a3d", desc: "Forge-orange warpaint." },
-      { id: "toxin",      name: "TOXIN",       color: "#7dff5e", desc: "Don't lick it." },
-      { id: "rime",       name: "RIME",        color: "#5ee6ff", desc: "Cold-blooded." },
-      { id: "hex",        name: "HEX",         color: "#9d6bff", desc: "Seal-violet, the Warden's own shade." },
-      { id: "gore",       name: "GORE",        color: "#ff4d5e", desc: "It isn't paint." },
-      { id: "fathom",     name: "FATHOM",      color: "#4d7dff", desc: "Pressure-blue, dredged from beneath the Nave." },
-      { id: "witch",      name: "WITCHLIGHT",  color: "#ff6bd6", desc: "A colour with no honest business underground." },
-      { id: "gilded",     name: "GILDED",      color: "#ffd23d", desc: "Soul-gold. Pure vanity. Worth it." },
-      { id: "quick",      name: "QUICKSILVER", color: "#b8c4d6", desc: "Mirror-steel. The horrors see themselves arrive." },
-      { id: "voidt",      name: "VOIDTOUCH",   color: "#c9b8ff", desc: "The Horizon looked back, and it left this." },
-      { id: "pure",       name: "SUPERNOVA",   color: "#ffffff", desc: "The blinding radiance of a star at the instant of its collapse." },
-      { id: "darkness",   name: "ABYSS",       color: "#05050a", desc: "True nothingness. Not even your own shadow survives here." },
-      { id: "jade",       name: "EMERALD",     color: "#2eff8a", desc: "A sharp, crystalline green that pulses with trapped, ancient life." },
-      { id: "crimson",    name: "SANGUINE",    color: "#880011", desc: "The deep, dark red of a thousand cycles. It smells of ancient iron." },
-      { id: "nebula",     name: "NEBULA",      color: "#5d00ff", desc: "A saturated, deep cosmic purple that seems to pull at the air around it." },
-      { id: "sulfur",     name: "SULFUR",      color: "#ccff00", desc: "A violent, neon yellow-green that warns of imminent danger." },
-      { id: "rainbow",    name: "RAINBOW",     color: "#ffffff", desc: "A shifting spectrum of colours that dances across the surface." }
+      { id: "bone",       name: "BONE",        color: "#e8e2d0", symbol: "◉", desc: "Pale as what's under the floor." },
+      { id: "emberg",     name: "EMBERGLOW",   color: "#ff8a3d", symbol: "◉", desc: "Forge-orange warpaint." },
+      { id: "toxin",      name: "TOXIN",       color: "#7dff5e", symbol: "◉", desc: "Don't lick it." },
+      { id: "rime",       name: "RIME",        color: "#5ee6ff", symbol: "◉", desc: "Cold-blooded." },
+      { id: "hex",        name: "HEX",         color: "#9d6bff", symbol: "◉", desc: "Seal-violet, the Warden's own shade." },
+      { id: "gore",       name: "GORE",        color: "#ff4d5e", symbol: "◉", desc: "It isn't paint." },
+      { id: "fathom",     name: "FATHOM",      color: "#4d7dff", symbol: "◉", desc: "Pressure-blue, dredged from beneath the Nave." },
+      { id: "witch",      name: "WITCHLIGHT",  color: "#ff6bd6", symbol: "◉", desc: "A colour with no honest business underground." },
+      { id: "gilded",     name: "GILDED",      color: "#ffd23d", symbol: "◉", desc: "Soul-gold. Pure vanity. Worth it." },
+      { id: "quick",      name: "QUICKSILVER", color: "#b8c4d6", symbol: "◉", desc: "Mirror-steel. The horrors see themselves arrive." },
+      { id: "voidt",      name: "VOIDTOUCH",   color: "#c9b8ff", symbol: "◉", desc: "The Horizon looked back, and it left this." },
+      { id: "pure",       name: "SUPERNOVA",   color: "#ffffff", symbol: "◉", desc: "The blinding radiance of a star at the instant of its collapse." },
+      { id: "darkness",   name: "ABYSS",       color: "#05050a", symbol: "◉", desc: "True nothingness. Not even your own shadow survives here." },
+      { id: "jade",       name: "EMERALD",     color: "#2eff8a", symbol: "◉", desc: "A sharp, crystalline green that pulses with trapped, ancient life." },
+      { id: "crimson",    name: "SANGUINE",    color: "#880011", symbol: "◉", desc: "The deep, dark red of a thousand cycles. It smells of ancient iron." },
+      { id: "nebula",     name: "NEBULA",      color: "#5d00ff", symbol: "◉", desc: "A saturated, deep cosmic purple that seems to pull at the air around it." },
+      { id: "sulfur",     name: "SULFUR",      color: "#ccff00", symbol: "◉", desc: "A violent, neon yellow-green that warns of imminent danger." },
+      { id: "rainbow",    name: "RAINBOW",     color: "#ffffff", symbol: "◉", desc: "A shifting spectrum of colours that dances across the surface." }
     ];
 
-    let selectedChar = "gunsmith";
-    let selectedBodyColor = BODY_WARPAINTS[1].color; // Ember-orange default
-    let selectedGunColor = GUN_WARPAINTS[0].color; // Runelight default
+    let currentTab = "warpaint";
+    let selectedBodyColor = BODY_WARPAINTS[1].color;
+    let selectedGunColor = GUN_WARPAINTS[0].color;
 
-    const gunslingerGrid = document.getElementById("gunslingerGrid");
-    const bodyGrid = document.getElementById("bodyGrid");
-    const gunGrid = document.getElementById("gunGrid");
-    const vtabs = document.querySelectorAll(".vtab");
+    const vaultContent = document.getElementById("vaultContent");
+    const charSel = document.getElementById("charSelect");
+    const tabGunslingers = document.getElementById("tabGunslingers");
+    const tabWarpaint = document.getElementById("tabWarpaint");
 
-    // Tab Switching Smooth Scrolling
-    vtabs.forEach((tab, index) => {
-      tab.addEventListener("click", () => {
-        vtabs.forEach(t => t.classList.remove("active"));
-        tab.classList.add("active");
+    function renderVaultView() {
+      vaultContent.innerHTML = "";
+      if (currentTab === "gunslingers") {
+        tabGunslingers.className = "vtab active";
+        tabWarpaint.className = "vtab";
         
-        const gunslingerSec = document.getElementById("gunslingerSection");
-        const bodySec = document.getElementById("bodySection");
+        const title = document.createElement("div");
+        title.className = "section-title";
+        title.textContent = "GUNSLINGERS";
+        vaultContent.appendChild(title);
 
-        if (index === 0) {
-          gunslingerSec.scrollIntoView({ behavior: 'smooth' });
-        } else if (index === 1) {
-          bodySec.scrollIntoView({ behavior: 'smooth' });
-        } else {
-          const status = document.getElementById("status");
-          status.textContent = "TAB UNLOCKED IN VAULT!";
-          setTimeout(() => status.textContent = "", 2500);
-        }
-      });
-    });
+        const grid = document.createElement("div");
+        grid.className = "card-grid";
 
-    function renderGrids() {
-      // 1. Render Gunslingers Warden Cards Grid
-      //oh yo vscode copilot suggestions think ty for ${gs.color}
-      gunslingerGrid.innerHTML = "";
-      GUNSLINGERS.forEach(gs => {
-        const isEquipped = gs.id === selectedChar;
-        const card = document.createElement("div");
-        card.className = `card ${isEquipped ? "equipped" : ""}`;
-        card.innerHTML = `
-          <div class="card-tag ${isEquipped ? "equipped" : "owned"}" ${!isEquipped ? 'style="color:#7dff5e"' : ""}>${isEquipped ? "EQUIPPED" : "OWNED"}</div>
-          <div class="card-top">
-            <span class="color-symbol" style="color: ${gs.color};">${gs.symbol}</span>
-            <div class="card-name">${gs.name}</div>
-          </div>
-          <div class="card-desc">${gs.desc}</div>
-        `;
-        card.addEventListener("click", () => {
-          selectedChar = gs.id;
-          renderGrids();
+        GUNSLINGERS.forEach(g => {
+          const isEquipped = charSel.value === g.id;
+          const card = document.createElement("div");
+          card.className = `card ${isEquipped ? "equipped" : ""}`;
+          card.innerHTML = `
+            <div class="card-tag ${isEquipped ? "equipped" : "owned"}">${isEquipped ? "EQUIPPED" : "OWNED"}</div>
+            <div class="card-top">
+              <span class="card-symbol" style="color:${g.color}">${g.symbol}</span>
+              <div class="card-name">${g.name}</div>
+            </div>
+            <div class="card-desc">${g.desc}</div>
+          `;
+          card.addEventListener("click", () => {
+            charSel.value = g.id;
+            renderVaultView();
+          });
+          grid.appendChild(card);
         });
-        gunslingerGrid.appendChild(card);
-      });
+        vaultContent.appendChild(grid);
 
-      // 2. Render Body Warpaint Grid
-      bodyGrid.innerHTML = "";
-      BODY_WARPAINTS.forEach(wp => {
-        const isEquipped = wp.color === selectedBodyColor;
-        const card = document.createElement("div");
-        card.className = `card ${isEquipped ? "equipped" : ""}`;
-        card.style.minHeight = "115px";
-        card.innerHTML = `
-          <div class="card-tag ${isEquipped ? "equipped" : "owned"}" ${!isEquipped ? `style="color:${wp.color}"` : ""}>${isEquipped ? "EQUIPPED" : "OWNED"}</div>
-          <div class="card-top">
-            <span class="color-symbol" style="color: ${wp.color};">◉</span>
-            <div class="card-name">${wp.name}</div>
-          </div>
-          <div class="card-desc">${wp.desc}</div>
-        `;
-        card.addEventListener("click", () => {
-          selectedBodyColor = wp.color;
-          renderGrids();
-        });
-        bodyGrid.appendChild(card);
-      });
+      } else {
+        tabWarpaint.className = "vtab active";
+        tabGunslingers.className = "vtab";
 
-      // 3. Render Gun Warpaint Grid
-      gunGrid.innerHTML = "";
-      GUN_WARPAINTS.forEach(wp => {
-        const isEquipped = wp.color === selectedGunColor;
-        const card = document.createElement("div");
-        card.className = `card ${isEquipped ? "equipped" : ""}`;
-        card.style.minHeight = "115px";
-        card.innerHTML = `
-          <div class="card-tag ${isEquipped ? "equipped" : "owned"}" ${!isEquipped ? `style="color:${wp.color}"` : ""}>${isEquipped ? "EQUIPPED" : "OWNED"}</div>
-          <div class="card-top">
-            <span class="color-symbol" style="color: ${wp.color};">${wp.symbol || "◉"}</span>
-            <div class="card-name">${wp.name}</div>
-          </div>
-          <div class="card-desc">${wp.desc}</div>
-        `;
-        card.addEventListener("click", () => {
-          selectedGunColor = wp.color;
-          renderGrids();
+        const sec1 = document.createElement("div");
+        sec1.innerHTML = `<div class="section-title">BODY WARPAINT</div>`;
+        const bodyGrid = document.createElement("div");
+        bodyGrid.className = "card-grid";
+
+        BODY_WARPAINTS.forEach(wp => {
+          const isEquipped = wp.color === selectedBodyColor;
+          const card = document.createElement("div");
+          card.className = `card ${isEquipped ? "equipped" : ""}`;
+          card.innerHTML = `
+            <div class="card-tag ${isEquipped ? "equipped" : "owned"}" ${!isEquipped ? `style="color:${wp.color}"` : ""}>${isEquipped ? "EQUIPPED" : "OWNED"}</div>
+            <div class="card-top">
+              <span class="card-symbol" style="color: ${wp.color};">◉</span>
+              <div class="card-name">${wp.name}</div>
+            </div>
+            <div class="card-desc">${wp.desc}</div>
+          `;
+          card.addEventListener("click", () => {
+            selectedBodyColor = wp.color;
+            renderVaultView();
+          });
+          bodyGrid.appendChild(card);
         });
-        gunGrid.appendChild(card);
-      });
+        sec1.appendChild(bodyGrid);
+        vaultContent.appendChild(sec1);
+
+        const sec2 = document.createElement("div");
+        sec2.style.marginTop = "10px";
+        sec2.innerHTML = `<div class="section-title">GUN WARPAINT <span>— worn on either</span></div>`;
+        const gunGrid = document.createElement("div");
+        gunGrid.className = "card-grid";
+
+        GUN_WARPAINTS.forEach(wp => {
+          const isEquipped = wp.color === selectedGunColor;
+          const card = document.createElement("div");
+          card.className = `card ${isEquipped ? "equipped" : ""}`;
+          card.innerHTML = `
+            <div class="card-tag ${isEquipped ? "equipped" : "owned"}" ${!isEquipped ? `style="color:${wp.color}"` : ""}>${isEquipped ? "EQUIPPED" : "OWNED"}</div>
+            <div class="card-top">
+              <span class="card-symbol" style="color: ${wp.color};">${wp.symbol}</span>
+              <div class="card-name">${wp.name}</div>
+            </div>
+            <div class="card-desc">${wp.desc}</div>
+          `;
+          card.addEventListener("click", () => {
+            selectedGunColor = wp.color;
+            renderVaultView();
+          });
+          gunGrid.appendChild(card);
+        });
+        sec2.appendChild(gunGrid);
+        vaultContent.appendChild(sec2);
+      }
     }
-    renderGrids();
+
+    tabGunslingers.addEventListener("click", () => { currentTab = "gunslingers"; renderVaultView(); });
+    tabWarpaint.addEventListener("click", () => { currentTab = "warpaint"; renderVaultView(); });
+    charSel.addEventListener("change", () => renderVaultView());
+    renderVaultView();
 
     const speedRange = document.getElementById("speedRange");
     const speedVal = document.getElementById("speedVal");
@@ -532,6 +522,7 @@
     const canvas = document.getElementById("spriteCanvas");
     const cx = canvas.getContext("2d");
     const TAU = Math.PI * 2;
+    function drawCracks(cx, hpFrac, radius) {}
 
     let gameTime = 0;
 
@@ -547,19 +538,14 @@
       const aim = customAim;
       const perpX = -Math.sin(aim);
       const perpY = Math.cos(aim);
-      
-      let finalBodyColor = bodyColor;
-      if (bodyColor === "#ffffff") {
-        const hue = (timeVal * 120) % 360;
-        finalBodyColor = `hsl(${hue}, 100%, 65%)`;
-      }
+      const col = bodyColor;
+      const tint = weaponColor;
 
-      const P = { char: charType, mods: { sawReach: 76 }, sawRot: timeVal };
+      const P = { char: charType, r: 12, mods: { sawReach: 76 }, sawRot: timeVal };
       const Game = { time: timeVal };
 
       if (P.char === "shredder") {
         targetCtx.save(); targetCtx.translate(px, py);
-
         targetCtx.save();
         const sawR = P.mods.sawReach || 76;
         targetCtx.rotate(P.sawRot || 0);
@@ -578,19 +564,18 @@
         targetCtx.restore();
 
         targetCtx.rotate(aim);
-        targetCtx.fillStyle = finalBodyColor;
+        targetCtx.fillStyle = bodyColor;
         targetCtx.beginPath(); targetCtx.moveTo(-10, -12); targetCtx.lineTo(12, -8); targetCtx.lineTo(12, 8); targetCtx.lineTo(-10, 12); targetCtx.closePath(); targetCtx.fill();
         targetCtx.fillStyle = "#0b0b14"; targetCtx.fillRect(2, -3, 6, 6);
-        targetCtx.fillStyle = "#0b0b14"; targetCtx.beginPath(); targetCtx.arc(0, 0, 8, 0, TAU); targetCtx.fill();
-        
-        targetCtx.fillStyle = finalBodyColor; 
+        targetCtx.beginPath(); targetCtx.arc(0, 0, 8, 0, TAU); targetCtx.fill();
+        targetCtx.fillStyle = bodyColor; 
         targetCtx.font = "bold 9px monospace"; targetCtx.textAlign = "center"; targetCtx.textBaseline = "middle";
         targetCtx.fillText("ᛃ", 0, 1);
         targetCtx.restore();
 
       } else if (P.char === "necromancer") {
         targetCtx.save(); targetCtx.translate(px, py);
-        targetCtx.fillStyle = finalBodyColor;
+        targetCtx.fillStyle = bodyColor;
         targetCtx.beginPath(); targetCtx.moveTo(0, -10); targetCtx.quadraticCurveTo(12, -8, 10, 8);
         targetCtx.lineTo(-10, 8); targetCtx.quadraticCurveTo(-12, -8, 0, -10); targetCtx.closePath(); targetCtx.fill();
         
@@ -614,9 +599,9 @@
         targetCtx.fillText("ᚻ", 0, 0); targetCtx.restore();
         targetCtx.restore();
 
-      } else if (P.char === "gunsmith" || P.char === "alchemist" || P.char === "unknown" || P.char === "passenger") {
+      } else if (P.char === "gunsmith") {
         targetCtx.save(); targetCtx.translate(px, py); targetCtx.rotate(aim + Math.PI / 2);
-        targetCtx.fillStyle = finalBodyColor;
+        targetCtx.fillStyle = bodyColor;
         targetCtx.beginPath();
         for (let i = 0; i < 5; i++) { const a = i / 5 * TAU - Math.PI / 2; i === 0 ? targetCtx.moveTo(Math.cos(a)*13, Math.sin(a)*13) : targetCtx.lineTo(Math.cos(a)*13, Math.sin(a)*13); }
         targetCtx.closePath(); targetCtx.fill();
@@ -632,9 +617,9 @@
 
       } else if (P.char === "wraith") {
         targetCtx.save(); targetCtx.translate(px, py); targetCtx.rotate(aim);
-        targetCtx.fillStyle = finalBodyColor;
+        targetCtx.fillStyle = bodyColor;
         targetCtx.beginPath(); targetCtx.moveTo(0,-12); targetCtx.lineTo(9,0); targetCtx.lineTo(0,12); targetCtx.lineTo(-9,0); targetCtx.closePath(); targetCtx.fill();
-        targetCtx.strokeStyle = finalBodyColor; targetCtx.lineWidth = 2;
+        targetCtx.strokeStyle = bodyColor; targetCtx.lineWidth = 2;
         for (const [oy, ex] of [[-7,-27],[0,-30],[7,-27]]) {
           targetCtx.globalAlpha = 0.45;
           targetCtx.beginPath(); targetCtx.moveTo(-9, 0); targetCtx.quadraticCurveTo(-18, oy * 0.4, ex, oy); targetCtx.stroke();
@@ -649,11 +634,11 @@
 
       } else if (P.char === "juggernaut") {
         targetCtx.save(); targetCtx.translate(px, py);
-        targetCtx.fillStyle = finalBodyColor;
+        targetCtx.fillStyle = bodyColor;
         targetCtx.beginPath();
         for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; i === 0 ? targetCtx.moveTo(Math.cos(a)*17, Math.sin(a)*17) : targetCtx.lineTo(Math.cos(a)*17, Math.sin(a)*17); }
         targetCtx.closePath(); targetCtx.fill();
-        targetCtx.fillStyle = finalBodyColor;
+        targetCtx.fillStyle = bodyColor;
         for (const s of [-1, 1]) { targetCtx.beginPath(); targetCtx.arc(perpX*17*s, perpY*17*s, 7, 0, TAU); targetCtx.fill(); }
         targetCtx.fillStyle = "#0b0b14"; targetCtx.save(); targetCtx.rotate(aim + Math.PI / 2); targetCtx.fillRect(-10, -2.5, 20, 5); targetCtx.restore();
         targetCtx.restore();
@@ -665,12 +650,11 @@
 
       } else if (P.char === "demolitionist") {
         targetCtx.save(); targetCtx.translate(px, py); targetCtx.rotate(aim + Math.PI / 2);
-        targetCtx.fillStyle = finalBodyColor;
+        targetCtx.fillStyle = bodyColor;
         targetCtx.beginPath();
         for (let i = 0; i < 8; i++) { const a = i / 8 * TAU + Math.PI / 8; i === 0 ? targetCtx.moveTo(Math.cos(a)*14, Math.sin(a)*14) : targetCtx.lineTo(Math.cos(a)*14, Math.sin(a)*14); }
         targetCtx.closePath(); targetCtx.fill();
         targetCtx.fillStyle = "#0b0b14"; targetCtx.fillRect(-6, -3, 12, 5);
-        
         targetCtx.fillStyle = "#0b0b14";
         targetCtx.beginPath(); targetCtx.arc(0, 10, 4.5, 0, TAU); targetCtx.fill();
         if (Math.sin(Game.time * 7) > 0) { targetCtx.fillStyle = "#ffd23d"; targetCtx.beginPath(); targetCtx.arc(0, 10, 1.8, 0, TAU); targetCtx.fill(); }
@@ -679,6 +663,55 @@
         targetCtx.beginPath(); targetCtx.moveTo(px+Math.cos(aim)*11, py+Math.sin(aim)*11); targetCtx.lineTo(px+Math.cos(aim)*21, py+Math.sin(aim)*21); targetCtx.stroke();
         targetCtx.strokeStyle = "#0b0b14"; targetCtx.lineWidth = 3;
         targetCtx.beginPath(); targetCtx.moveTo(px+Math.cos(aim)*16, py+Math.sin(aim)*16); targetCtx.lineTo(px+Math.cos(aim)*22, py+Math.sin(aim)*22); targetCtx.stroke();
+
+      } else if (P.char === "alchemist") {
+        /* Alchemist: triangular flask body + orbiting rune + forked barrel */
+        targetCtx.save(); targetCtx.translate(px, py); targetCtx.rotate(aim + Math.PI / 2);
+        targetCtx.fillStyle = bodyColor;
+        targetCtx.beginPath(); targetCtx.moveTo(0,-13); targetCtx.lineTo(12,11); targetCtx.lineTo(-12,11); targetCtx.closePath(); targetCtx.fill();
+        targetCtx.fillStyle = "#0b0b14"; targetCtx.fillRect(-3, -18, 6, 7);
+        drawCracks(targetCtx, hpFrac, 9);
+        targetCtx.restore();
+
+        targetCtx.save();
+        const orbitA = Game.time * 2.8;
+        targetCtx.font = "bold 10px monospace"; targetCtx.textAlign = "center"; targetCtx.textBaseline = "middle";
+        targetCtx.globalAlpha = 0.85; targetCtx.fillStyle = col;
+        targetCtx.fillText("ᛜ", px + Math.cos(orbitA)*21, py + Math.sin(orbitA)*21);
+        targetCtx.restore();
+
+        targetCtx.strokeStyle = tint; targetCtx.lineWidth = 2.5; targetCtx.lineCap = "round";
+        if (hpFrac < 0.3) {
+          targetCtx.beginPath(); targetCtx.moveTo(px+Math.cos(aim)*9, py+Math.sin(aim)*9);
+          targetCtx.lineTo(px+Math.cos(aim)*16, py+Math.sin(aim)*16);
+          targetCtx.lineTo(px+Math.cos(aim)*22 + perpX*2, py+Math.sin(aim)*22 + perpY*2); targetCtx.stroke();
+          const bx = px+Math.cos(aim)*22 + perpX*2, by = py+Math.sin(aim)*22 + perpY*2;
+          targetCtx.beginPath(); targetCtx.moveTo(bx, by); targetCtx.lineTo(bx + Math.cos(aim)*3 + perpX*8, by + Math.sin(aim)*3 + perpY*8); targetCtx.stroke();
+          targetCtx.beginPath(); targetCtx.moveTo(bx, by); targetCtx.lineTo(bx - Math.cos(aim)*1 - perpX*5, by - Math.sin(aim)*1 - perpY*5); targetCtx.stroke();
+        } else {
+          targetCtx.beginPath(); targetCtx.moveTo(px+Math.cos(aim)*9, py+Math.sin(aim)*9); targetCtx.lineTo(px+Math.cos(aim)*22, py+Math.sin(aim)*22); targetCtx.stroke();
+          const tipX = px+Math.cos(aim)*27, tipY = py+Math.sin(aim)*27;
+          for (const s of [-1, 1]) {
+            targetCtx.beginPath(); targetCtx.moveTo(px+Math.cos(aim)*22, py+Math.sin(aim)*22); targetCtx.lineTo(tipX+perpX*4*s, tipY+perpY*4*s); targetCtx.stroke();
+          }
+        }
+
+      } else if (P.char === "theUnknown") {
+        /* THE UNKNOWN: void-ring body with orbiting rune glyphs, seen from within. */
+        targetCtx.save(); targetCtx.translate(px, py);
+        const ua = Game.time * 0.9;
+        for (let k = 0; k < 3; k++) {
+          const a = ua + k * TAU / 3;
+          targetCtx.fillStyle = "rgba(201,184,255," + (0.35 + 0.25 * Math.sin(Game.time * 2 + k)) + ")";
+          targetCtx.beginPath(); targetCtx.arc(Math.cos(a) * 14, Math.sin(a) * 14, 3, 0, TAU); targetCtx.fill();
+        }
+        targetCtx.fillStyle = "#0a0818";
+        targetCtx.beginPath(); targetCtx.arc(0, 0, P.r + 2, 0, TAU); targetCtx.fill();
+        targetCtx.strokeStyle = col; targetCtx.lineWidth = 2;
+        targetCtx.beginPath(); targetCtx.arc(0, 0, P.r, 0, TAU); targetCtx.stroke();
+        targetCtx.fillStyle = col; targetCtx.font = "bold 10px monospace"; targetCtx.textAlign = "center"; targetCtx.textBaseline = "middle";
+        targetCtx.fillText("?", 0, 1);
+        targetCtx.restore();
       }
 
       targetCtx.restore();
@@ -688,7 +721,7 @@
       gameTime += parseFloat(speedRange.value);
       const hp = parseFloat(hpSelect.value);
       const currentAim = parseFloat(aimRange.value);
-      renderSprite(cx, canvas.width, canvas.height, 1, gameTime, selectedBodyColor, selectedGunColor, selectedChar, hp, currentAim);
+      renderSprite(cx, canvas.width, canvas.height, 1, gameTime, selectedBodyColor, selectedGunColor, charSel.value, hp, currentAim);
       requestAnimationFrame(animate);
     }
     requestAnimationFrame(animate);
@@ -702,10 +735,10 @@
       exportCanvas.height = 160 * scale;
       const exportCtx = exportCanvas.getContext("2d");
 
-      renderSprite(exportCtx, exportCanvas.width, exportCanvas.height, scale, 0, selectedBodyColor, selectedGunColor, selectedChar, hp, currentAim);
+      renderSprite(exportCtx, exportCanvas.width, exportCanvas.height, scale, 0, selectedBodyColor, selectedGunColor, charSel.value, hp, currentAim);
 
       const link = document.createElement("a");
-      link.download = `${selectedChar}-${scale}x.png`;
+      link.download = `${charSel.value}-${scale}x.png`;
       link.href = exportCanvas.toDataURL("image/png");
       link.click();
     });
@@ -735,7 +768,7 @@
         const blob = new Blob(chunks, { type: 'video/webm' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
-        link.download = `${selectedChar}-animated-${scale}x.webm`;
+        link.download = `${charSel.value}-animated-${scale}x.webm`;
         link.href = url;
         link.click();
         status.textContent = "WEBM SAVED!";
@@ -750,7 +783,7 @@
       
       function recordLoop() {
         gameTime += speed;
-        renderSprite(recordCtx, recordCanvas.width, recordCanvas.height, scale, gameTime, selectedBodyColor, selectedGunColor, selectedChar, hp, currentAim);
+        renderSprite(recordCtx, recordCanvas.width, recordCanvas.height, scale, gameTime, selectedBodyColor, selectedGunColor, charSel.value, hp, currentAim);
         if (Date.now() - startTime < 3000) {
           requestAnimationFrame(recordLoop);
         } else {
