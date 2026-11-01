@@ -56,6 +56,18 @@
       text-align: center;
     }
 
+    .studio-nav {
+      width: min(960px, 98vw);
+      display: flex;
+      justify-content: center;
+      margin-bottom: 12px;
+    }
+
+    .studio-nav .menu-btn {
+      flex: 0 1 220px;
+      text-decoration: none;
+    }
+
     .vault-tabs {
       width: min(960px, 98vw);
       display: grid;
@@ -335,6 +347,9 @@
 <body>
 
   <div class="vault-header">THE VAULT STUDIO — SPRITES &amp; COMPANIONS</div>
+  <nav class="studio-nav" aria-label="Site navigation">
+    <a class="menu-btn" href="index.html">BACK TO RUNEGUN</a>
+  </nav>
 
   <div class="vault-tabs">
     <button class="vtab" id="tabGunslingers">GUNSLINGERS</button>
