@@ -11,6 +11,7 @@
 const Game = {
   state: "menu",   // menu | vault | play | pause | held | rune | choice | continue | dead
   wave: 0, score: 0, kills: 0, time: 0,
+   bloodfeast: 0,                 // blood gathered from bleed ticks; Sancho refines it into Hardblood
   /* the build (runes / lockedRunes / rerolls / mods / maxHpMul / bonusRuneSlots)
      lives on each player object now — co-op wardens carve separate paths */
   nextId: 1,                    // monotonic entity id, assigned at every spawn (net sync)

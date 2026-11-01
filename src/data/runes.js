@@ -210,7 +210,7 @@ const RUNES = {
     desc: "+25% souls from every kill per stack.",
     mod: (m, n) => { m.midas += 0.25 * stackCurve(n); } },
   quarry: { name: "QUARRY", glyph: "ᚩ", color: "#b6ff4d",
-    desc: "Your gun savors the wounded — bullets bite +20% harder per stack into anything burning or chilled. The finisher every elemental build was missing.",
+    desc: "Your gun savors the wounded — bullets bite +20% harder per stack into anything burning, chilled or bleeding. The finisher every elemental build was missing.",
     mod: (m, n) => { m.prey *= stackMul(1.2, n); } },
   puncture: { name: "PUNCTURE", glyph: "ᛈ", color: "#ffd23d",
     desc: "Every shot can find the gap in the armor — a chance to strike for more than double. Each stack raises the odds, up to 60%. Bosses bleed too.",
@@ -248,6 +248,12 @@ const RUNES = {
   slime: { name: "SLIME", glyph: "ᛠ", color: "#86d020",
     desc: "You leave a slick of caustic slime in your wake that lingers, then fades. Anything that wades through it festers with damage over time. Stacks thicken and widen the trail.",
     mod: (m, n) => { m.slime += stackCurve(n); } },
+  bleed: { name: "BLEED", glyph: "ᛊ", color: "#ff4d5e",
+    desc: "Hits inflict bleeding damage over time. Stacks make the wound longer and more painful.",
+    mod: (m, n) => { m.bleed += n; } },
+  vampire: { name: "VAMPIRE", glyph: "ᛔ", color: "#ff4d5e",
+    desc: "Hits against bleeding enemies deal +30% damage and heal 0.25 vitality per stack. Excess healing can grow max vitality. Only appears while you hold BLEED.",
+    mod: (m, n) => { m.vampire += n; } },
 };
 
 /* =========================================================
@@ -426,6 +432,7 @@ function runeDefFor(p, id) {
 function runePool(p) {
   if (p.char === "theUnknown") return UNK_PLAYER_RUNE_IDS;
   let ids = p.lockedRunes || RUNE_IDS;
+  if (!(p.runes && p.runes.bleed > 0)) ids = ids.filter(id => id !== "vampire");
   const isHiddenChar = CHARS[p.char] && CHARS[p.char].hidden;
   if (!Meta.showHiddenRunes || !isHiddenChar) {
     ids = ids.filter(id => !HIDDEN_RUNE_IDS.includes(id));
@@ -495,13 +502,27 @@ function buildWeaponModsFrom(runes, p) {
     prey: 1, crit: 0, critMul: 2.2, wrath: 0, dr: 0, thorns: 0,
     regen: 0, regenDelay: 3, vortex: 0, fear: 0, fearDur: 0,
     timeField: 0, timeR: 0, timeMul: 0, prickle: 0, prickleR: 0, slime: 0,
-    scatterSplit: 1, sawDmg: 0, reprieveStacks: 0, wardStacks: 0 };
+    bleed: 0, vampire: 0, scatterSplit: 1, sawDmg: 0, reprieveStacks: 0, wardStacks: 0 };
   /* a character may reshape the bare gun before any rune speaks (JUGGERNAUT's massive slow slug) */
   const wb = CHARS[p.char] && CHARS[p.char].weaponBase;
   if (wb) Object.assign(m, wb);
+  if (p.char === "sancho") {
+    const blood = p.hardblood || 1, stage = p.hbStage || (blood >= 20 ? 3 : blood >= 10 ? 2 : 1);
+    if (p.weaponMode === "ranged") {
+      const scale = Math.floor(blood / 10);
+      Object.assign(m, { dmg: 7 + scale * 2, rate: 6.5 + scale, size: 6, speed: 1000, count: 2, spread: 0.04, knock: 35 });
+    } else if (stage === 3) Object.assign(m, { dmg: 26, rate: 4.2, size: 26, speed: 400, knock: 125 });
+    else if (stage === 2) Object.assign(m, { dmg: 18, rate: 5.2, size: 20, speed: 400, knock: 100 });
+    else Object.assign(m, { dmg: 12 + (p.sanchoBonusDmg || 0), rate: 4.5, size: 16, speed: 400, knock: 80 });
+  }
   for (const id in runes) {
     const n = runes[id];
     if (n > 0) { const rd = runeDefFor(p, id); if (rd) rd.mod(m, n); }
+  }
+  if (p.char === "sancho") {
+    const hardbloodPower = Math.floor((p.hardblood || 0) / 6);
+    m.dmg *= 1 + hardbloodPower * 0.1;
+    m.dr = Math.min(0.9, m.dr + hardbloodPower * 0.1);
   }
   /* fire rate past the ceiling isn't wasted — the surplus folds into damage,
      capped at what the rune-less gun would earn so it can never become a net gain */
@@ -597,7 +618,7 @@ function runeStatLines(p, id) {
   if (full.execute !== w.execute) L.push("REAP ENEMIES UNDER " + Math.round(full.execute * 100) + "% HP");
   if (full.midas !== w.midas) L.push("+" + Math.round(full.midas * 100) + "% SOULS / KILL");
   if (full.dashTrail !== w.dashTrail) L.push("DASH WAKE " + Math.round(5 + 4 * full.dashTrail) + " DMG / TICK");
-  if (full.prey !== w.prey) L.push("+" + Math.round((full.prey - 1) * 100) + "% DMG TO BURNING / CHILLED");
+  if (full.prey !== w.prey) L.push("+" + Math.round((full.prey - 1) * 100) + "% DMG TO BURNING / CHILLED / BLEEDING");
   if (full.crit !== w.crit) L.push(Math.round(full.crit * 100) + "% CRIT ×" + full.critMul.toFixed(1));
   if (full.wrath !== w.wrath) L.push("UP TO +" + Math.round(full.wrath * 100) + "% DMG NEAR DEATH");
   if (full.dr !== w.dr) L.push("DAMAGE TAKEN −" + Math.round(full.dr * 100) + "%");
@@ -608,6 +629,8 @@ function runeStatLines(p, id) {
   if (full.timeField !== w.timeField) L.push("TIME-SLOW AURA, RADIUS " + Math.round(full.timeR));
   if (full.prickle !== w.prickle) L.push("THORN AURA, RADIUS " + Math.round(full.prickleR));
   if (full.slime !== w.slime) L.push("CAUSTIC SLIME TRAIL " + Math.round(2 + full.slime) + " DMG / TICK");
+  if (full.bleed !== w.bleed) L.push("BLEED " + Math.round(3 * full.bleed) + " DMG / TICK FOR " + (1 + 0.5 * full.bleed).toFixed(1) + "s");
+  if (full.vampire !== w.vampire) L.push("HEAL " + (0.25 * full.vampire).toFixed(2) + " + 30% DAMAGE VS BLEEDING FOES");
   if (full.wardStacks !== w.wardStacks)
     L.push("WAVES & AMBUSHES −" + Math.round(wardCut(full.wardStacks) * 100) + "% ENEMIES");
   if (full.reprieveStacks !== w.reprieveStacks) {
@@ -636,10 +659,11 @@ function recalc(p) {
      so a rune carved while drunk doesn't silently pour the buffs away */
   if (typeof Game !== "undefined" && Game.drunk > 0 && typeof applyDrunkBuffs === "function") applyDrunkBuffs(p);
   const c = CHARS[p.char];
-  p.maxHp = Math.round((c.hp + p.mods.hpBonus) * (p.maxHpMul || 1));
+  p.maxHp = Math.round((c.hp + p.mods.hpBonus + (p.vampireMaxBonus || 0)) * (p.maxHpMul || 1));
   if (p.maxHp > wasMax) p.hp += p.maxHp - wasMax; // heal what extra max grants
   p.hp = Math.min(p.hp, p.maxHp);
   p.speed = c.speed * p.mods.moveMul;
+  if (p.char === "sancho" && p.hp / p.maxHp < 0.3) p.speed *= 1.25;
   p.dashSpeed = clamp((c.dashSpeed || 720) * p.mods.moveMul, 240, 1600);
   p.dashCdBase = c.dashCd * p.mods.dashCdMul;
   /* BULWARK shield: gaining a stack raises the cap and refills every charge at once */

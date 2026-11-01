@@ -17,7 +17,7 @@ const CHARS = {
     desc: "160 vitality of stubborn meat. Slow. Fires one MASSIVE slug at a time — a glacial rate of fire, but the hardest-hitting base shot of any gunslinger, and it punches clean through the first body it hits.",
     hp: 160, speed: 210, dashCd: 1.4, startRunes: 0, rerolls: 3,
     weaponBase: { dmg: 44, rate: 1.0, size: 16, count: 1, knock: 160, pierce: 1 } },
-  demolitionist: { name: "DEMOLITIONIST", glyph: "ᛥ", color: "#ff5e2e", cost: 46000,
+  demolitionist: { name: "DEMOLITIONIST", glyph: "ᛥ", color: "runelight", cost: 46000,
     desc: "110 vitality. Works a stub MORTAR: each round a fat shell lobbed a short arc that clips whatever it crosses mid-air, then SLAMS on arrival — a crater ring, and the charge splinters into flying shot. Dashing sows waiting mines along the whole path; one shard always finds the fool who wakes one. Slow to load — the Juggernaut's glacial cadence.",
     hp: 110, speed: 240, dashCd: 1.2, startRunes: 0, rerolls: 3,
     weaponBase: { dmg: 24, rate: 1.0, size: 6, knock: 90 } },
@@ -42,6 +42,12 @@ const CHARS = {
     hp: 90, speed: 280, dashCd: 1.1, startRunes: 0, rerolls: 3,
     startLoadout: ["warp"],
     weaponBase: { dmg: 24, rate: 3.2, size: 85, speed: 450, knock: 100 } },
+  sancho: { name: "SANCHO", glyph: "ᚦ", color: "#cc0000", cost: 0,
+    hidden: true, consoleOnly: true, melee: true,
+    desc: "The Second Kindred. Hardblood strengthens his fists, saber and lance; at 5 Hardblood he may switch to a blood bow. Starts with BLEED and VAMPIRE. Only granted by the authenticated co-op console.",
+    hp: 95, speed: 320, dashCd: 0.65, startRunes: 0, rerolls: 3, runeSlots: 5,
+    weaponBase: { dmg: 12, rate: 4.5, size: 16, speed: 400, knock: 80 },
+    startLoadout: ["bleed", "vampire"] },
     // whats startRunes? 0 is the default for all characters, but the Unknown has a special rule: it starts with 0 runes, but every time you die, it gains one more rune slot. So if you die 3 times, it will have 3 rune slots on your next run.
     //how is startRunes used in the code? It is used in the character selection screen to determine how many rune slots the character has at the start of the run. It is also used in the game logic to determine how many rune slots the character has when they die and respawn.
 };

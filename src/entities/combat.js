@@ -55,10 +55,46 @@ function contactHurt(e, pad, dmg) {
   }
 }
 
+/* Sancho's close weapons are real melee sweeps: enemies are tested in a forward
+   arc and damaged in place. They never enter the projectile array. */
+function sanchoSwing(p, x, y, aim) {
+  const m = p.mods;
+  const stage = p.hbStage || 1;
+  const ranged = p.weaponMode === "ranged";
+  const reach = ranged ? 0 : stage === 3 ? 108 : stage === 2 ? 82 : 66;
+  const halfArc = stage === 3 ? 0.32 : stage === 2 ? 0.72 : 0.9;
+  p.sanchoSlashT = 0.16;
+  p.sanchoSlashAng = aim;
+  p.sanchoSlashStage = stage;
+  p.sanchoSlashReach = reach;
+  if (ranged) return false;
+
+  for (const e of enemies) {
+    if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p") continue;
+    const dx = e.x - x, dy = e.y - y;
+    if (dx * dx + dy * dy > (reach + e.r) ** 2) continue;
+    let delta = Math.atan2(dy, dx) - aim;
+    delta = Math.atan2(Math.sin(delta), Math.cos(delta));
+    if (Math.abs(delta) > halfArc) continue;
+    const crit = m.crit > 0 && Math.random() < m.crit;
+    damageEnemy(e, m.dmg * (crit ? m.critMul : 1), {
+      owner: p, x, y, knock: m.knock, melee: true, critHit: crit,
+    });
+    if (!e.dead && m.bleed > 0) {
+      e.bleedT = Math.max(e.bleedT || 0, 1 + 0.5 * m.bleed);
+      e.bleedDps = Math.max(e.bleedDps || 0, 3 * m.bleed);
+      e.bleedBy = p;
+    }
+  }
+  return true;
+}
+
 /* Spawn one full weapon shot (mirror copies, scatter fan, twin parallels) from (x, y)
    with warden `p`'s mods. Shared by the gun and by VEIL BURST corpse-discharges. */
 function spawnShot(p, x, y, baseAim, skip) {
   const m = p.mods;
+  const sanchoMelee = p.char === "sancho" && p.weaponMode !== "ranged";
+  if (sanchoMelee) { sanchoSwing(p, x, y, baseAim); return; }
   /* the shredder's debris must live long enough to cross its saw's reach even
      when HEAVY / TITAN have slowed the shards to a crawl */
   const shredLife = p.char === "shredder" ? Math.max(1.5, (m.sawReach || 76) * 1.8 / Math.max(120, m.speed)) : 1.5;
@@ -75,11 +111,13 @@ function spawnShot(p, x, y, baseAim, skip) {
     }
     for (const a of shots) {
       const mk = (ox, oy) => bullets.push({
-        x: x + Math.cos(a) * 18 + ox, y: y + Math.sin(a) * 18 + oy,
+        x: x + Math.cos(a) * (sanchoMelee ? 32 : 18) + ox, y: y + Math.sin(a) * (sanchoMelee ? 32 : 18) + oy,
         vx: Math.cos(a) * m.speed, vy: Math.sin(a) * m.speed,
-        r: p.char === "shredder" ? 5 + m.size * 0.35 : m.size, dmg, t: 0, life: shredLife,
-        pierce: m.pierce, bounce: m.bounce, homing: m.homing,
+        r: sanchoMelee ? Math.min(m.size, 18) : p.char === "shredder" ? 5 + m.size * 0.35 : m.size,
+        dmg, t: 0, life: sanchoMelee ? 0.22 : shredLife,
+        pierce: sanchoMelee ? 999 : m.pierce, bounce: m.bounce, homing: m.homing,
         venom: m.venom, ember: m.ember, frost: m.frost, storm: m.storm,
+        bleed: m.bleed,
         execute: m.execute, knock: m.knock,
         crit: m.crit, critMul: m.critMul, fear: m.fear, fearDur: m.fearDur,
         owner: p,
@@ -118,6 +156,16 @@ function fireWeapon(p, inp, dt) {
   /* THE SINGULAR: guns stay holstered. Auto-fire just stays quiet; a deliberate
      trigger pull (mouse button / manual aim stick) earns a word from the bar. */
   if (Game.inSaloon) { if (inp.mouseDown || (inp.touchMode && inp.aiming)) saloonHolster(p); return; }
+  if (p.char === "sancho" && inp.useTap) {
+    const nearChest = chests.some(c => c.state === "sealed" && dist2(c.x, c.y, p.x, p.y) < 64 * 64);
+    const nearHealth = healthBoxes.some(h => h.state === "sealed" && dist2(h.x, h.y, p.x, p.y) < 64 * 64);
+    const nearSeal = SEAL.state === "ready" && dist2(SEAL.x, SEAL.y, p.x, p.y) < (SEAL.r + 40) ** 2;
+    if (!nearChest && !nearHealth && !nearSeal) {
+      if (p.weaponMode !== "ranged" && p.hardblood < 5) toast("HARDBLOOD TOO LOW FOR BOW (MIN 5)");
+      else { p.weaponMode = p.weaponMode === "ranged" ? "melee" : "ranged"; recalc(p); toast("SANCHO: " + p.weaponMode.toUpperCase()); }
+      return;
+    }
+  }
   if (!firing || p.fireT > 0) return;
   const jamMul = curseActive(p, "jam") ? 0.5 : 1;
   /* The Shredder's trigger throws rune-etched debris off the saw's rim at whatever
@@ -172,6 +220,19 @@ function fireWeapon(p, inp, dt) {
     return;
   }
   p.fireT = 1 / (m.rate * jamMul);
+  if (p.char === "sancho") {
+    p.sanchoAttackCount = (p.sanchoAttackCount || 0) + 1;
+    if (p.sanchoAttackCount >= 15) {
+      p.sanchoAttackCount = 0;
+      const gain = Math.min(3, Math.floor((Game.bloodfeast || 0) / 50), 30 - p.hardblood);
+      if (gain > 0) {
+        Game.bloodfeast -= gain * 50;
+        p.hardblood += gain;
+        recalc(p);
+        toast("BLOOD REFINED: +" + gain + " HARDBLOOD");
+      }
+    }
+  }
   spawnShot(p, p.x, p.y, aim);
   p.kickT = 0.09;                       // sprite recoils opposite the shot
   Game.shake = Math.max(Game.shake, 2);
@@ -381,8 +442,13 @@ function damageEnemy(e, dmg, src) {
   }
   /* the deep floors: reflections crack one hit at a time; the posse covers its leader */
   dmg = deepDamage(e, dmg);
-  /* QUARRY: the gun savors the afflicted — burning or chilled foes take more */
-  if (om && om.prey > 1 && (e.burnT > 0 || e.slowT > 0)) dmg *= om.prey;
+  /* QUARRY: the gun savors the afflicted — burning, chilled or bleeding foes take more */
+  if (om && om.prey > 1 && (e.burnT > 0 || e.slowT > 0 || e.bleedT > 0)) dmg *= om.prey;
+  /* VAMPIRE: feeding only triggers on a weapon hit, never on the bleed's own tick */
+  if (ow && om && om.vampire > 0 && e.bleedT > 0 && !(src && src.bleedTick)) {
+    dmg *= 1.3;
+    healPlayer(ow, 0.25 * om.vampire, true);
+  }
   /* WRATH: the closer you are to death, the harder you hit */
   if (om && om.wrath) dmg *= 1 + om.wrath * (1 - ow.hp / ow.maxHp);
   if (Dev.dmgMul !== 1 && ow) dmg *= Dev.dmgMul;    // TEST TOOLS: damage ×20 (systems/devtools.js)
@@ -408,6 +474,25 @@ function damageEnemy(e, dmg, src) {
     floatText(e.x, e.y - e.r - 14, "REAPED", "#c4c9d4");
   }
   if (e.hp <= 0) killEnemy(e, ow);
+}
+
+function healPlayer(p, amount, growthAllowed) {
+  const before = p.hp;
+  p.hp = Math.min(p.maxHp, p.hp + amount);
+  const excess = Math.max(0, amount - (p.hp - before));
+  if (excess > 0 && growthAllowed) {
+    p.vampireExcess = (p.vampireExcess || 0) + excess;
+    const cap = CHARS[p.char].hp * 2;
+    const available = Math.max(0, cap - (p.vampireMaxBonus || 0));
+    const gained = Math.min(available, Math.floor(p.vampireExcess / 100));
+    if (gained > 0) {
+      p.vampireMaxBonus = (p.vampireMaxBonus || 0) + gained;
+      p.vampireExcess -= gained * 100;
+      recalc(p);
+    }
+    if (p.vampireMaxBonus >= cap) p.vampireExcess = Math.min(p.vampireExcess, 99);
+  }
+  if (p === localPlayer()) updateHp();
 }
 
 function chainStorm(fromE, stacks, alreadyHit, owner) {

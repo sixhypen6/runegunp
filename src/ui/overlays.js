@@ -418,6 +418,7 @@ function renderVault() {
   VAULT_TABS.forEach(tab => { const b = $(VAULT_TAB_BTN[tab]); if (b) b.classList.toggle("on", vaultTab === tab); });
   const grid = $("vaultGrid"); grid.innerHTML = "";
   if (vaultTab === "chars") for (const k in CHARS) {
+    if (CHARS[k].consoleOnly) continue;  // auth-only wardens never appear in the shop
     /* hidden wardens stay out of the shelves unless the easter-egg toggle is on
        (or one is already equipped, so the player isn't stranded on an invisible pick) */
     if (CHARS[k].hidden && !Meta.showHiddenRunes && Meta.char !== k) continue;

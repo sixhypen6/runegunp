@@ -125,6 +125,12 @@ const SAL_IDLE_PARTY = [
   "The more of me in here, the worse the singing.",
   "Your friends drink like me. That is not a compliment.",
   "Same souls, more glasses. House always wins."];
+const SAL_IDLE_SANCHO = [
+  "Bloodfeast doesn't count as a tab. Learned that the hard way.",
+  "Hardblood, bloodfeast, whiskey. You Kindred collect the strangest currencies."];
+const SAL_IDLE_SANCHO_PARTNER = [
+  "Your friend brings the blood. I bring the bottle. Seems fair.",
+  "Keep your Kindred close. The bottles are closer."];
 
 /* the barkeep's whole greeting: the plain hello, then whatever the party needs
    to hear — a warden down, or simply that you did not walk in alone. */
@@ -138,6 +144,10 @@ function salGreets(hello) {
   const party = players.filter(p => !p.gone).length;
   if (party > 2) out.push(SAL_GREET_MANY);
   else if (party === 2) out.push(SAL_GREET_PAIR);
+  const sancho = players.find(p => !p.gone && p.char === "sancho");
+  if (sancho) out.push(sancho === host
+    ? "Sancho. You brought the blood back in with you."
+    : "The Second Kindred. Keep him away from the bottles.");
   return out;
 }
 
@@ -389,8 +399,14 @@ function salAsk(who) {
   if (S.talk) { S.talk.t = SAL_LINE_T; return; }
   if (S.asked < SAL_ASKS.length) {
     const A = SAL_ASKS[S.asked++];
-    S.talk = { lines: A.lines, i: 0, t: 0 };
-    salSay(S.keep, A.lines[0], SAL_LINE_T + 0.3);
+    const lines = A.lines.slice();
+    const sancho = players.find(p => !p.gone && p.char === "sancho");
+    if (sancho && A.ask === "WHAT'S THIS?")
+      lines.push(sancho === who ? "Even you need a stool between bloodbaths." : "One of you carries the Second Kindred's hunger. I keep the bottles behind the counter.");
+    else if (sancho && A.ask === "WHO ARE THEY?")
+      lines.push(sancho === who ? "They're you, with different weapons. You know the hunger better than I do." : "The one with the red hands? Second Kindred. I keep the bottles behind the counter.");
+    S.talk = { lines, i: 0, t: 0 };
+    salSay(S.keep, lines[0], SAL_LINE_T + 0.3);
   } else { if (S.roundT > 0) return; salRound(who); }
   AudioFX.click();
 }
@@ -751,7 +767,10 @@ function updateSaloon(dt) {
     S.idleT -= dt;
     if (S.idleT <= 0) {
       S.idleT = 10;
-      const pool = coop ? SAL_IDLE_PARTY : SAL_IDLE;
+      const sancho = players.find(p => !p.gone && p.char === "sancho");
+      const pool = sancho
+        ? (sancho === focus ? SAL_IDLE_SANCHO : SAL_IDLE_SANCHO_PARTNER)
+        : (coop ? SAL_IDLE_PARTY : SAL_IDLE);
       salSay(S.keep, pool[S.idleI++ % pool.length], 3.0);
     }
   }

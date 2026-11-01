@@ -309,6 +309,10 @@ const RunegunConsole = {
       this.log("ERROR: the console gate is not loaded in this build.");
       return;
     }
+    if (typeof Net !== "undefined" && Net.active && Net.role !== "host") {
+      this.log("ERROR: only the co-op host may authenticate the shared-run console.");
+      return;
+    }
     const code = String(input || "").trim();
     if (!code) {
       this.log("CO-OP CONSOLE · " + (ConsoleGate.granted() ? "OPEN" : "sealed") +
@@ -339,7 +343,23 @@ const RunegunConsole = {
     this.log("CHECKING THE GATE…");
     const r = await ConsoleGate.verify(code);
     if (r.ok) {
-      this.log("CO-OP CONSOLE OPEN · host edits are live. The guest receives them through the host's world.");
+      Meta.unlocked["char:sancho"] = true;
+      Meta.char = "sancho";
+      this.metaKeep();
+      let equipped = false;
+      if (["play", "pause", "rune", "wait", "held", "choice"].includes(Game.state) && players && players.length) {
+        const p = this.targetPlayer();
+        p.char = "sancho"; p.hardblood = 1; p.hbTimer = 30; p.hbStage = 1;
+        p.weaponMode = "melee"; p.sanchoAttackCount = 0;
+        p.lockedRunes = null;
+        if (!p.runes.bleed) grantRune(p, "bleed", true);
+        if (!p.runes.vampire) grantRune(p, "vampire", true);
+        recalc(p);
+        checkRuneLock(p);
+        this.afterEdit();
+        equipped = true;
+      }
+      this.log("CO-OP CONSOLE OPEN · SANCHO UNLOCKED" + (equipped ? " AND EQUIPPED ON " + this.targetTag(this.targetPlayer()) : " · selected for your next descent") + ".");
       return;
     }
     if (r.reason === "mismatch") this.log("ERROR: that code does not open the gate.");
@@ -473,7 +493,7 @@ const RunegunConsole = {
   /* every shelf entry the Vault can sell, in Vault order; `max` = stackable level */
   vaultCatalog() {
     const out = [];
-    for (const k in CHARS)
+    for (const k in CHARS) if (!CHARS[k].consoleOnly)
       out.push({ key: "char:" + k, name: CHARS[k].name, group: "WARDENS", cost: CHARS[k].cost, max: 0 });
     for (const k in SKINS)
       out.push({ key: "skin:" + k, name: SKINS[k].name, group: "WARPAINT", cost: SKINS[k].cost, max: 0 });
@@ -716,6 +736,8 @@ const RunegunConsole = {
         if (!id) throw new Error("Usage: char <id>.");
         if (typeof CHARS === "undefined") throw new Error("Character data not loaded.");
         if (!Object.prototype.hasOwnProperty.call(CHARS, id)) throw new Error("Unknown character id: " + id + ".");
+        if (CHARS[id].consoleOnly && !Meta.unlocked["char:" + id])
+          throw new Error("That warden is sealed. Authenticate with `auth <code>` first.");
         p.char = id;
         p.dashCdBase = CHARS[id].dashCd;
         p.dashDur = CHARS[id].dashDur || 0.18;

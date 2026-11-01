@@ -21,6 +21,8 @@ function makePlayer(cfg, idx) {
     curses: {}, brandTick: 0, shield: 0, shieldMax: 0, shieldT: 0,
     /* the build — each warden carves their own path */
     runes: {}, lockedRunes: null, mods: null,
+    hardblood: 1, hbTimer: 30, hbStage: 1, weaponMode: "melee", sanchoAttackCount: 0,
+    vampireExcess: 0, vampireMaxBonus: 0,
     rerolls: c.rerolls + (cfg.rerollBuff || 0),
     maxHpMul: 1, bonusRuneSlots: 0,
     /* downed / revive (co-op): crawling, waiting on a partner's hands */
@@ -44,6 +46,7 @@ function resetRun(cfgs) {
   Game.coopLap = typeof Net !== "undefined" && Net.active;
   Game.mapIdx = 0; Game.loop = 0; Game.wave = 0;
   Game.score = 0; Game.kills = 0; Game.time = 0;
+  Game.bloodfeast = 0;
   if (typeof RunTimer !== "undefined") RunTimer.start();   // the speedrun clock starts with the descent
   Game.hitstop = 0; Game.flash = 0; Game.slowmo = 0; Game.ceremonyT = 0;
   Game.comboN = 0; Game.comboT = 0; Game.floorFade = 0; Game.voidImproved = null;
@@ -97,6 +100,7 @@ function setupFloor(first) {
   unknownHud(false);
   if (!first && typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("FLOOR", "entered floor index " + Game.mapIdx + " (depth " + depth() + ")");
   genMap();
+  Game.bloodfeast = 0;
   enemies = []; bullets = []; ebullets = []; puddles = [];
   particles = []; chests = []; pickups = []; shockwaves = []; floaters = []; zaps = []; veils = []; healthBoxes = []; mines = []; shells = [];
   soulMotes = [];

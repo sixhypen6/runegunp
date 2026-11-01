@@ -1361,7 +1361,7 @@ function draw() {
      glow cutoff is gone because there is no longer a blur pass to cut */
   for (const b of bullets) {
     if (b.x < cullL - 60 || b.x > cullR + 60 || b.y < cullT - 60 || b.y > cullB + 60) continue;
-    const col = b.pet ? "#ffe08a" : b.shard ? "#d0c4ff" : b.venom ? "#7dff5e" : b.frost ? "#5ee6ff" : b.ember ? "#ff7a3d" : (b.owner && b.owner.char === "shredder") ? "#c9b8ff" : "#fff3c8";
+    const col = b.pet ? "#ffe08a" : b.shard ? "#d0c4ff" : b.bleed ? "#ff4d5e" : b.venom ? "#7dff5e" : b.frost ? "#5ee6ff" : b.ember ? "#ff7a3d" : (b.owner && b.owner.char === "shredder") ? "#c9b8ff" : "#fff3c8";
     const s = glowTrailSprite(col, b.r);
     cx.save();
     cx.translate(b.x, b.y); cx.rotate(Math.atan2(b.vy, b.vx));
@@ -1478,7 +1478,7 @@ function drawWarden(P) {
       cx.setLineDash([]); cx.globalAlpha = 1;
     }
     if (!blink && P.veilT <= 0) {
-      const col = P.dashT > 0 ? "#5ee6ff" : skinColorFor(P);
+      const col = P.dashT > 0 ? "#5ee6ff" : P.char === "sancho" ? "#b5162a" : skinColorFor(P);
       const hpFrac = P.maxHp > 0 ? clamp(P.hp / P.maxHp, 0, 1) : 1;
       cx.shadowColor = col; cx.shadowBlur = 14; cx.globalAlpha = 1;
       /* the barrels: gun warpaint wins outright; bare metal takes the ruling rune's hue */
@@ -1680,6 +1680,61 @@ function drawWarden(P) {
         cx.fillStyle = col; cx.font = "bold 10px monospace"; cx.textAlign = "center"; cx.textBaseline = "middle";
         cx.fillText("?", 0, 1);
         cx.restore();
+      } else if (P.char === "sancho") {
+        /* Sancho's attacks are arcs, never flying blade-shaped bullets. */
+        cx.save(); cx.translate(px, py); cx.rotate(aim);
+        cx.fillStyle = col;
+        cx.beginPath(); cx.moveTo(-2, -13); cx.lineTo(9, -10); cx.lineTo(14, -3); cx.lineTo(11, 10);
+        cx.lineTo(0, 14); cx.lineTo(-10, 7); cx.lineTo(-12, -5); cx.closePath(); cx.fill();
+        cx.fillStyle = "#0b0b14"; cx.fillRect(2, -4, 7, 2.5);
+        const mode = P.weaponMode || "melee";
+        cx.strokeStyle = mode === "ranged" ? "#e8e2d0" : "#ff6675";
+        cx.lineWidth = 2.4; cx.lineCap = "round"; cx.lineJoin = "round";
+        if (mode === "ranged") {
+          /* compact recurved bow and taut string */
+          cx.beginPath(); cx.moveTo(13, -12); cx.quadraticCurveTo(25, 0, 13, 12); cx.stroke();
+          cx.strokeStyle = "#ffd6db"; cx.lineWidth = 1;
+          cx.beginPath(); cx.moveTo(13, -12); cx.lineTo(13, 12); cx.stroke();
+        } else if ((P.hbStage || 1) >= 3) {
+          /* lance: one clean shaft, point, and short guard */
+          cx.strokeStyle = "#ffb3bb"; cx.lineWidth = 3;
+          cx.beginPath(); cx.moveTo(8, 0); cx.lineTo(44, 0); cx.stroke();
+          cx.fillStyle = "#fff0f2"; cx.beginPath(); cx.moveTo(49, 0); cx.lineTo(40, -4); cx.lineTo(40, 4); cx.closePath(); cx.fill();
+          cx.strokeStyle = "#ff6675"; cx.lineWidth = 2;
+          cx.beginPath(); cx.moveTo(20, -5); cx.lineTo(20, 5); cx.stroke();
+        } else if ((P.hbStage || 1) >= 2) {
+          /* saber: a single readable curved blade rather than two forked prongs */
+          cx.strokeStyle = "#ffd6db"; cx.lineWidth = 3;
+          cx.beginPath(); cx.moveTo(8, 4); cx.lineTo(17, 1); cx.quadraticCurveTo(25, -5, 32, -15); cx.stroke();
+          cx.strokeStyle = "#ff6675"; cx.lineWidth = 2;
+          cx.beginPath(); cx.moveTo(8, -1); cx.lineTo(15, 3); cx.stroke();
+        } else {
+          /* fists: two small armored knuckles, held close to the body */
+          cx.fillStyle = "#ff6675";
+          for (const side of [-1, 1]) {
+            cx.beginPath(); cx.arc(11, side * 8, 3.2, 0, TAU); cx.fill();
+          }
+        }
+        if (P.hardblood >= 20) {
+          cx.globalAlpha = 0.65 + 0.25 * Math.sin(Game.time * 8);
+          cx.strokeStyle = "#ff4d5e"; cx.lineWidth = 1.5;
+          cx.beginPath(); cx.arc(0, 0, 18, 0, TAU); cx.stroke();
+        }
+        drawCracks(cx, hpFrac, 10);
+        cx.restore();
+
+        /* A short-lived sweep flash follows the attack cone, attached to Sancho. */
+        if (P.sanchoSlashT > 0 && mode !== "ranged") {
+          const stage = P.sanchoSlashStage || 1;
+          const radius = P.sanchoSlashReach || (stage >= 3 ? 108 : stage === 2 ? 82 : 66);
+          const half = stage >= 3 ? 0.32 : stage === 2 ? 0.72 : 0.9;
+          const t = clamp(P.sanchoSlashT / 0.16, 0, 1);
+          cx.save(); cx.translate(px, py); cx.rotate(P.sanchoSlashAng || aim);
+          cx.globalAlpha = 0.85 * t; cx.strokeStyle = "#ff7180"; cx.lineWidth = stage >= 2 ? 5 : 4;
+          cx.lineCap = "round"; cx.shadowColor = "#ff334d"; cx.shadowBlur = 12;
+          cx.beginPath(); cx.arc(0, 0, radius, -half, half); cx.stroke();
+          cx.restore();
+        }
       } else {
         /* Alchemist: triangular flask body + orbiting rune + forked barrel */
         cx.save(); cx.translate(px, py); cx.rotate(aim + Math.PI / 2);

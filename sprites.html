@@ -283,6 +283,12 @@
 
     .card-tag.equipped { color: var(--equipped-orange); }
     .card-tag.owned { color: #7dff5e; }
+    .card.selected { border-color: var(--gold); box-shadow: 0 0 12px rgba(255,210,61,.28); }
+    .rune-color-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:7px; }
+    .rune-color-option { border:1px solid var(--line-dim); padding:7px; background:rgba(0,0,0,.4); cursor:pointer; display:flex; align-items:center; gap:7px; }
+    .rune-color-option.selected { border-color:var(--gold); box-shadow:0 0 10px rgba(255,210,61,.25); }
+    .rune-color-swatch { width:16px; height:16px; border-radius:50%; box-shadow:0 0 8px currentColor; flex:none; }
+    .enemy-badge { font-size:7px; letter-spacing:.12em; color:var(--dim); margin-top:5px; }
 
     .card-cost {
       font-size: 8px;
@@ -334,7 +340,7 @@
     <button class="vtab" id="tabGunslingers">GUNSLINGERS</button>
     <button class="vtab active" id="tabPets">PETS</button>
     <button class="vtab" id="tabWarpaint">WARPAINT</button>
-    <button class="vtab" onclick="alert('Rerun buffs and pets live in the Vault (in-game).')">RERUN BUFFS</button>
+    <button class="vtab" id="tabEnemies">ENEMIES</button>
   </div>
 
   <div class="studio-layout">
@@ -347,36 +353,29 @@
         <label for="kindSelect">Kind</label>
         <select id="kindSelect">
           <option value="gunslinger">Gunslinger</option>
-          <option value="pet">Pet</option>
+          <option value="pet" selected>Pet</option>
+          <option value="enemy">Enemy</option>
         </select>
       </div>
 
-      <div id="ctrlGunslinger" class="ctrl-group">
+      <div id="ctrlGunslinger" class="ctrl-group" style="display:none">
         <label for="charSelect">Warden</label>
-        <select id="charSelect">
-          <option value="gunsmith">Gunsmith</option>
-          <option value="wraith">Wraith</option>
-          <option value="juggernaut">Juggernaut</option>
-          <option value="demolitionist">Demolitionist</option>
-          <option value="alchemist">Alchemist</option>
-          <option value="shredder">Shredder</option>
-          <option value="necromancer" selected>Necromancer</option>
-          <option value="theUnknown">The Unknown</option>
-        </select>
+        <select id="charSelect"></select>
       </div>
 
-      <div id="ctrlPet" class="ctrl-group" style="display:none">
+      <div id="ctrlPet" class="ctrl-group">
         <label for="petSelect">Companion</label>
-        <select id="petSelect">
-          <option value="orbiter">Sentinel Orb (ᛟ)</option>
-          <option value="hunter">Wispling (ᛉ)</option>
-          <option value="gunner">Gun Imp (ᛊ)</option>
-        </select>
+        <select id="petSelect"></select>
+      </div>
+
+      <div id="ctrlEnemy" class="ctrl-group" style="display:none">
+        <label for="enemySelect">Enemy</label>
+        <select id="enemySelect"></select>
       </div>
 
       <div class="ctrl-group">
         <label for="aimRange">Aim Angle (<span id="aimVal">0°</span>)</label>
-        <input type="range" id="aimRange" min="0" max="6.28" step="0.05" value="0">
+        <input type="range" id="aimRange" min="0" max="6.283185307179586" step="any" value="0">
       </div>
 
       <div class="ctrl-group">
@@ -414,103 +413,72 @@
     <div class="vault-content" id="vaultContent"></div>
   </div>
 
+  <script>const Meta = { skin: "bone", gunSkin: null, unlocked: {} };</script>
+  <script src="src/data/characters.js"></script>
+  <script src="src/data/runes.js"></script>
+  <script src="src/entities/pets.js"></script>
+  <script src="src/entities/enemies.js"></script>
   <script>
     const TAU = Math.PI * 2;
 
-    /* =========================================================
-       DATA — mirrors src/entities/pets.js so the studio stays in sync
-       ========================================================= */
-    const GUNSLINGERS = [
-      { id: "gunsmith",      name: "GUNSMITH",           symbol: "ᚠ", color: "#e8e2d0", desc: "The baseline. 100 vitality, steady hands." },
-      { id: "wraith",        name: "WRAITH",             symbol: "ᚹ", color: "#5ee6ff", desc: "70 vitality. Veil bursts — vanishes between worlds and wounds everything in a circle." },
-      { id: "juggernaut",    name: "JUGGERNAUT",         symbol: "ᛞ", color: "#ff8a3d", desc: "160 vitality of stubborn meat. Fires one massive slug at a time." },
-      { id: "demolitionist", name: "DEMOLITIONIST",      symbol: "ᛥ", color: "#ff5e2e", desc: "110 vitality. Lobbed mortar shells that slam and splinter into flying shot." },
-      { id: "alchemist",     name: "ALCHEMIST",          symbol: "ᛜ", color: "#7dff5e", desc: "90 vitality. Carves a fifth rune slot and gets 4 re-rolls." },
-      { id: "shredder",      name: "SHREDDER",           symbol: "ᛃ", color: "#7a62bd", desc: "80 vitality. Whirling void-saw that grinds nearby horrors." },
-      { id: "necromancer",   name: "REANIMATOR",         symbol: "ᚻ", color: "#8a86a0", desc: "85 vitality. Slain horrors rise as ghost thralls that fight for you." },
-      { id: "theUnknown",    name: "THE UNKNOWN",        symbol: "?", color: "#e8e2d0", desc: "225 vitality. Rune bolts and dashing cuts. Every death carves another rune." }
-    ];
-
-    const PTYPES = {
-      orbiter: {
-        name: "SENTINEL ORB", glyph: "ᛟ", color: "#7ad7ff", cost: 10000,
-        desc: "A bound orb that wheels in a tight ring around you, grinding any horror it grazes."
-      },
-      hunter: {
-        name: "WISPLING", glyph: "ᛉ", color: "#c9a0ff", cost: 16000,
-        desc: "A restless spirit that darts to the nearest horror within reach and tears at it."
-      },
-      gunner: {
-        name: "GUN IMP", glyph: "ᛊ", color: "#ffd23d", cost: 22000,
-        desc: "A little marksman that hovers at your shoulder and spits lead at anything too close."
-      }
-    };
-
-    const BODY_WARPAINTS = [
-      { id: "bone",       name: "BONE",        color: "#e8e2d0", desc: "Pale as what's under the floor." },
-      { id: "emberg",     name: "EMBERGLOW",   color: "#ff8a3d", desc: "Forge-orange warpaint." },
-      { id: "toxin",      name: "TOXIN",       color: "#7dff5e", desc: "Don't lick it." },
-      { id: "rime",       name: "RIME",        color: "#5ee6ff", desc: "Cold-blooded." },
-      { id: "hex",        name: "HEX",         color: "#9d6bff", desc: "Seal-violet, the Warden's own shade." },
-      { id: "gore",       name: "GORE",        color: "#ff4d5e", desc: "It isn't paint." },
-      { id: "fathom",     name: "FATHOM",      color: "#4d7dff", desc: "Pressure-blue, dredged from beneath the Nave." },
-      { id: "witch",      name: "WITCHLIGHT",  color: "#ff6bd6", desc: "A colour with no honest business underground." },
-      { id: "gilded",     name: "GILDED",      color: "#ffd23d", desc: "Soul-gold. Pure vanity. Worth it." },
-      { id: "quick",      name: "QUICKSILVER", color: "#b8c4d6", desc: "Mirror-steel. The horrors see themselves arrive." },
-      { id: "voidt",      name: "VOIDTOUCH",   color: "#c9b8ff", desc: "The Horizon looked back, and it left this." },
-      { id: "pure",       name: "SUPERNOVA",   color: "#ffffff", desc: "The blinding radiance of a star at the instant of its collapse." },
-      { id: "darkness",   name: "ABYSS",       color: "#05050a", desc: "True nothingness. Not even your own shadow survives here." },
-      { id: "jade",       name: "EMERALD",     color: "#2eff8a", desc: "A sharp, crystalline green that pulses with trapped, ancient life." },
-      { id: "crimson",    name: "SANGUINE",    color: "#880011", desc: "The deep, dark red of a thousand cycles." },
-      { id: "nebula",     name: "NEBULA",      color: "#5d00ff", desc: "A saturated, deep cosmic purple that seems to pull at the air around it." },
-      { id: "sulfur",     name: "SULFUR",      color: "#ccff00", desc: "A violent, neon yellow-green that warns of imminent danger." },
-      { id: "rainbow",    name: "RAINBOW",     color: "#ffffff", desc: "A shifting spectrum of colours that dances across the surface." }
-    ];
-
+    const GUNSLG = Object.entries(CHARS).map(([id, c]) => ({
+      id, name: c.name, symbol: c.glyph || "◉", color: c.color === "runelight" ? "#8a86a0" : c.color,
+      desc: c.desc || ""
+    }));
+    const BODY_WARPAINTS = Object.entries(SKINS).map(([id, skin]) => ({ id, ...skin }));
     const GUN_WARPAINTS = [
-      { id: "bone",       name: "BONE",        color: "#e8e2d0", symbol: "◉", desc: "Pale as what's under the floor." },
-      { id: "emberg",     name: "EMBERGLOW",   color: "#ff8a3d", symbol: "◉", desc: "Forge-orange warpaint." },
-      { id: "toxin",      name: "TOXIN",       color: "#7dff5e", symbol: "◉", desc: "Don't lick it." },
-      { id: "rime",       name: "RIME",        color: "#5ee6ff", symbol: "◉", desc: "Cold-blooded." },
-      { id: "hex",        name: "HEX",         color: "#9d6bff", symbol: "◉", desc: "Seal-violet, the Warden's own shade." },
-      { id: "gore",       name: "GORE",        color: "#ff4d5e", symbol: "◉", desc: "It isn't paint." },
-      { id: "fathom",     name: "FATHOM",      color: "#4d7dff", symbol: "◉", desc: "Pressure-blue, dredged from beneath the Nave." },
-      { id: "witch",      name: "WITCHLIGHT",  color: "#ff6bd6", symbol: "◉", desc: "A colour with no honest business underground." },
-      { id: "gilded",     name: "GILDED",      color: "#ffd23d", symbol: "◉", desc: "Soul-gold. Pure vanity. Worth it." },
-      { id: "quick",      name: "QUICKSILVER", color: "#b8c4d6", symbol: "◉", desc: "Mirror-steel. The horrors see themselves arrive." },
-      { id: "voidt",      name: "VOIDTOUCH",   color: "#c9b8ff", symbol: "◉", desc: "The Horizon looked back, and it left this." },
-      { id: "pure",       name: "SUPERNOVA",   color: "#ffffff", symbol: "◉", desc: "The blinding radiance of a star at the instant of its collapse." },
-      { id: "darkness",   name: "ABYSS",       color: "#05050a", symbol: "◉", desc: "True nothingness. Not even your own shadow survives here." },
-      { id: "jade",       name: "EMERALD",     color: "#2eff8a", symbol: "◉", desc: "A sharp, crystalline green that pulses with trapped, ancient life." },
-      { id: "crimson",    name: "SANGUINE",    color: "#880011", symbol: "◉", desc: "The deep, dark red of a thousand cycles." },
-      { id: "nebula",     name: "NEBULA",      color: "#5d00ff", symbol: "◉", desc: "A saturated, deep cosmic purple that seems to pull at the air around it." },
-      { id: "sulfur",     name: "SULFUR",      color: "#ccff00", symbol: "◉", desc: "A violent, neon yellow-green that warns of imminent danger." },
-      { id: "rainbow",    name: "RAINBOW",     color: "#ffffff", symbol: "◉", desc: "A shifting spectrum of colours that dances across the surface." }
+      { id: "runelight", name: GUN_STOCK.name, color: GUN_STOCK.color, symbol: "◉", desc: GUN_STOCK.desc },
+      ...Object.entries(SKINS).map(([id, skin]) => ({ id, name: skin.name, color: skin.color, symbol: "◉", desc: skin.desc }))
     ];
 
-    /* =========================================================
-       STATE
-       ========================================================= */
     let currentTab = "pets";
     let selectedBodyColor = BODY_WARPAINTS[1].color;
-    let selectedGunColor = GUN_WARPAINTS[0].color;
+    let selectedGunColor = RUNES[Object.keys(RUNES)[0]].color;
+    let selectedBodyPaintId = BODY_WARPAINTS[1].id;
+    let selectedGunPaintId = "runelight";
+    let selectedRuneId = Object.keys(RUNES)[0];
 
     const vaultContent = document.getElementById("vaultContent");
     const kindSel = document.getElementById("kindSelect");
     const charSel = document.getElementById("charSelect");
     const petSel = document.getElementById("petSelect");
+    const enemySel = document.getElementById("enemySelect");
     const ctrlGunslinger = document.getElementById("ctrlGunslinger");
     const ctrlPet = document.getElementById("ctrlPet");
+    const ctrlEnemy = document.getElementById("ctrlEnemy");
 
     const tabGunslingers = document.getElementById("tabGunslingers");
     const tabPets = document.getElementById("tabPets");
     const tabWarpaint = document.getElementById("tabWarpaint");
+    const tabEnemies = document.getElementById("tabEnemies");
 
-    /* =========================================================
-       CRACKS — runegun hull damage (src/render/draw.js style)
-       Appears below 50% vitality; critical electrical arcs below 30%.
-       Must be called inside a body's save/translate/rotate block.
-       ========================================================= */
+    const enemyNames = {
+      chaser: "CHASER", gunner: "GUNNER", dasher: "DASHER", slammer: "SLAMMER",
+      spitter: "SPITTER", wisp: "WISP", summoner: "NECROMANCER", shade: "SHADE",
+      cinder: "CINDER", slag: "SLAGHULK", slagling: "SLAGLING", angler: "ANGLER",
+      riptide: "RIPTIDE", phylactery: "PHYLACTERY", mourner: "MOURNER", lapse: "LAPSE",
+      lumen: "LUMEN", penitent: "PENITENT", drifter: "DRIFTER", carrion: "CARRION",
+      reflection: "REFLECTION", hollow: "HOLLOW", unkward: "UNKNOWN WARD",
+      unkorb: "UNKNOWN ORB", unkhound: "UNKNOWN HOUND", unkwisp: "UNKNOWN WISP"
+    };
+    const enemyLabel = id => enemyNames[id] || id.toUpperCase().replace(/[-_]/g, " ");
+
+    function populateSelect(select, values, label) {
+      const previous = select.value;
+      select.innerHTML = "";
+      for (const [id, value] of values) {
+        const option = document.createElement("option");
+        option.value = id; option.textContent = label(id, value); select.appendChild(option);
+      }
+      if (values.some(([id]) => id === previous)) select.value = previous;
+    }
+    populateSelect(charSel, Object.entries(CHARS), (id, c) => c.name || id);
+    populateSelect(petSel, Object.entries(PTYPES), (id, p) => (p.name || id) + " (" + (p.glyph || "◉") + ")");
+    populateSelect(enemySel, Object.entries(ETYPES), id => enemyLabel(id));
+    charSel.value = CHARS.necromancer ? "necromancer" : Object.keys(CHARS)[0];
+    petSel.value = Object.keys(PTYPES)[0];
+    enemySel.value = Object.keys(ETYPES)[0];
+
     const CRACKS_HALF = [
       [[0.15,-0.85],[0.05,-0.35],[0.42,-0.05],[0.30,0.42]],
       [[-0.72,0.30],[-0.30,0.15],[-0.36,-0.28]],
@@ -536,7 +504,6 @@
         for (let i = 1; i < poly.length; i++) cx.lineTo(poly[i][0] * s, poly[i][1] * s);
       }
       cx.stroke();
-      /* exposed wiring: electric arcs snap across the worst cracks in stuttering bursts */
       if (crit) {
         const fl = Math.sin(Date.now() * 0.031) * Math.sin(Date.now() * 0.0173);
         if (fl > 0.35) {
@@ -559,9 +526,86 @@
       }
     }
 
-    /* =========================================================
-       RENDER — gunslingers + pets
-       ========================================================= */
+    function drawEnemyPreview(ctx, x, y, id, aim, time) {
+      const def = ETYPES[id];
+      if (!def) return;
+      const r = Math.max(8, Math.min(25, def.r || 12));
+      const color = def.color || "#e8e2d0";
+      ctx.save(); ctx.translate(x, y); ctx.fillStyle = color; ctx.strokeStyle = color;
+      ctx.shadowColor = color; ctx.shadowBlur = 10;
+      if (id === "chaser") {
+        ctx.rotate(aim); ctx.beginPath(); ctx.moveTo(r + 4, 0); ctx.lineTo(-r, r * .8); ctx.lineTo(-r * .4, 0); ctx.lineTo(-r, -r * .8); ctx.closePath(); ctx.fill();
+      } else if (id === "gunner") {
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill(); ctx.fillStyle = "#0b0b14"; ctx.fillRect(Math.cos(aim) * 6 - 3, Math.sin(aim) * 6 - 3, 6, 6);
+      } else if (id === "dasher") {
+        ctx.rotate(aim + Math.PI / 4); ctx.fillRect(-r * .72, -r * .72, r * 1.44, r * 1.44);
+      } else if (id === "slammer") {
+        ctx.fillRect(-r, -r, r * 2, r * 2); ctx.fillStyle = "#0b0b14"; ctx.fillRect(-r * .4, -r * .35, 4, 4); ctx.fillRect(r * .2, -r * .35, 4, 4);
+      } else if (id === "spitter") {
+        ctx.rotate(time * 1.4); for (let i = 0; i < 5; i++) { ctx.rotate(TAU / 5); ctx.beginPath(); ctx.arc(r * .7, 0, r * .48, 0, TAU); ctx.fill(); }
+        ctx.beginPath(); ctx.arc(0, 0, r * .55, 0, TAU); ctx.fill();
+      } else if (id === "wisp" || id.startsWith("unkwisp")) {
+        ctx.globalAlpha = .72; ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill();
+        ctx.globalAlpha = .38; ctx.beginPath(); ctx.arc(0, 0, r + 7 + Math.sin(time * 8) * 2, 0, TAU); ctx.fill();
+        ctx.globalAlpha = 1; ctx.fillStyle = "#0b0b14";
+        ctx.beginPath(); ctx.arc(-r * .25, -r * .1, 2, 0, TAU); ctx.arc(r * .25, -r * .1, 2, 0, TAU); ctx.fill();
+      } else if (id === "summoner") {
+        ctx.rotate(Math.sin(time * 2) * .12); ctx.beginPath(); ctx.moveTo(0, -r - 5); ctx.lineTo(r, r); ctx.lineTo(-r, r); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = "#0d110c"; ctx.beginPath(); ctx.arc(0, 0, r * .35, 0, TAU); ctx.fill();
+        ctx.fillStyle = "#d8ffb0"; ctx.beginPath(); ctx.arc(0, 0, r * .14, 0, TAU); ctx.fill();
+      } else if (id === "shade" || id === "hollow") {
+        const breathe = .72 + .18 * Math.sin(time * 4.4);
+        ctx.globalAlpha = breathe; ctx.beginPath(); ctx.moveTo(-r, r * .55); ctx.lineTo(-r, -r * .1); ctx.arc(0, -r * .1, r, Math.PI, 0); ctx.lineTo(r, r * .55);
+        for (let k = 1; k <= 5; k++) ctx.lineTo(r - k / 5 * r * 2, r * (k % 2 ? .25 : .6) + Math.sin(time * 3 + k) * 2);
+        ctx.closePath(); ctx.fill();
+        ctx.globalAlpha = 1; ctx.fillStyle = "#0d110c";
+        ctx.beginPath(); ctx.ellipse(-r * .34, -r * .22, r * .15, r * .24, 0, 0, TAU); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(r * .34, -r * .22, r * .15, r * .24, 0, 0, TAU); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(0, r * .28, r * .13, r * .2 * (1 + Math.sin(time * 1.3) * .35), 0, 0, TAU); ctx.fill();
+      } else if (id === "cinder") {
+        const pulse = 1 + Math.sin(time * 6) * .12; ctx.save(); ctx.scale(pulse, 2 - pulse);
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill();
+        ctx.fillStyle = "#ffd23d"; ctx.beginPath(); ctx.arc(0, 0, r * .45, 0, TAU); ctx.fill(); ctx.restore();
+      } else if (id === "slag" || id === "slagling") {
+        const jag = [1.05, .9, 1.1, .85, 1.08, .92, 1.02, .88];
+        ctx.rotate(time * .35); ctx.beginPath();
+        for (let i = 0; i < 8; i++) { const a = i / 8 * TAU, rr = r * jag[i]; i ? ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr) : ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+        ctx.closePath(); ctx.fill(); ctx.fillStyle = "#2a1410"; ctx.beginPath();
+        for (let i = 0; i < 8; i++) { const a = i / 8 * TAU, rr = r * jag[i] * .62; i ? ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr) : ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+        ctx.closePath(); ctx.fill(); ctx.fillStyle = "#ffd23d"; ctx.beginPath(); ctx.arc(0, 0, r * .3 * (1 + Math.sin(time * 7) * .12), 0, TAU); ctx.fill();
+      } else if (id === "angler") {
+        ctx.rotate(aim); ctx.globalAlpha = .9;
+        ctx.beginPath(); ctx.moveTo(r * 1.05, -r * .15); ctx.quadraticCurveTo(0, -r * 1.05, -r, -r * .35);
+        ctx.quadraticCurveTo(-r * 1.25, 0, -r, r * .35); ctx.quadraticCurveTo(0, r * 1.05, r * 1.05, r * .15);
+        ctx.quadraticCurveTo(r * .55, 0, r * 1.05, -r * .15); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = "#0d1a1f"; ctx.lineWidth = 2; ctx.beginPath();
+        for (let k = 0; k <= 6; k++) { const xx = r * (1 - k * .1), yy = (k % 2 ? -1 : 1) * r * .13; k ? ctx.lineTo(xx, yy) : ctx.moveTo(xx, yy); }
+        ctx.stroke(); ctx.fillStyle = "#0d1a1f"; ctx.beginPath(); ctx.arc(-r * .15, -r * .4, r * .13, 0, TAU); ctx.fill();
+        ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(r * .35, -r * .55); ctx.quadraticCurveTo(r * .9, -r * 1.1, r * 1.15 + 8, -r * .55); ctx.stroke();
+        ctx.fillStyle = "#ffd23d"; ctx.shadowColor = "#ffd23d"; ctx.shadowBlur = 10;
+        ctx.beginPath(); ctx.arc(r * 1.15 + 8, -r * .55, 2.5 + Math.sin(time * 6.9), 0, TAU); ctx.fill();
+      } else if (id === "riptide") {
+        ctx.rotate(aim); ctx.globalAlpha = .88;
+        ctx.beginPath(); ctx.moveTo(-r, r * .6); ctx.quadraticCurveTo(-r * .6, -r * 1.1, r * .7, -r * .35);
+        ctx.quadraticCurveTo(r * 1.15, -r * .05, r * .8, r * .15); ctx.quadraticCurveTo(r * .4, 0, r * .45, r * .3);
+        ctx.quadraticCurveTo(r, r * .45, r * .7, r * .6); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = "#eafffb"; ctx.lineWidth = 2.5; ctx.lineCap = "round"; ctx.globalAlpha = .95;
+        for (let k = 0; k < 4; k++) { const fx = -r * .5 + k * r * .38 + Math.sin(time * 5 + k) * 2, fy = -r * (.95 - k * .18) + Math.cos(time * 6.5 + k) * 2; ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx + r * .22, fy + r * .06); ctx.stroke(); }
+      } else if (id === "phylactery") {
+        const pulse = .65 + .35 * Math.sin(time * 7); ctx.rotate(Math.sin(time * 3) * .2);
+        ctx.strokeStyle = "#d8ffb0"; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.moveTo(0, -r - 5); ctx.lineTo(r, 0); ctx.lineTo(0, r + 5); ctx.lineTo(-r, 0); ctx.closePath(); ctx.stroke();
+        ctx.globalAlpha = pulse; ctx.fillStyle = "#d8ffb0"; ctx.beginPath(); ctx.arc(0, 0, r * .5, 0, TAU); ctx.fill();
+        ctx.globalAlpha = .35 * pulse; ctx.beginPath(); ctx.arc(0, 0, r * .8, 0, TAU); ctx.fill(); ctx.globalAlpha = 1;
+      } else {
+        // Future enemy IDs automatically get a visible, tinted preview until a special silhouette is added.
+        ctx.rotate(aim); ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill();
+        ctx.fillStyle = "#0b0b14"; ctx.font = "bold 9px monospace"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(id.slice(0, 1).toUpperCase(), 0, 1);
+      }
+      ctx.restore();
+    }
+
     let gameTime = 0;
 
     function renderSprite(targetCtx, width, height, scale, timeVal, bodyColor, weaponColor, kind, typeId, hpFrac, customAim) {
@@ -582,18 +626,37 @@
       if (kind === "pet") {
         const T = PTYPES[typeId];
         targetCtx.save(); targetCtx.translate(px, py);
-        const orbit = timeVal * 2;
+        
+        // If Sentinel Orb (orbiter), render the matching outer transparent/glow ring
+        if (typeId === "orbiter") {
+          targetCtx.save();
+          targetCtx.strokeStyle = T.color;
+          targetCtx.lineWidth = 1.8;
+          targetCtx.globalAlpha = 0.65;
+          targetCtx.beginPath();
+          targetCtx.arc(0, 0, T.r + 4.5, 0, TAU);
+          targetCtx.stroke();
+          targetCtx.restore();
+        }
+
         targetCtx.fillStyle = "#0b0b14";
-        targetCtx.beginPath(); targetCtx.arc(0, 0, T.r + 3, 0, TAU); targetCtx.fill();
+        targetCtx.beginPath(); targetCtx.arc(0, 0, T.r + 2, 0, TAU); targetCtx.fill();
         targetCtx.shadowColor = T.color; targetCtx.shadowBlur = 10;
         targetCtx.globalAlpha = 0.92; targetCtx.fillStyle = T.color;
         targetCtx.beginPath(); targetCtx.arc(0, 0, T.r, 0, TAU); targetCtx.fill();
         targetCtx.shadowBlur = 0; targetCtx.globalAlpha = 1;
         targetCtx.fillStyle = "#0b0b14";
-        targetCtx.font = "bold " + (T.r + 4) + "px monospace";
+        targetCtx.font = "bold " + (T.r + 1) + "px monospace";
         targetCtx.textAlign = "center"; targetCtx.textBaseline = "middle";
         targetCtx.fillText(T.glyph, 0, 1);
         targetCtx.restore();
+        targetCtx.restore();
+        return;
+      }
+
+      if (kind === "enemy") {
+        const E = ETYPES[typeId];
+        if (E) drawEnemyPreview(targetCtx, px, py, typeId, customAim, timeVal);
         targetCtx.restore();
         return;
       }
@@ -774,22 +837,41 @@
         targetCtx.fillText("?", 0, 1);
         drawCracks(targetCtx, hpFrac, 12);
         targetCtx.restore();
+      } else if (P.char === "sancho") {
+        targetCtx.save(); targetCtx.translate(px, py); targetCtx.rotate(aim);
+        targetCtx.fillStyle = bodyColor;
+        targetCtx.beginPath(); targetCtx.moveTo(-2, -13); targetCtx.lineTo(9, -10); targetCtx.lineTo(14, -3);
+        targetCtx.lineTo(11, 10); targetCtx.lineTo(0, 14); targetCtx.lineTo(-10, 7); targetCtx.lineTo(-12, -5); targetCtx.closePath(); targetCtx.fill();
+        targetCtx.fillStyle = "#0b0b14"; targetCtx.fillRect(2, -4, 7, 2.5);
+        targetCtx.strokeStyle = "#ff6675"; targetCtx.lineWidth = 2.4; targetCtx.lineCap = "round"; targetCtx.lineJoin = "round";
+        // Stage-one fists; the gameplay upgrades this silhouette to saber/lance or bow.
+        targetCtx.fillStyle = "#ff6675";
+        for (const side of [-1, 1]) { targetCtx.beginPath(); targetCtx.arc(11, side * 8, 3.2, 0, TAU); targetCtx.fill(); }
+        drawCracks(targetCtx, hpFrac, 10);
+        targetCtx.restore();
+      } else {
+        // New character IDs appear automatically; show their configured glyph and palette.
+        const C = CHARS[P.char] || {};
+        targetCtx.save(); targetCtx.translate(px, py); targetCtx.rotate(aim + Math.PI / 2);
+        targetCtx.fillStyle = bodyColor; targetCtx.beginPath();
+        targetCtx.moveTo(0, -13); targetCtx.lineTo(12, 9); targetCtx.lineTo(7, 13); targetCtx.lineTo(-7, 13); targetCtx.lineTo(-12, 9); targetCtx.closePath(); targetCtx.fill();
+        targetCtx.fillStyle = "#0b0b14"; targetCtx.fillRect(-7, -3, 14, 5);
+        targetCtx.fillStyle = "#e8e2d0"; targetCtx.font = "bold 8px monospace"; targetCtx.textAlign = "center"; targetCtx.textBaseline = "middle";
+        targetCtx.fillText(C.glyph || "◉", 0, 3); drawCracks(targetCtx, hpFrac, 12); targetCtx.restore();
+        targetCtx.strokeStyle = weaponColor; targetCtx.lineWidth = 2.5; targetCtx.beginPath();
+        targetCtx.moveTo(px + Math.cos(aim) * 11, py + Math.sin(aim) * 11);
+        targetCtx.lineTo(px + Math.cos(aim) * 25, py + Math.sin(aim) * 25); targetCtx.stroke();
       }
 
       targetCtx.restore();
     }
 
-    /* =========================================================
-       VAULT VIEW
-       ========================================================= */
     function renderVaultView() {
       vaultContent.innerHTML = "";
+      for (const [tab, key] of [[tabGunslingers, "gunslingers"], [tabPets, "pets"], [tabWarpaint, "warpaint"], [tabEnemies, "enemies"]])
+        tab.classList.toggle("active", currentTab === key);
 
       if (currentTab === "gunslingers") {
-        tabGunslingers.className = "vtab active";
-        tabPets.className = "vtab";
-        tabWarpaint.className = "vtab";
-
         const title = document.createElement("div");
         title.className = "section-title";
         title.textContent = "GUNSLINGERS";
@@ -798,8 +880,8 @@
         const grid = document.createElement("div");
         grid.className = "card-grid";
 
-        GUNSLINGERS.forEach(g => {
-          const isEquipped = charSel.value === g.id;
+        GUNSLG.forEach(g => {
+          const isEquipped = kindSel.value === "gunslinger" && charSel.value === g.id;
           const card = document.createElement("div");
           card.className = `card ${isEquipped ? "equipped" : ""}`;
           card.innerHTML = `
@@ -811,7 +893,9 @@
             <div class="card-desc">${g.desc}</div>
           `;
           card.addEventListener("click", () => {
+            kindSel.value = "gunslinger";
             charSel.value = g.id;
+            setKindControls("gunslinger");
             renderVaultView();
           });
           grid.appendChild(card);
@@ -819,10 +903,6 @@
         vaultContent.appendChild(grid);
 
       } else if (currentTab === "pets") {
-        tabPets.className = "vtab active";
-        tabGunslingers.className = "vtab";
-        tabWarpaint.className = "vtab";
-
         const title = document.createElement("div");
         title.className = "section-title";
         title.textContent = "COMPANIONS";
@@ -832,7 +912,7 @@
         grid.className = "card-grid";
 
         Object.entries(PTYPES).forEach(([id, T]) => {
-          const isEquipped = petSel.value === id;
+          const isEquipped = kindSel.value === "pet" && petSel.value === id;
           const card = document.createElement("div");
           card.className = `card ${isEquipped ? "equipped" : ""}`;
           card.style.color = T.color;
@@ -846,17 +926,39 @@
             <div class="card-desc">${T.desc}</div>
           `;
           card.addEventListener("click", () => {
+            kindSel.value = "pet";
             petSel.value = id;
+            setKindControls("pet");
             renderVaultView();
           });
           grid.appendChild(card);
         });
         vaultContent.appendChild(grid);
 
+      } else if (currentTab === "enemies") {
+        const title = document.createElement("div");
+        title.className = "section-title";
+        title.textContent = "ENEMY ARCHETYPES";
+        vaultContent.appendChild(title);
+        const grid = document.createElement("div"); grid.className = "card-grid";
+        Object.entries(ETYPES).forEach(([id, E]) => {
+          const card = document.createElement("div");
+          card.className = "card" + (kindSel.value === "enemy" && enemySel.value === id ? " equipped" : "");
+          card.style.color = E.color || "var(--bone)";
+          const thumb = document.createElement("canvas"); thumb.width = thumb.height = 64;
+          thumb.style.width = "64px"; thumb.style.height = "64px"; thumb.style.marginBottom = "6px";
+          renderSprite(thumb.getContext("2d"), 64, 64, 0.4, gameTime, E.color || "#e8e2d0", E.color || "#e8e2d0", "enemy", id, 1, 0);
+          card.appendChild(thumb);
+          const name = document.createElement("div"); name.className = "card-name"; name.textContent = enemyLabel(id); card.appendChild(name);
+          const stats = document.createElement("div"); stats.className = "enemy-badge";
+          stats.textContent = "HP " + E.hp + " · SPEED " + E.speed + " · SCORE " + E.score;
+          card.appendChild(stats);
+          card.addEventListener("click", () => { kindSel.value = "enemy"; enemySel.value = id; setKindControls("enemy"); renderVaultView(); });
+          grid.appendChild(card);
+        });
+        vaultContent.appendChild(grid);
+
       } else {
-        tabWarpaint.className = "vtab active";
-        tabGunslingers.className = "vtab";
-        tabPets.className = "vtab";
 
         const sec1 = document.createElement("div");
         sec1.innerHTML = `<div class="section-title">BODY WARPAINT</div>`;
@@ -864,7 +966,7 @@
         bodyGrid.className = "card-grid";
 
         BODY_WARPAINTS.forEach(wp => {
-          const isEquipped = wp.color === selectedBodyColor;
+          const isEquipped = wp.id === selectedBodyPaintId;
           const card = document.createElement("div");
           card.className = `card ${isEquipped ? "equipped" : ""}`;
           card.innerHTML = `
@@ -876,6 +978,7 @@
             <div class="card-desc">${wp.desc}</div>
           `;
           card.addEventListener("click", () => {
+            selectedBodyPaintId = wp.id;
             selectedBodyColor = wp.color;
             renderVaultView();
           });
@@ -891,7 +994,7 @@
         gunGrid.className = "card-grid";
 
         GUN_WARPAINTS.forEach(wp => {
-          const isEquipped = wp.color === selectedGunColor;
+          const isEquipped = wp.id === selectedGunPaintId;
           const card = document.createElement("div");
           card.className = `card ${isEquipped ? "equipped" : ""}`;
           card.innerHTML = `
@@ -903,25 +1006,52 @@
             <div class="card-desc">${wp.desc}</div>
           `;
           card.addEventListener("click", () => {
-            selectedGunColor = wp.color;
+            selectedGunPaintId = wp.id;
+            if (wp.id === "runelight") selectedGunColor = RUNES[selectedRuneId]?.color || RUNES[Object.keys(RUNES)[0]].color;
+            else selectedGunColor = wp.color;
             renderVaultView();
           });
           gunGrid.appendChild(card);
         });
         sec2.appendChild(gunGrid);
+        if (selectedGunPaintId === "runelight") {
+          const runeTitle = document.createElement("div"); runeTitle.className = "section-title";
+          runeTitle.style.marginTop = "14px"; runeTitle.textContent = "RUNELIGHT COLOR · SELECT A RUNE";
+          sec2.appendChild(runeTitle);
+          const runeGrid = document.createElement("div"); runeGrid.className = "rune-color-grid";
+          Object.entries(RUNES).forEach(([id, rune]) => {
+            const option = document.createElement("button"); option.type = "button";
+            option.className = "rune-color-option" + (id === selectedRuneId ? " selected" : "");
+            option.style.color = rune.color; option.title = rune.desc || rune.name;
+            option.innerHTML = `<span class="rune-color-swatch" style="background:${rune.color}"></span><span>${rune.glyph || "◉"} ${rune.name}</span>`;
+            option.addEventListener("click", () => {
+              selectedGunPaintId = "runelight"; selectedRuneId = id; selectedGunColor = rune.color; renderVaultView();
+            });
+            runeGrid.appendChild(option);
+          });
+          sec2.appendChild(runeGrid);
+        }
         vaultContent.appendChild(sec2);
       }
     }
 
-    /* =========================================================
-       ANIMATION + EXPORT
-       ========================================================= */
+    function setKindControls(kind) {
+      ctrlGunslinger.style.display = kind === "gunslinger" ? "" : "none";
+      ctrlPet.style.display = kind === "pet" ? "" : "none";
+      ctrlEnemy.style.display = kind === "enemy" ? "" : "none";
+    }
+    function selectedTypeId() {
+      if (kindSel.value === "pet") return petSel.value;
+      if (kindSel.value === "enemy") return enemySel.value;
+      return charSel.value;
+    }
+
     function animate() {
       gameTime += parseFloat(speedRange.value);
       const hp = parseFloat(hpSelect.value);
       const currentAim = parseFloat(aimRange.value);
       const kind = kindSel.value;
-      const typeId = kind === "pet" ? petSel.value : charSel.value;
+      const typeId = selectedTypeId();
       renderSprite(cx, canvas.width, canvas.height, 1, gameTime, selectedBodyColor, selectedGunColor, kind, typeId, hp, currentAim);
       requestAnimationFrame(animate);
     }
@@ -942,25 +1072,39 @@
     });
 
     kindSel.addEventListener("change", () => {
-      const isPet = kindSel.value === "pet";
-      ctrlGunslinger.style.display = isPet ? "none" : "";
-      ctrlPet.style.display = isPet ? "" : "none";
+      const tabForKind = { gunslinger: "gunslingers", pet: "pets", enemy: "enemies" };
+      setKindControls(kindSel.value);
+      currentTab = tabForKind[kindSel.value] || "gunslingers";
       renderVaultView();
     });
 
     charSel.addEventListener("change", renderVaultView);
     petSel.addEventListener("change", renderVaultView);
+    enemySel.addEventListener("change", renderVaultView);
 
-    tabGunslingers.addEventListener("click", () => { currentTab = "gunslingers"; renderVaultView(); });
-    tabPets.addEventListener("click", () => { currentTab = "pets"; renderVaultView(); });
+    tabGunslingers.addEventListener("click", () => {
+      currentTab = "gunslingers";
+      kindSel.value = "gunslinger";
+      setKindControls("gunslinger");
+      renderVaultView();
+    });
+    tabPets.addEventListener("click", () => {
+      currentTab = "pets";
+      kindSel.value = "pet";
+      setKindControls("pet");
+      renderVaultView();
+    });
     tabWarpaint.addEventListener("click", () => { currentTab = "warpaint"; renderVaultView(); });
+    tabEnemies.addEventListener("click", () => {
+      currentTab = "enemies"; kindSel.value = "enemy"; setKindControls("enemy"); renderVaultView();
+    });
 
     document.getElementById("pngBtn").addEventListener("click", () => {
       const scale = parseInt(scaleSelect.value);
       const hp = parseFloat(hpSelect.value);
       const currentAim = parseFloat(aimRange.value);
       const kind = kindSel.value;
-      const typeId = kind === "pet" ? petSel.value : charSel.value;
+      const typeId = selectedTypeId();
       const exportCanvas = document.createElement("canvas");
       exportCanvas.width = 160 * scale;
       exportCanvas.height = 160 * scale;
@@ -979,7 +1123,7 @@
       const hp = parseFloat(hpSelect.value);
       const currentAim = parseFloat(aimRange.value);
       const kind = kindSel.value;
-      const typeId = kind === "pet" ? petSel.value : charSel.value;
+      const typeId = selectedTypeId();
 
       const recordCanvas = document.createElement("canvas");
       recordCanvas.width = 160 * scale;

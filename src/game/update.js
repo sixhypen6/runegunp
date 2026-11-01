@@ -18,7 +18,7 @@ let lastHint = null, lastBossW = -1;
 
 function bulletSparks(b, ang, n) {
   if (particles.length > 600) return;
-  const col = b.venom ? "#7dff5e" : b.frost ? "#5ee6ff" : b.ember ? "#ff7a3d" : b.pet ? "#ffe08a" : "#fff3c8";
+  const col = b.bleed ? "#ff4d5e" : b.venom ? "#7dff5e" : b.frost ? "#5ee6ff" : b.ember ? "#ff7a3d" : b.pet ? "#ffe08a" : "#fff3c8";
   for (let k = 0; k < n; k++) {
     const pa = ang + rnd(-0.65, 0.65), sp = rnd(110, 290);
     particles.push({ x: b.x, y: b.y, vx: Math.cos(pa) * sp, vy: Math.sin(pa) * sp,
@@ -161,6 +161,19 @@ function updatePlayer(p, inp, dt) {
   p.reprieveFreezeT = Math.max(0, (p.reprieveFreezeT || 0) - dt);
   p.hasteT = Math.max(0, (p.hasteT || 0) - dt);
   p.kickT = Math.max(0, (p.kickT || 0) - dt);
+  p.sanchoSlashT = Math.max(0, (p.sanchoSlashT || 0) - dt);
+  if (p.char === "sancho" && !p.downed) {
+    p.hbTimer -= dt;
+    if (p.hbTimer <= 0) {
+      p.hbTimer = 20;
+      p.hardblood = Math.min(30, (p.hardblood || 0) + 1);
+      recalc(p);
+    }
+    const stage = p.hardblood >= 20 ? 3 : p.hardblood >= 10 ? 2 : 1;
+    if (stage !== p.hbStage) { p.hbStage = stage; recalc(p); }
+    p.speed = CHARS.sancho.speed * p.mods.moveMul * (p.hp / p.maxHp < 0.3 ? 1.25 : 1);
+  }
+  if (isLocal && typeof updateSanchoCue === "function") updateSanchoCue(p);
   /* DOWNED: a slow crawl toward help — no dash, no gun, no interactions */
   if (p.downed) {
     p.x += mx * p.speed * 0.35 * dt;
@@ -595,6 +608,21 @@ function update(dt) {
       continue;
     }
     e.slowT -= dt;
+    if (e.bleedT > 0) {
+      e.bleedT -= dt;
+      e.bleedTick = (e.bleedTick || 0) - dt;
+      if (e.bleedTick <= 0) {
+        e.bleedTick = 1;
+        const tick = e.bleedDps || 0;
+        if (tick > 0) {
+          damageEnemy(e, tick, e.bleedBy ? { owner: e.bleedBy, bleedTick: true } : undefined);
+          Game.bloodfeast = Math.min(999, (Game.bloodfeast || 0) + tick);
+          if (particles.length < 520) particles.push({ x: e.x + rnd(-6, 6), y: e.y + rnd(-6, 6),
+            vx: rnd(-18, 18), vy: rnd(-55, -18), t: 0, life: 0.25, r: 2.5, color: "#ff4d5e" });
+        }
+      }
+      if (e.dead) { enemies.splice(i, 1); continue; }
+    }
     /* STILLPOINT: any warden's time bubble keeps nearby foes mired */
     for (const p of alivePlayers()) {
       if (p.mods.timeField && dist2(e.x, e.y, p.x, p.y) < p.mods.timeR ** 2) { e.slowT = Math.max(e.slowT, 0.12); break; }
@@ -832,6 +860,11 @@ function update(dt) {
         /* DREAD: the hit may break the foe's nerve */
         if (b.fear && !e.boss && Math.random() < b.fear) e.fearT = Math.max(e.fearT || 0, b.fearDur);
         if (b.ember) { e.burnT = 2 + b.ember; e.burnDps = 2 + 2 * b.ember; e.burnBy = b.owner; }
+        if (b.bleed && !e.dead) {
+          e.bleedT = Math.max(e.bleedT || 0, 1 + 0.5 * b.bleed);
+          e.bleedDps = Math.max(e.bleedDps || 0, 3 * b.bleed);
+          e.bleedBy = b.owner;
+        }
         if (b.frost) { e.slowT = 1 + 0.7 * b.frost; floatText(e.x, e.y - e.r - 12, "❄", "#5ee6ff"); }
         if (b.storm && !e.dead) chainStorm(e, b.storm, new Set([e]), b.owner);
         if (b.pierce > 0) b.pierce--; else dead = true;

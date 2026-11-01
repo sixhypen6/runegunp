@@ -70,7 +70,8 @@ const BOSS_SKIP = new Set(["airDst", "convergePos"]);
 
 const PLAYER_FIELDS = ["x", "y", "vx", "vy", "hp", "maxHp", "shield", "shieldMax", "aim", "autoFire",
   "fireT", "dashT", "dashAng", "dashCd", "dashCdBase", "veilT", "veilCdBase", "kickT", "iframes",
-  "downed", "gone", "reviveT", "puddleTick", "thrallRecallT", "reprieveCd"];
+  "downed", "gone", "reviveT", "puddleTick", "thrallRecallT", "reprieveCd",
+  "hardblood", "hbTimer", "hbStage", "weaponMode", "vampireExcess", "vampireMaxBonus"];
 
 const NUM3 = v => typeof v === "number" ? Math.round(v * 100) / 100 : v;
 const QI = v => Math.round(v) || 0;                       // whole pixels
@@ -141,6 +142,7 @@ const Protocol = {
         seal: SEAL.state,
         /* the saloon's shared buzz rides wherever the party carries it */
         drunk: Q2(Game.drunk), dh: Q2(Game.drunkHold), dt: Q2(Game.drunkT), ds: Q2(Game.drunkSpan),
+        bloodfeast: Q2(Game.bloodfeast || 0),
       },
       pl: players.map(p => {
         const o = pluck(p, PLAYER_FIELDS);
@@ -272,6 +274,7 @@ const Protocol = {
     Game.mapIdx = g.mapIdx; Game.loop = g.loop;
     Game.chestsTotal = g.chestsTotal; Game.chestsOpened = g.chestsOpened;
     Game.flawless = g.flawless;
+    Game.bloodfeast = g.bloodfeast || 0;
     Game.pendingPickupBy = g.pickupBy;
     SEAL.state = g.seal;
     /* the saloon's shared buzz. The host owns the clock; the guest mirrors it and
@@ -303,7 +306,8 @@ const Protocol = {
         const err = Math.hypot(p.x - o.x, p.y - o.y);
         if (err > 48) { p.x = o.x; p.y = o.y; }
         else if (err > 4) { p.x = lerp(p.x, o.x, 0.08); p.y = lerp(p.y, o.y, 0.08); }
-        for (const f of ["hp", "maxHp", "shield", "shieldMax", "iframes", "downed", "gone", "reviveT"])
+        for (const f of ["hp", "maxHp", "shield", "shieldMax", "iframes", "downed", "gone", "reviveT",
+          "hardblood", "hbTimer", "hbStage", "weaponMode", "vampireExcess", "vampireMaxBonus"])
           if (o[f] !== undefined) p[f] = o[f];
       }
       p.curses = o.curses || {};

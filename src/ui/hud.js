@@ -54,6 +54,29 @@ function updateHp() {
   }
 }
 
+let lastSanchoCue = "";
+function updateSanchoCue(p) {
+  const el = $("sanchoHud");
+  if (!el) return;
+  const active = !!p && p.char === "sancho";
+  el.classList.toggle("on", active);
+  if (!active) { lastSanchoCue = ""; return; }
+  const hardblood = clamp(p.hardblood || 0, 0, 30);
+  const feast = clamp(Game.bloodfeast || 0, 0, 999);
+  const mode = p.weaponMode === "ranged" ? "BLOOD BOW"
+    : (p.hbStage >= 3 ? "LANCE" : p.hbStage >= 2 ? "SABER" : "FISTS");
+  const switchKey = typeof Input !== "undefined" && Input.touchMode ? "SEAL" : "E";
+  const signature = [hardblood, feast, mode, switchKey].join("|");
+  if (signature === lastSanchoCue) return;
+  lastSanchoCue = signature;
+  $("sanchoHardbloodValue").textContent = hardblood + " / 30";
+  $("sanchoHardbloodFill").style.width = (hardblood / 30 * 100) + "%";
+  $("sanchoFeastValue").textContent = Math.floor(feast) + " / 50 TO REFINE";
+  $("sanchoFeastFill").style.width = (Math.min(feast, 50) / 50 * 100) + "%";
+  $("sanchoWeaponMode").textContent = mode;
+  $("sanchoSwitchHint").textContent = switchKey + " · SWITCH";
+}
+
 /* the partner bars are built once per seat and then updated in place — this
    runs on every hurt, so it must not rebuild the DOM */
 const hudPartnerRows = new Map();
