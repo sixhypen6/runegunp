@@ -438,6 +438,45 @@ const RunegunConsole = {
     this.log("Spawned " + count + " " + type + (count === 1 ? "" : "s") + " near the player.");
   },
 
+  spawnRuneOrbs(count) {
+    const p = this.currentPlayer();
+    if (!Number.isInteger(count) || count < 1 || count > 20)
+      throw new Error("Count must be between 1 and 20.");
+    if (pickups.length + count > 100) throw new Error("Rune-orb limit reached; collect some first.");
+    for (let i = 0; i < count; i++) {
+      const angle = i / count * TAU + Game.time * 0.37;
+      const radius = 76 + (i % 3) * 24;
+      const x = clamp(p.x + Math.cos(angle) * radius, 40, MAP.w - 40);
+      const y = clamp(p.y + Math.sin(angle) * radius, 40, MAP.h - 40);
+      spawnPickup(x, y);
+    }
+    this.log("Spawned " + count + " rune " + (count === 1 ? "orb" : "orbs") + " near " + this.targetTag(p) + ".");
+  },
+
+  setBonusRuneSlots(value) {
+    const p = this.currentPlayer();
+    const raw = String(value == null ? "" : value).trim();
+    if (!raw) {
+      this.log(this.targetTag(p) + " · BONUS RUNE SLOTS " + (p.bonusRuneSlots || 0) +
+        " · EFFECTIVE CAPACITY " + runeSlotCount(p) + ".");
+      return;
+    }
+    const hit = /^([+-]?)(\d+)$/.exec(raw);
+    if (!hit) throw new Error("Usage: bonusruneslots [n|+n|-n].");
+    const n = Number(hit[2]);
+    if (!Number.isSafeInteger(n) || n > 99) throw new Error("Bonus slots must be between 0 and 99.");
+    const before = p.bonusRuneSlots || 0;
+    const next = hit[1] === "+" ? before + n : hit[1] === "-" ? Math.max(0, before - n) : n;
+    if (next > 99) throw new Error("Bonus slots must be between 0 and 99.");
+    p.bonusRuneSlots = next;
+    p.lockedRunes = null;
+    recalc(p);
+    checkRuneLock(p);
+    this.afterEdit();
+    this.log(this.editTag(p) + "BONUS RUNE SLOTS " + before + " → " + next +
+      " · EFFECTIVE CAPACITY " + runeSlotCount(p) + ".");
+  },
+
   /* Wake a warden without waiting for the seal. With an argument, any of the
      eight may be called (a name or 1-based number); bare `boss` wakes the one
      this floor keeps. The guest sees the intro through Coop's bossSpawn. */
@@ -522,6 +561,8 @@ const RunegunConsole = {
       "  set <rune> <n>                set a rune to an exact stack count",
       "  remove <rune> [n]             take n stacks away",
       "  clear                         drop every rune this run",
+      "  orb [n] / spawn orb [n]       spawn rune orbs near the target (max 20; aliases: runeorb, rune-orb)",
+      "  bonusruneslots [n|+n|-n]      show, set, add or remove bonus rune slots",
       "  heal                          restore the run's vitality",
       "  souls <n>                     add souls to THIS RUN's score",
       "  char <id>                     swap the current run's warden",
@@ -606,8 +647,16 @@ const RunegunConsole = {
       } else if (command === "spawn") {
         if (!args[0]) throw new Error("Usage: spawn <enemy type> [count], or spawn boss [kind]. Use enemies to list valid types.");
         if (args[0] === "boss" || args[0] === "warden") { this.spawnWarden(rawArgs.slice(1).join(" ")); return; }
+        if (args[0] === "orb" || args[0] === "runeorb" || args[0] === "rune-orb") {
+          this.spawnRuneOrbs(args[1] === undefined ? 1 : amount(args[1], 1));
+          return;
+        }
         const count = args[1] === undefined ? 1 : amount(args[1], 1);
         this.spawnEnemies(args[0], count);
+      } else if (command === "orb" || command === "runeorb" || command === "rune-orb") {
+        this.spawnRuneOrbs(args[0] === undefined ? 1 : amount(args[0], 1));
+      } else if (command === "bonusruneslots" || command === "bonus-rune-slots") {
+        this.setBonusRuneSlots(rawArgs[0]);
       } else if (command === "boss" || command === "warden" || command === "spawnboss") {
         this.spawnWarden(rawArgs.join(" "));
       } else if (command === "floors") {
