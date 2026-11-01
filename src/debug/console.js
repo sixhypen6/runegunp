@@ -367,9 +367,7 @@ const RunegunConsole = {
   },
 
   teleportFloor(query) {
-    this.currentPlayer();
-    if (typeof Net !== "undefined" && Net.active)
-      throw new Error("tp is solo-only — a shared descent has no floor sync for a console jump.");
+    this.currentPlayer();        // coopLock: host + auth in co-op; no-op solo
     const value = String(query || "").trim();
     if (!value) throw new Error("Usage: tp <floor number or name>. Use floors to list floors.");
     let index = -1;
@@ -395,7 +393,12 @@ const RunegunConsole = {
     setupFloor(false);
     Game.intermission = 2.5;
     if (Game.state !== "play" && Game.state !== "pause") setState("play");
-    this.log("Teleported to floor " + (index + 1) + ": " + target.name + ".");
+    /* a shared descent is host-driven: broadcast the jump so every guest rebuilds
+       the same floor from snapshots instead of staying where they were */
+    if (typeof Net !== "undefined" && Net.active && Net.role === "host" &&
+        typeof Coop !== "undefined" && Coop.running) Coop.sendFloor();
+    this.log("Teleported to floor " + (index + 1) + ": " + target.name + "." +
+      (typeof Net !== "undefined" && Net.active ? " · party synced" : ""));
   },
 
   spawnEnemies(type, count) {
@@ -503,7 +506,7 @@ const RunegunConsole = {
       "  souls <n>                     add souls to THIS RUN's score",
       "  char <id>                     swap the current run's warden",
       "  floors                        every floor, numbered",
-      "  tp <floor number or name>     jump to a floor (alias: teleport)",
+      "  tp <floor number or name>     jump to a floor (host-only in co-op; alias: teleport)",
       "  enemies                       every horror type",
       "  spawn <enemy> [n]             put horrors around you (max 20)",
       "  boss [kind|name]              wake a warden now (no arg = this floor; boss list)",
