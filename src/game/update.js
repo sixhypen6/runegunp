@@ -471,9 +471,15 @@ function update(dt) {
        [ E ] does exactly what the host's would */
     const sp = sh[p.idx];
     if (sp && sp.hint && !pHint) { pHint = sp.hint; pAct = sp.act; }
+    /* THE UNKNOWN speaks to the whole party: any warden's [ E ] carries it on */
+    if (uh.hint && !pHint) { pHint = uh.hint; pAct = uh.act; }
+    /* past floor VIII the final rift is the only way on — and any warden may step in */
+    if (rift && rift.final && !Game.ambush &&
+        dist2(rift.x, rift.y, p.x, p.y) < (rift.r + 46) ** 2 && !pHint) {
+      pHint = "?????? — [ E ] STEP INTO THE UNKNOWN"; pAct = enterUnknown;
+    }
     if (p === localPlayer()) {
       if (rh.hint && !pHint) { pHint = rh.hint; pAct = rh.act; }
-      if (uh.hint && !pHint) { pHint = uh.hint; pAct = uh.act; }
       hint = pHint;
     }
     const f = frames[p.idx];

@@ -16,9 +16,10 @@ const SNAP_HZ = 12, INPUT_HZ = 30;
    independent: the fraction of remaining error closed per second. */
 const CHASE = 0.0001;
 
-/* The shared descent is floors I–V (loopLen in floors.js): the saloon, the deep
-   floors and THE UNKNOWN have no guest-side sync yet. These are the rules a pair
-   may lay over that lap — chosen by the host in the lobby. */
+/* The shared descent runs the same eight floors as a solo one. The host owns the
+   deep floors (VI–VIII) and THE UNKNOWN: the guest follows through snapshots,
+   with a visual-only mirror of their weather and stage. These are the rules a
+   party may lay over that lap — chosen by the host in the lobby. */
 const COOP_MODES = ["normal", "hard", "classic", "classicloop", "chaos"];
 const COOP_MODE_LABEL = {
   normal: "NORMAL", hard: "HARD", classic: "CLASSIC", classicloop: "CLASSIC LOOP", chaos: "CHAOS",
@@ -246,11 +247,16 @@ const Coop = {
     Net.sendR({
       t: "floor", mapIdx: Game.mapIdx, loop: Game.loop, seal: SEAL.state,
       chestsTotal: Game.chestsTotal, chestsOpened: Game.chestsOpened,
-      rocks: MAP.rocks.map(rc => ({ id: rc.id, x: rc.x, y: rc.y, w: rc.w, h: rc.h, tone: rc.tone, boss: !!rc.boss })),
+      rocks: MAP.rocks.map(rc => {
+        const o = { id: rc.id, x: rc.x, y: rc.y, w: rc.w, h: rc.h, tone: rc.tone, boss: !!rc.boss };
+        if (rc.mirror) { o.mirror = true; o.pitch = rc.pitch || 659; }
+        return o;
+      }),
       chests: chests.map(c => ({ id: c.id, x: c.x, y: c.y, state: c.state })),
       hbs: healthBoxes.map(h => ({ id: h.id, x: h.x, y: h.y, state: h.state })),
       haz: puddles.map(pu => { if (!pu.id) assignId(pu); return { id: pu.id, x: pu.x, y: pu.y, r: pu.r,
-        life: pu.life === Infinity ? -1 : pu.life, dmg: pu.dmg, color: pu.color, lava: !!pu.lava, water: !!pu.water }; }),
+        life: pu.life === Infinity ? -1 : pu.life, dmg: pu.dmg, color: pu.color, lava: !!pu.lava, water: !!pu.water,
+        ice: !!pu.ice, lapse: !!pu.lapse }; }),
       runes: players.map(p => p.runes),
       rerolls: players.map(p => p.rerolls),
       px: players.map(p => [p.x, p.y]),
@@ -273,6 +279,28 @@ const Coop = {
         return o;
       }),
       portal: portal ? { x: portal.x, y: portal.y, t: portal.t } : null,
+      runes: players.map(p => p.runes),
+      rerolls: players.map(p => p.rerolls),
+      px: players.map(p => [p.x, p.y]),
+      downed: players.map(p => !!p.downed),
+    });
+  },
+
+  /* THE UNKNOWN is a stage change, like the saloon: same mapIdx (the floor VIII
+     index), a different arena. The guest wipes its world, rebuilds the abyss and
+     the ring of stone, then follows the host's stage in snapshots (`u`). */
+  sendUnknown() {
+    const U = Game.unk;
+    if (!this.running || Net.role !== "host" || !U) return;
+    Protocol.resetSeen();
+    Net.sendR({
+      t: "unknown", mapIdx: Game.mapIdx, loop: Game.loop,
+      boss: U.boss ? U.boss.id : 0,
+      rocks: MAP.rocks.map(rc => {
+        const o = { id: rc.id, x: rc.x, y: rc.y, w: rc.w, h: rc.h, tone: rc.tone, boss: !!rc.boss };
+        if (rc.mirror) { o.mirror = true; o.pitch = rc.pitch || 659; }
+        return o;
+      }),
       runes: players.map(p => p.runes),
       rerolls: players.map(p => p.rerolls),
       px: players.map(p => [p.x, p.y]),
@@ -480,6 +508,13 @@ const Coop = {
              : "[ E ] ANOTHER ROUND · " + SALOON_ROUND + " SOULS";
       }
     }
+    /* past floor VIII: the rift is the only way on and the host opens it */
+    if (rift && rift.final && !Game.ambush &&
+        dist2(rift.x, rift.y, self.x, self.y) < (rift.r + 46) ** 2)
+      hint = "?????? — [ E ] STEP INTO THE UNKNOWN";
+    /* THE UNKNOWN itself: the host owns the stage; this screen still shows what
+       its own [ E ] would do during the talk (the walk-up starts on proximity) */
+    if (Game.inUnknown && Game.unk && Game.unk.stage === "talk" && !hint) hint = "[ E ] LISTEN ON";
     if (hint) hint = hint.replace("[ E ]", "[ " + (Input.touchMode ? "SEAL" : bindLabel("use")) + " ]");
     if (hint !== lastHint) {
       lastHint = hint;
@@ -498,9 +533,10 @@ const Coop = {
      target. A snapshot only corrects the target, so motion stays smooth
      no matter how the packets land.
      ========================================================= */
-  _reckon(dt) {
+  _reckon(dt, freezeEnemies) {
     const k = 1 - Math.pow(CHASE, dt);
     for (const e of enemies) {
+      if (freezeEnemies && !e.boss) continue;   // the stopped hour: only the Saint still moves
       if (e._tx === undefined) { e._tx = e.x; e._ty = e.y; }
       /* the target keeps moving between packets at the last known velocity */
       e._tx += e.vx * dt; e._ty += e.vy * dt;
@@ -518,7 +554,13 @@ const Coop = {
 
   /* visual-only world tick: everything moves, nothing deals damage */
   _cosmeticWorld(dt) {
-    this._reckon(dt);
+    /* floors VI–VIII + THE UNKNOWN: the guest mirrors their weather and stage,
+       picture only — the host owns every curse, timer and point of damage */
+    if (typeof deepGuestTick === "function") deepGuestTick(dt);
+    if (Game.inUnknown && typeof unknownGuestTick === "function") unknownGuestTick(dt);
+    /* the stopped hour: shots hang, pools hold, nothing drifts (matches update.js) */
+    const still = !!(Game.deep && Game.deep.stillT > 0);
+    this._reckon(dt, still);
     for (const c of chests) c.pulse += dt * 2;
     for (const h of healthBoxes) h.pulse += dt * 2;
     SEAL.pulse += dt * 1.5;
@@ -526,6 +568,7 @@ const Coop = {
     if (portal) portal.t += dt;
     /* own + partner bullets: fly, bounce, pop on foes (visual only) */
     for (let i = bullets.length - 1; i >= 0; i--) {
+      if (still) continue;                       // the stopped hour holds every shot
       const b = bullets[i]; b.t += dt;
       b.x += b.vx * dt; b.y += b.vy * dt;
       let dead = b.t > b.life;
@@ -549,6 +592,7 @@ const Coop = {
     }
     /* enemy bullets: guest-simulated after the one-shot spawn */
     for (let i = ebullets.length - 1; i >= 0; i--) {
+      if (still) continue;                       // the stopped hour holds enemy fire too
       const b = ebullets[i]; b.t += dt;
       if (b.homing) {
         const HP = nearestPlayer(b.x, b.y);
@@ -583,6 +627,7 @@ const Coop = {
     }
     for (let i = shockwaves.length - 1; i >= 0; i--) {
       const sw = shockwaves[i];
+      if (still) continue;                       // every ring hangs where it is
       if (sw.delay > 0) { sw.delay -= dt; continue; }
       if (!isFinite(sw.r) || !isFinite(sw.speed) || !isFinite(sw.max) || sw.max <= 0) {
         shockwaves.splice(i, 1); continue;
@@ -592,12 +637,13 @@ const Coop = {
     }
     for (let i = puddles.length - 1; i >= 0; i--) {
       const pu = puddles[i];
+      if (still) continue;
       if (pu.lava && Math.random() < dt * 1.2 && particles.length < 500) {
         particles.push({ x: pu.x + rnd(-pu.r * 0.6, pu.r * 0.6), y: pu.y + rnd(-pu.r * 0.6, pu.r * 0.6),
           vx: rnd(-25, 25), vy: rnd(-120, -40), t: 0, life: rnd(0.4, 0.9), r: rnd(2, 5), color: "#ff5e2e" });
       }
     }
-    for (let i = particles.length - 1; i >= 0; i--) { const p = particles[i]; p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; if (p.t > p.life) particles.splice(i, 1); }
+    for (let i = particles.length - 1; i >= 0; i--) { if (still) break; const p = particles[i]; p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; if (p.t > p.life) particles.splice(i, 1); }
     for (let i = veils.length - 1; i >= 0; i--) { veils[i].t += dt; if (veils[i].t > veils[i].life) veils.splice(i, 1); }
     for (let i = floaters.length - 1; i >= 0; i--) { const fl = floaters[i]; fl.t += dt; fl.y -= (fl.vy === undefined ? 40 : fl.vy) * dt; if (fl.t > (fl.life || 0.7)) floaters.splice(i, 1); }
     for (let i = zaps.length - 1; i >= 0; i--) { zaps[i].t += dt; if (zaps[i].t > 0.15) zaps.splice(i, 1); }
@@ -655,6 +701,25 @@ const Coop = {
       } break;
       case "floor": if (Net.role === "guest") this._applyFloor(m); break;
       case "saloon": if (Net.role === "guest") this._applySaloon(m); break;
+      case "unknown": if (Net.role === "guest") this._applyUnknown(m); break;
+      /* THE UNKNOWN fell: the same cinematic plays on every screen */
+      case "ending": if (Net.role === "guest") {
+        unknownHud(false);
+        $("bossBar").classList.remove("on", "unk", "abyss");
+        $("echoBars").classList.remove("on");
+        document.body.classList.remove("bossOn", "unkTalk");
+        startEnding();
+      } break;
+      /* the ending's one choice is the host's: a guest's click only asks; the host
+         applies it and sends the answer back so every screen falls the same way */
+      case "endChoice": {
+        if (Net.role === "host") {
+          applyEndingChoice(!!m.deeper);
+          Net.sendR({ t: "endChoice", deeper: !!m.deeper });
+        } else {
+          applyEndingChoice(!!m.deeper);
+        }
+      } break;
       /* a host console edit: new runes / warden, applied at once */
       case "edit": if (Net.role === "guest") this._applyEdit(m); break;
       case "kill": if (Net.role === "guest") this._guestKill(m); break;
@@ -868,6 +933,9 @@ const Coop = {
 
   /* ---------------- guest-side event juice ---------------- */
   _guestKill(m) {
+    /* is this the boss the HUD is showing? THE UNKNOWN's challenge rounds kill
+       echoes while its own bar stays up, so only the main boss clears it. */
+    const wasMain = !!(m.boss && Game.boss && Game.boss.id === m.id);
     for (let i = enemies.length - 1; i >= 0; i--) if (enemies[i].id === m.id) enemies.splice(i, 1);
     const pn = m.boss ? 50 : 14;
     for (let i = 0; i < pn && particles.length < 520; i++) {
@@ -876,7 +944,7 @@ const Coop = {
     }
     Game.shake = Math.max(Game.shake, m.boss ? 16 : 4);
     AudioFX.kill();
-    if (m.boss) {
+    if (wasMain) {
       $("bossBar").classList.remove("on");
       document.body.classList.remove("bossOn");
       AudioFX.bossRoar();
@@ -925,6 +993,7 @@ const Coop = {
      live state (see `encodeSaloon`/`applySaloonState`). */
   _applySaloon(m) {
     Game.inSaloon = true;
+    Game.inUnknown = false; Game.unk = null;
     Game.mapIdx = m.mapIdx; Game.loop = m.loop;
     MAP.rocks = m.rocks;
     enemies = []; bullets = []; ebullets = []; puddles = [];
@@ -964,8 +1033,57 @@ const Coop = {
     AudioFX.portal();
   },
 
+  /* THE UNKNOWN, co-op: rebuild the abyss on the guest. The host's entry message
+     carries the ring of stone and the boss id; snapshots then stream the stage
+     (`u`), floor warnings and every lingering effect. */
+  _applyUnknown(m) {
+    Game.inSaloon = false; Game.saloon = null;
+    Game.inUnknown = true;
+    Game.mapIdx = m.mapIdx; Game.loop = m.loop;
+    MAP.rocks = m.rocks;
+    enemies = []; bullets = []; ebullets = []; puddles = [];
+    particles = []; chests = []; pickups = []; shockwaves = []; floaters = []; zaps = []; veils = []; healthBoxes = []; mines = []; shells = [];
+    soulMotes = [];
+    portal = null; rift = null;
+    Game.ambush = null; Game.boss = null; Game.shake = 0;
+    Game.bossRocks.length = 0;
+    Game.chestsTotal = 0; Game.chestsOpened = 0;
+    SEAL.state = "spent"; SEAL.pulse = 0;
+    pets = [];
+    for (const p of players) if (p.pet && PTYPES[p.pet]) pets.push(spawnPet(p.pet, p));
+    for (let i = 0; i < players.length; i++) {
+      const p = players[i];
+      p.runes = m.runes[i] || {};
+      p.rerolls = m.rerolls[i];
+      recalc(p);
+      if (m.px[i]) { p.x = m.px[i][0]; p.y = m.px[i][1]; }
+      p.iframes = 1.5;
+      if (m.downed) p.downed = !!m.downed[i];
+    }
+    /* no ice and no star down here — but the Saint's echo still brings its hour */
+    if (typeof setupDeepFloor === "function") setupDeepFloor();
+    /* the creature itself: a local stub under the HOST's id, so the first
+       snapshot's static head and `bs` object land on the same body */
+    const b = makeUnknownBoss();
+    if (m.boss) b.id = m.boss;
+    enemies.push(b);
+    Game.unk = makeUnknownState(b, m.rocks);
+    unknownGuestStage();
+    $("mapName").textContent = "??????";
+    unknownHud(false);
+    $("bossBar").classList.remove("on");
+    document.body.classList.remove("bossOn", "unkTalk");
+    Game.floorFade = 1;
+    this._floorReady = true;
+    setState("play");
+    toast("YOU STEP INTO THE UNKNOWN — IT HAS BEEN WAITING");
+    AudioFX.portal();
+  },
+
   _applyFloor(m) {
     Game.inSaloon = false; Game.saloon = null;
+    Game.inUnknown = false; Game.unk = null;
+    unknownHud(false);
     Game.mapIdx = m.mapIdx; Game.loop = m.loop;
     Game.chestsTotal = m.chestsTotal; Game.chestsOpened = m.chestsOpened;
     MAP.rocks = m.rocks;
@@ -980,7 +1098,9 @@ const Coop = {
     for (const h of m.hbs) healthBoxes.push({ id: h.id, x: h.x, y: h.y, r: 16, state: h.state, pulse: rnd(0, TAU) });
     for (const pu of m.haz) puddles.push({ id: pu.id, x: pu.x, y: pu.y, r: pu.r, t: 0,
       life: pu.life === -1 ? Infinity : pu.life, team: "e", dmg: pu.dmg, color: pu.color,
-      lava: pu.lava, water: pu.water, tickMap: {} });
+      lava: pu.lava, water: pu.water, ice: !!pu.ice, lapse: !!pu.lapse, tickMap: {} });
+    /* floors VI–VIII: the stopped hour, black ice, the star (entities/deep.js) */
+    if (typeof setupDeepFloor === "function") setupDeepFloor();
     pets = [];
     for (const p of players) if (p.pet && PTYPES[p.pet]) pets.push(spawnPet(p.pet, p));
     /* authoritative starting builds + spawn spots */

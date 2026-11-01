@@ -44,11 +44,11 @@ const FLOORS = [
     rockA: "#2b1320", rockB: "#230f1a", rockTop: "#3e1c2e",
     rocks: 28, hazards: 0, hazardType: "sun", newEnemy: "drifter" },
 ];
-/* how many floors a lap runs before the Catacomb returns. A run that began as a
-   co-op descent keeps the original five for its whole length — Game.coopLap is
-   frozen at resetRun — even if the partner leaves: the saloon and floors VI–VIII
-   have no guest-side sync, so the survivor must not walk into them mid-run. */
-const loopLen = () => (Game.coopLap || (typeof Net !== "undefined" && Net.active)) ? 5 : FLOORS.length;
+/* How many floors a lap runs before the Catacomb returns. Solo and co-op both run
+   the full eight now: THE SINGULAR sits between V and VI (scenes/saloon.js), and
+   VI–VIII end at the Other Gunslingers, whose death opens the final rift to THE
+   UNKNOWN (entities/unknown.js). A co-op guest follows the host through all of it. */
+const loopLen = () => FLOORS.length;
 /* THE SINGULAR — not a floor of the loop but the saloon stage past the Event Horizon
    (scenes/saloon.js). floorDef() hands it out while Game.inSaloon, so the shared
    renderer paints the void outside the saloon's walls; the room draws itself. */

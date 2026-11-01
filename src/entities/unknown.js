@@ -17,7 +17,8 @@
      dying  → its runes scatter, a last line, then the ending (startEnding)
 
    Each rune's attack lives in unknown-runes.js; the art in draw-unknown.js.
-   Solo only, like floors VI–VIII: co-op never reaches floor VIII.
+   Shared descents follow the host's stage through `encodeUnknown` /
+   `applyUnknownState`, with the guest's own visual-only `unknownGuestTick`.
    ========================================================= */
 "use strict";
 
@@ -138,6 +139,9 @@ function enterUnknown() {
   setState("play");
   toast("YOU STEP INTO THE UNKNOWN — IT HAS BEEN WAITING");
   AudioFX.portal();
+  /* shared descent: the host carries the stage; the guest rebuilds the same arena */
+  if (typeof Net !== "undefined" && Net.role === "host" &&
+      typeof Coop !== "undefined" && Coop.running) Coop.sendUnknown();
 }
 
 /* =========================================================
@@ -163,8 +167,9 @@ function updateUnknown(dt) {
   switch (U.stage) {
     case "walk": {
       unkHover(b, dt);
-      const P = localPlayer();
-      if (P && dist2(P.x, P.y, b.x, b.y) < 430 * 430) unkBeginTalk();
+      /* any living warden can begin the walk-up, not just the host's own body */
+      for (const p of alivePlayers())
+        if (dist2(p.x, p.y, b.x, b.y) < 430 * 430) { unkBeginTalk(); break; }
       break;
     }
     case "talk": {
@@ -235,7 +240,15 @@ function updateUnknown(dt) {
         shockwaves.push({ x: b.x, y: b.y, r: 20, max: 520, speed: 700, dmg: 0, hostile: false, hit: true, hitSet: new Set(), color: "#c9b8ff" });
         Game.shake = Math.max(Game.shake, 18); AudioFX.nova(); AudioFX.slam();
       }
-      if (U.st >= 3.8) { U.stage = "done"; startEnding(); return out; }
+      if (U.st >= 3.8) {
+        U.stage = "done";
+        /* shared descent: the same death cinematic plays on every screen; the
+           host alone owns the choice that follows (ending.js → chooseEnding…) */
+        if (typeof Net !== "undefined" && Net.role === "host" &&
+            typeof Coop !== "undefined" && Coop.running)
+          Net.sendR({ t: "ending", conquered: true });
+        startEnding(); return out;
+      }
       break;
     }
   }
@@ -783,4 +796,139 @@ function unkMinion(type, x, y) {
   e.spawnT = 0;
   enemies.push(e);
   return e;
+}
+
+/* =========================================================
+   CO-OP MIRROR — the host ships its stage, the guest draws it
+   Every floor warning, glyph and lingering effect is host-authored; at ~12Hz
+   the guest rebuilds the same picture from one compact object and advances its
+   clocks locally between packets. Nothing here deals damage or heals: those
+   stay on the host (unknown-runes.js).
+   ========================================================= */
+const UNK_ZONE_WIRE = ["type", "x", "y", "r", "x1", "y1", "x2", "y2", "w", "a", "len", "n",
+  "rot", "rotSpd", "a0", "a1", "sweep", "gap", "parity", "size", "lockAt", "warn", "active",
+  "delay", "fade", "c", "blast", "spikes", "follow", "follow0"];
+
+function encodeUnkZone(z) {
+  const o = { t: Q2(z.t) };
+  for (const k of UNK_ZONE_WIRE) if (z[k] !== undefined) o[k] = z[k];
+  if (z.on) o.on = 1;
+  if (z.lob) o.lob = { x: QI(z.lob.x), y: QI(z.lob.y) };
+  if (z.pts) o.pts = z.pts;
+  return o;
+}
+
+function encodeUnknown() {
+  const U = Game.unk; if (!U) return null;
+  return {
+    st: U.stage, t: Q2(U.st), ph: U.phase, vis: Q2(U.vis), nk: Q2(U.nameK),
+    b: U.boss ? U.boss.id : 0,
+    ln: U.line ? [U.line.txt, Q2(U.line.t), Q2(U.line.life)] : null,
+    ca: U.casts.map(c => [c.id, Q2(c.t), Q2(c.windup), Q2(c.delay), Q2(c.off),
+      QI(c.from.x), QI(c.from.y), c.fired ? 1 : 0, c.n, c.yours ? 1 : 0, U.halo.indexOf(c.h)]),
+    nx: U.next, gap: Q2(U.gap), left: U.left, gd: Q2(U.gdur),
+    ha: U.halo.map(h => Q2(h.a)), hb: U.halo.map(h => h.busy ? 1 : 0),
+    zn: U.zones.map(encodeUnkZone),
+    sh: Q2(U.sheenT), br: Q2(U.brambleT),
+    me: U.mend ? [Q2(U.mend.t), Q2(U.mend.dur), Q2(U.mend.need), Q2(U.mend.dmg)] : null,
+    te: U.tether ? [Q2(U.tether.t), Q2(U.tether.dur)] : null,
+    dk: U.dark ? [Q2(U.dark.t), Q2(U.dark.dur)] : null,
+    co: U.coins.map(c => [QI(c.x), QI(c.y), c.real ? 1 : 0, Q2(c.t), Q2(c.boom), Q2(c.ph)]),
+    fi: U.fields.map(f => [QI(f.x), QI(f.y), QI(f.r), Q2(f.t), Q2(f.life)]),
+    ec: U.echoes.map(e => e.id), cl: Q2(U.clearT),
+    am: U.aim ? [U.aim.c, QI(U.aim.x), QI(U.aim.y)] : null,
+  };
+}
+
+function applyUnknownState(u) {
+  const U = Game.unk; if (!U || !u) return;
+  const stageChanged = U.stage !== u.st;
+  U.stage = u.st; U.st = u.t || 0; U.phase = u.ph; U.vis = u.vis; U.nameK = u.nk;
+  const b = enemies.find(e => e.id === u.b);
+  if (b) U.boss = b;
+  U.line = u.ln ? { txt: u.ln[0], t: u.ln[1], life: u.ln[2] } : null;
+  U.casts = (u.ca || []).map(c => ({
+    id: c[0], t: c[1], windup: c[2], delay: c[3], off: c[4],
+    from: { x: c[5], y: c[6] }, fired: !!c[7], firedAt: c[1], n: c[8], yours: !!c[9],
+    h: c[10] >= 0 ? U.halo[c[10]] : null,
+  }));
+  U.next = u.nx || null; U.gap = u.gap; U.left = u.left; U.gdur = u.gd;
+  if (Array.isArray(u.ha)) for (let i = 0; i < U.halo.length && i < u.ha.length; i++) {
+    U.halo[i].a = u.ha[i]; U.halo[i].busy = !!(u.hb && u.hb[i]);
+  }
+  U.zones = (u.zn || []).map(z => {
+    const o = Object.assign({ hit: new Set() }, z);
+    if (z.lob) o.lob = { x: z.lob.x, y: z.lob.y };
+    return o;
+  });
+  U.sheenT = u.sh || 0; U.brambleT = u.br || 0;
+  U.mend = u.me ? { t: u.me[0], dur: u.me[1], need: u.me[2], dmg: u.me[3] } : null;
+  U.tether = u.te ? { t: u.te[0], dur: u.te[1], tick: 1 } : null;
+  U.dark = u.dk ? { t: u.dk[0], dur: u.dk[1] } : null;
+  U.coins = (u.co || []).map(c => ({ x: c[0], y: c[1], real: !!c[2], t: c[3], boom: c[4], ph: c[5] }));
+  U.fields = (u.fi || []).map(f => ({ x: f[0], y: f[1], r: f[2], t: f[3], life: f[4] }));
+  U.echoes = (u.ec || []).map(id => enemies.find(e => e.id === id)).filter(Boolean);
+  U.clearT = u.cl === undefined ? -1 : u.cl;
+  U.aim = u.am ? { c: u.am[0], x: u.am[1], y: u.am[2] } : null;
+  if (stageChanged) unknownGuestStage();
+}
+
+/* the screen furniture that follows the stage: letterbox, boss bar, map name */
+function unknownGuestStage() {
+  const U = Game.unk; if (!U) return;
+  const talking = U.stage === "talk";
+  document.body.classList.toggle("unkTalk", talking);
+  const live = U.stage === "reveal" || U.stage === "fight" || U.stage === "sink" ||
+               U.stage === "round" || U.stage === "rise" || U.stage === "dying";
+  document.body.classList.toggle("bossOn", live);
+  const bar = $("bossBar");
+  if (bar) {
+    if (live) bar.classList.add("on", "unk");
+    else bar.classList.remove("on", "unk");
+  }
+  const mapEl = $("mapName");
+  if (mapEl) {
+    if (live) { if (mapEl.textContent !== "THE UNKNOWN") mapEl.textContent = "THE UNKNOWN"; }
+    else if (U.stage === "walk" || U.stage === "talk" || U.stage === "reveal") {
+      if (mapEl.textContent !== "??????") mapEl.textContent = "??????";
+    }
+  }
+}
+
+/* visual-only stage advance on the guest. The host's next snapshot overwrites
+   every authoritative value; this only keeps the picture breathing between them. */
+function unknownGuestTick(dt) {
+  const U = Game.unk; if (!U || !Game.inUnknown) return;
+  unkKeepOutOfAbyss();
+  U.st += dt;
+  const b = U.boss;
+  for (const h of U.halo) h.a += h.spin * dt * (U.stage === "dying" ? 3 : 1);
+  if (U.line) { U.line.t += dt; if (U.line.t > U.line.life) U.line = null; }
+  for (const c of U.casts) c.t += dt;
+  U.casts = U.casts.filter(c => !c.fired || c.t - (c.firedAt || 0) < 0.4);
+  for (let i = U.zones.length - 1; i >= 0; i--) {
+    const z = U.zones[i];
+    z.t += dt;
+    const lt = z.t - z.delay;
+    if (lt < 0) continue;
+    if (z.follow && b && !b.dead) { z.x = b.x; z.y = b.y; }
+    if (z.follow0 && !z.placed) { z.placed = true; if (b && !b.dead) { z.x = b.x; z.y = b.y; } }
+    if (z.type === "reticle" && lt < z.warn * z.lockAt) {
+      const P = nearestPlayer(z.x, z.y), k = unkEase(lt / (z.warn * z.lockAt));
+      z.x = lerp(z.sx, P.x, k); z.y = lerp(z.sy, P.y, k);
+    }
+    if (lt >= z.warn) z.on = 1;
+    if (lt > z.warn + z.active + (z.fade || 0.3)) U.zones.splice(i, 1);
+  }
+  U.sheenT = Math.max(0, (U.sheenT || 0) - dt);
+  U.brambleT = Math.max(0, (U.brambleT || 0) - dt);
+  if (U.mend) U.mend.t += dt;
+  if (U.tether) { U.tether.t += dt; if (U.tether.t >= U.tether.dur) U.tether = null; }
+  if (U.dark) { U.dark.t += dt; if (U.dark.t >= U.dark.dur) U.dark = null; }
+  for (const c of U.coins) c.t += dt;
+  for (let i = U.fields.length - 1; i >= 0; i--) {
+    const f = U.fields[i]; f.t += dt; if (f.t >= f.life) U.fields.splice(i, 1);
+  }
+  if (U.stage === "round") U.echoes = U.echoes.filter(e => e && !e.dead);
+  unknownHud(true);
 }

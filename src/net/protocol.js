@@ -55,6 +55,15 @@ const ENEMY_EXTRA = {
   angler: ["phase", "pt", "lureBob", "strikeAng"],
   riptide: ["phase", "pt", "rushAng"],
   phylactery: ["orbA", "orbR", "bob"],
+  /* floors VI–VIII: the telegraphs draw-deep.js reads (entities/deep.js) */
+  mourner: ["watched"],
+  lapse: ["bob"],
+  lumen: ["phase", "pt", "beam"],
+  penitent: ["faceA", "glintT"],
+  drifter: ["phase", "pt", "shots", "dashT", "dashA", "strafe"],
+  carrion: ["phase", "pt", "orbA", "high"],
+  reflection: ["axis", "ax", "ay", "p0x", "p0y"],
+  hollow: ["sub", "phase", "pt", "aimA", "tx", "ty", "marks"],
 };
 /* boss props that must NOT ship (object refs / host-only bookkeeping) */
 const BOSS_SKIP = new Set(["airDst", "convergePos"]);
@@ -98,6 +107,25 @@ const Protocol = {
   },
 
   /* ---------------- HOST: encode ---------------- */
+  /* One boss as a keyed object. Shared by `boss` (Game.boss) and `bs` (every
+     boss on the field — THE UNKNOWN's challenge rounds wake two echoes beside it). */
+  packBoss(e) {
+    const o = pluck(e, ENEMY_COMMON);
+    for (const k in e) {
+      if (o[k] !== undefined || BOSS_SKIP.has(k)) continue;
+      const v = e[k];
+      const ty = typeof v;
+      if (ty === "function" || (ty === "object" && v !== null && !Array.isArray(v))) continue;
+      o[k] = Array.isArray(v) ? v : NUM3(v);
+    }
+    /* sub-arrays drive telegraphs but mutate slowly — every 3rd snapshot */
+    if (this._snapN % 3 === 1) {
+      for (const k of ["graves", "vents", "meteors", "cracks", "marks", "wells"])
+        if (Array.isArray(e[k])) o[k] = e[k];
+    }
+    if (e.airDst) o.airDst = { x: QI(e.airDst.x), y: QI(e.airDst.y) };
+    return o;
+  },
   encodeSnapshot() {
     this._snapN++;
     const s = {
@@ -125,6 +153,11 @@ const Protocol = {
       hb: healthBoxes.map(h => [h.id, h.state]),
       pk: pickups.map(k => [k.id, NUM3(k.x), NUM3(k.y)]),
       po: portal ? { x: portal.x, y: portal.y, t: NUM3(portal.t) } : null,
+      /* the final rift (only it exists in a shared run: floors I's small rift is solo) */
+      rf: rift && rift.final ? { x: QI(rift.x), y: QI(rift.y), r: QI(rift.r), t: Q2(rift.t) } : null,
+      /* floors VI–VIII weather + THE UNKNOWN's whole stage (host-authored) */
+      d: typeof encodeDeepWeather === "function" ? encodeDeepWeather() : null,
+      u: Game.inUnknown && typeof encodeUnknown === "function" ? encodeUnknown() : null,
       fx: this._fx,
     };
     this._fx = [];
@@ -155,23 +188,14 @@ const Protocol = {
         if (Object.keys(extra).length) row.push(extra);
       }
       s.en.push(row);
-      if (e.boss) {   /* the boss is one entity — keyed object is fine and readable */
-        const o = pluck(e, ENEMY_COMMON);
-        for (const k in e) {
-          if (o[k] !== undefined || BOSS_SKIP.has(k)) continue;
-          const v = e[k];
-          const ty = typeof v;
-          if (ty === "function" || (ty === "object" && v !== null && !Array.isArray(v))) continue;
-          o[k] = Array.isArray(v) ? v : NUM3(v);
-        }
-        /* sub-arrays drive telegraphs but mutate slowly — every 3rd snapshot */
-        if (this._snapN % 3 === 1) {
-          for (const k of ["graves", "vents", "meteors", "cracks", "marks", "wells"])
-            if (Array.isArray(e[k])) o[k] = e[k];
-        }
-        if (e.airDst) o.airDst = { x: QI(e.airDst.x), y: QI(e.airDst.y) };
-        s.boss = o;
-      }
+    }
+    /* bosses: `bs` carries every one (THE UNKNOWN's challenge rounds can have two
+       echoes beside it); `boss` stays Game.boss for the HUD/drawing paths */
+    const bosses = enemies.filter(e => e.boss && !e.dead);
+    if (bosses.length) {
+      s.bs = bosses.map(e => this.packBoss(e));
+      const gb = Game.boss && !Game.boss.dead ? bosses.indexOf(Game.boss) : -1;
+      if (gb >= 0) s.boss = s.bs[gb];
     }
     /* NEW enemy bullets since the last snapshot — shipped once, then guest-simulated.
        Packed: [x, y, vx, vy, r, colorIdx-or-string, homing] */
@@ -203,6 +227,8 @@ const Protocol = {
         if (pu.vortex) pf |= 4;
         if (pu.phase) pf |= 8;
         if (pu.slime) pf |= 16;
+        if (pu.ice) pf |= 32;      // the Stilled Hour's black ice (positional, guest can keep it)
+        if (pu.lapse) pf |= 64;    // a LAPSE's spilled moment: the drag reads deepMoveMul
         s.punew.push([pu.id, QI(pu.x), QI(pu.y), QI(pu.r), pu.color, pf,
           pu.life === Infinity ? -1 : Q2(pu.life)]);
       }
@@ -223,6 +249,8 @@ const Protocol = {
       s.rk = MAP.rocks.map(rc => {
         const o = { id: rc.id, x: rc.x, y: rc.y, w: rc.w, h: rc.h, tone: rc.tone, boss: !!rc.boss };
         if (rc.sal) o.sal = rc.sal;
+        /* THE GLASS CHOIR: a pane's mirror face + its note (the boss flips these live) */
+        if (rc.mirror) { o.mirror = true; o.pitch = rc.pitch || 659; }
         return o;
       });
     }
@@ -257,6 +285,8 @@ const Protocol = {
       }
       if (typeof paintDrunkHud === "function") paintDrunkHud();
     }
+    /* floors VI–VIII weather: the stopped hour, the star and the Glass Choir's light */
+    if (s.d && typeof applyDeepWeather === "function") applyDeepWeather(s.d);
 
     /* players: the partner fully; own warden's non-predicted fields only */
     for (let i = 0; i < s.pl.length && i < players.length; i++) {
@@ -317,24 +347,31 @@ const Protocol = {
       const extra = row[12];                  // per-archetype telegraph state, when present
       if (extra) for (const k in extra) e[k] = extra[k];
     }
-    /* the boss rides as a keyed object — one entity, and its telegraphs are fiddly */
+    /* bosses ride as keyed objects — one per live boss, so the challenge rounds
+       (two echoes + THE UNKNOWN) all keep their telegraph state */
+    const bossList = s.bs && s.bs.length ? s.bs : (s.boss ? [s.boss] : []);
+    for (const o of bossList) {
+      const b = byId.get(o.id);
+      if (!b) continue;
+      for (const k in o) {
+        if (k === "x" || k === "y" || k === "id") continue;
+        b[k] = o[k];
+      }
+      b._tx = o.x; b._ty = o.y;
+      if (b._fresh) { b.x = o.x; b.y = o.y; b._fresh = false; }
+      seen.add(b.id);
+    }
     if (s.boss) {
       const b = byId.get(s.boss.id);
-      if (b) {
-        for (const k in s.boss) {
-          if (k === "x" || k === "y" || k === "id") continue;
-          b[k] = s.boss[k];
-        }
-        b._tx = s.boss.x; b._ty = s.boss.y;
-        if (b._fresh) { b.x = s.boss.x; b.y = s.boss.y; b._fresh = false; }
-        seen.add(b.id);
-        Game.boss = b;
-      }
+      if (b) Game.boss = b;
     }
     for (let i = enemies.length - 1; i >= 0; i--) {
       if (!seen.has(enemies[i].id)) enemies.splice(i, 1);   // death FX arrive via the kill event
     }
     if (g.bossId === 0) Game.boss = null;
+    /* THE UNKNOWN's stage: floor warnings, glyphs, echoes and lingering effects.
+       Applied after the entities so its boss/echo ids resolve. */
+    if (s.u && Game.unk && typeof applyUnknownState === "function") applyUnknownState(s.u);
 
     /* one-shot spawns: enemy bullets + partner bullets → guest-local cosmetic sim */
     for (const b of s.eb)
@@ -353,6 +390,7 @@ const Protocol = {
       pu.x = h[1]; pu.y = h[2]; pu.r = h[3]; pu.color = h[4];
       pu.lava = !!(h[5] & 1); pu.water = !!(h[5] & 2); pu.vortex = !!(h[5] & 4);
       pu.phase = !!(h[5] & 8); pu.slime = !!(h[5] & 16);
+      pu.ice = !!(h[5] & 32); pu.lapse = !!(h[5] & 64);
       pu.life = h[6] === -1 ? Infinity : h[6];
     }
     const puSeen = new Set();
@@ -392,13 +430,26 @@ const Protocol = {
     for (let i = pickups.length - 1; i >= 0; i--) if (!pkSeen.has(pickups[i].id)) pickups.splice(i, 1);
     for (const [id, x, y] of s.pk) if (!pickups.find(k => k.id === id)) pickups.push({ id, x, y, r: 20, ids: null, t: 0 });
     portal = s.po ? Object.assign(portal || {}, { x: s.po.x, y: s.po.y, r: 46, t: s.po.t }) : null;
+    /* the final rift: the guest sees (and is prompted by) the same tear in the dark */
+    if (s.rf) rift = Object.assign(rift || {}, { x: s.rf.x, y: s.rf.y, r: s.rf.r, t: s.rf.t, final: true });
 
     /* terrain reconciliation */
     if (s.rk) {
-      const have = new Set(MAP.rocks.map(rc => rc.id));
+      const byId = new Map(MAP.rocks.map(rc => [rc.id, rc]));
       const want = new Set(s.rk.map(rc => rc.id));
       for (let i = MAP.rocks.length - 1; i >= 0; i--) if (!want.has(MAP.rocks[i].id)) MAP.rocks.splice(i, 1);
-      for (const rc of s.rk) if (!have.has(rc.id)) MAP.rocks.push(rc);
+      for (const rc of s.rk) {
+        const have = byId.get(rc.id);
+        if (!have) { MAP.rocks.push(rc); continue; }
+        /* the Glass Choir raises panes and the boss shatters them: `rk` is the
+           whole list, so mirror/pitch are authoritative (a stricken pane that is
+           no longer glass must stop reflecting on the guest too) */
+        have.mirror = !!rc.mirror;
+        have.pitch = rc.pitch;
+        if (rc.sal !== undefined) have.sal = rc.sal;
+        if (rc.boss !== undefined) have.boss = rc.boss;
+        have.tone = rc.tone;
+      }
     }
     /* the saloon's live state (greeting, questions, tab, speech, doors) */
     if (s.sal && Game.inSaloon && Game.saloon && typeof applySaloonState === "function")

@@ -631,11 +631,11 @@ function bossSlain(e, killer) {
   if (e && e.kind === 4) Game.voidConquered = true;
   /* the FIRST time THE OTHER GUNSLINGERS fall — the bottom of the descent — the way
      out no longer opens here: the toll is paid as usual, then the rift from floor I
-     tears open and THE UNKNOWN waits past it (hud.js spawnPortal). A solo rite:
-     co-op never reaches floor VIII. */
+     tears open and THE UNKNOWN waits past it (hud.js spawnPortal). Shared descents
+     see the same rift; the host carries the stage and the guest follows. */
   if (e && e.kind === 7 && !Game.starConquered) {
     Game.starConquered = true;
-    if (!(typeof Net !== "undefined" && Net.active)) Game.unknownDue = true;
+    Game.unknownDue = true;
   }
   /* CLASSIC descent: THE EVENT HORIZON is the last warden, exactly as before the deep
      floors existed. Solo plays the ending cinematic; a shared descent ends together

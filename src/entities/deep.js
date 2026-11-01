@@ -4,9 +4,9 @@
      VII  THE GLASS CHOIR       mirror panes · LUMEN · PENITENT · THE THOUSANDFOLD
      VIII THE LAST LIVING STAR  starflare & shade · DRIFTER · CARRION · THE OTHER GUNSLINGERS
    Floor hazards, the six horrors, and the three wardens' state machines.
-   Solo only for now (loopLen() in floors.js): a co-op descent still laps after
-   the Void, because the stopped hour, mirrored shot and rune theft have no
-   guest-side sync yet.
+   Shared descents play these too: the host simulates them and mirrors the weather
+   (`encodeDeepWeather`/`deepGuestTick`) so both screens see the same stopped hour,
+   glass and star.
    ========================================================= */
 "use strict";
 
@@ -157,6 +157,47 @@ function deepHourResumes() {
   if (n >= 4 && p) floatText(p.x, p.y - 34, "BANKED ×" + n, "#fff3c8", 18, { life: 1.2, vy: 30, outline: "#0b0b14" });
   AudioFX.bell();
   Game.shake = Math.max(Game.shake, 6);
+}
+
+/* =========================================================
+   CO-OP MIRROR — the guest runs the same weather, but never its damage.
+   The host owns the stopped hour, the star and every haze; these two helpers
+   ship the few scalars and rebuild the local field from them.
+   ========================================================= */
+function encodeDeepWeather() {
+  const D = Game.deep; if (!D) return null;
+  return { st: Q2(D.stillT), sx: QI(D.starX), sy: QI(D.starY), fs: D.flareSt,
+    ft: Q2(D.flareT), hi: D.highNoon ? 1 : 0, fe: D.flareEvery };
+}
+function applyDeepWeather(d) {
+  const D = Game.deep; if (!D || !d) return;
+  D.stillT = d.st || 0;
+  if (d.sx !== undefined) D.starX = d.sx;
+  if (d.sy !== undefined) D.starY = d.sy;
+  if (d.fs) D.flareSt = d.fs;
+  if (d.ft !== undefined) D.flareT = d.ft;
+  if (d.fe) D.flareEvery = d.fe;
+  const hi = !!d.hi;
+  if (hi !== D.highNoon) { D.highNoon = hi; updateShadows(D); }
+}
+/* per-frame on the guest: rebuild stasis fields, age the glass, re-cast the star's
+   shadows — everything the host's tickStar/deepTick does EXCEPT curses, toasts,
+   timers and damage. Black ice is positional, so the guest can keep that feel. */
+function deepGuestTick(dt) {
+  const D = Game.deep; if (!D) return;
+  if (D.stillT > 0) D.stillT = Math.max(0, D.stillT - dt);
+  D.lapses.length = 0;
+  for (const pu of puddles) if (pu.lapse) D.lapses.push(pu);
+  for (const rc of MAP.rocks) {
+    if (rc.ringT > 0) rc.ringT -= dt;
+    if (rc.glintT > 0) rc.glintT -= dt;
+  }
+  if (D.sun && !Game.inSaloon && !Game.inUnknown) {
+    D.shadowT = (D.shadowT || 0) - dt;
+    if (D.shadowT <= 0 || D.shadowN !== MAP.rocks.length) {
+      D.shadowT = 0.3; D.shadowN = MAP.rocks.length; updateShadows(D);
+    }
+  }
 }
 
 /* ---------- THE LAST LIVING STAR: the star, its shadows and its flares ---------- */

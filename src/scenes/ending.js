@@ -141,9 +141,16 @@ function endingFrame(dt) {
     cx.fillRect(0, 0, W, H);
     if (t > 2.6) {
       ENDING.phase = "idle";
-      setState("choice");
-      $("bcTitle").textContent = "THE UNKNOWN YIELDS — THE DESCENT IS ENDLESS";
-      $("bcHealDesc").textContent = "Restore " + Math.round(player.maxHp / 2) + " vitality (half your maximum).";
+      /* a shared descent's toll is the host's: the guest waits for its beacon
+         instead of opening a choice screen it is not allowed to answer */
+      if (typeof Net !== "undefined" && Net.active && Net.role === "guest") {
+        setState("wait");
+        $("waitTitle").textContent = "YOUR PARTNER IS CHOOSING";
+      } else {
+        setState("choice");
+        $("bcTitle").textContent = "THE UNKNOWN YIELDS — THE DESCENT IS ENDLESS";
+        $("bcHealDesc").textContent = "Restore " + Math.round(player.maxHp / 2) + " vitality (half your maximum).";
+      }
       toast("THE CATACOMB LOOPS — AND IT ONLY GETS HUNGRIER");
       AudioFX.portal();
     }
@@ -179,20 +186,34 @@ function endingFrame(dt) {
   }
 }
 
-function chooseEndingExit() {
+/* One ending, one choice: in a shared descent the HOST decides, and a guest's
+   click only asks (coop.js applies it and rebroadcasts the answer). */
+function endingChoice(deeper) {
   if (Game.state !== "ending" || ENDING.phase !== "gather") return;
-  ENDING.phase = "exit"; ENDING.t = 0;
-  for (const g of ENDING.glyphs) { g.vr = 60; g.lx = 0; g.ly = 0; }
-  $("voidChoice").classList.remove("reveal");
-  AudioFX.waveUp(); AudioFX.slam();
+  if (typeof Net !== "undefined" && Net.active) {
+    if (Net.role === "guest") { Net.sendR({ t: "endChoice", deeper: !!deeper }); return; }
+    if (Net.role === "host" && typeof Coop !== "undefined" && Coop.running)
+      Net.sendR({ t: "endChoice", deeper: !!deeper });
+  }
+  applyEndingChoice(deeper);
 }
-function chooseEndingDeeper() {
+/* the local half of the choice — also run on every guest from the host's answer */
+function applyEndingChoice(deeper) {
   if (Game.state !== "ending" || ENDING.phase !== "gather") return;
-  if (Game.classicMode) return;                 // a CLASSIC descent has no deeper to fall into
-  ENDING.phase = "deeper"; ENDING.t = 0; ENDING.ringT = 0;
-  $("voidChoice").classList.remove("reveal");
-  AudioFX.bossRoar();
+  if (deeper) {
+    if (Game.classicMode) return;                 // a CLASSIC descent has no deeper to fall into
+    ENDING.phase = "deeper"; ENDING.t = 0; ENDING.ringT = 0;
+    $("voidChoice").classList.remove("reveal");
+    AudioFX.bossRoar();
+  } else {
+    ENDING.phase = "exit"; ENDING.t = 0;
+    for (const g of ENDING.glyphs) { g.vr = 60; g.lx = 0; g.ly = 0; }
+    $("voidChoice").classList.remove("reveal");
+    AudioFX.waveUp(); AudioFX.slam();
+  }
 }
+function chooseEndingExit() { endingChoice(false); }
+function chooseEndingDeeper() { endingChoice(true); }
 $("vcExit").addEventListener("click", chooseEndingExit);
 $("vcDeeper").addEventListener("click", chooseEndingDeeper);
 
