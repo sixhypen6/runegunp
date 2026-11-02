@@ -1217,7 +1217,7 @@ function cycleRunTimer() {
 }
 $("btnRunTimer").addEventListener("click", cycleRunTimer);
 
-/* ---------- SPEEDRUN mode: the guaranteed first WARD + the per-mode ledger ---------- */
+/* ---------- SPEEDRUN mode: the guaranteed WARD + SWIFT + the per-mode ledger ---------- */
 function fmtSpeedBest(b) {
   return b && b.speedSec > 0 && typeof fmtRunTime === "function" ? fmtRunTime(b.speedSec) : "";
 }

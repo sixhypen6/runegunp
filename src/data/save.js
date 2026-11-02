@@ -46,7 +46,7 @@ const Meta = {
   juiceSet: false,    // has the player chosen explicitly? OS reduced-motion only sets the
                       // default while this is false — an explicit choice always outranks it.
   runTimer: true,     // speedrun clock in the HUD — display only; records are kept either way
-  speedrun: false,    // SPEEDRUN mode: guarantee WARD in the first rune choice (independent of the clock)
+  speedrun: false,    // SPEEDRUN mode: guarantee WARD then SWIFT in the first two rune choices (independent of the clock)
   speedBests: {},     // fastest COMPLETED descent per warden id and mode, seconds (0/absent = never cleared)
   bests: {            // personal records (local leaderboard — you vs your own past runs)
     score: 0,               // max Game.score

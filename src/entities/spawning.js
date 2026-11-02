@@ -31,8 +31,8 @@ function makePlayer(cfg, idx) {
     reprieveCd: 0, reprieveFreezeT: 0,
     /* RUNELESS: seconds of stride left from a rune box */
     hasteT: 0,
-    /* SPEEDRUN: has this warden's first rune offer already shown WARD? */
-    wardOffered: false };
+    /* SPEEDRUN: the first rune offer shows WARD, the second shows SWIFT */
+    wardOffered: false, swiftOffered: false };
 }
 function localPlayerCfg() {
   return { char: Meta.char, skin: Meta.skin, gunSkin: Meta.gunSkin, pet: Meta.pet,

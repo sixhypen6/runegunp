@@ -451,15 +451,19 @@ function genThreeRunes(p) {
     avail.splice(idx, 1);
   }
   while (ids.length < 3) ids.push(ids[ids.length - 1]);
-  /* SPEEDRUN's promise: the first choice of the run always shows WARD in the
-     rightmost slot. It stays in the pool afterwards — this is one free showing,
-     not a reroll lock. A per-warden flag keeps co-op fair (each hand gets one). */
-  if (typeof Meta !== "undefined" && Meta.speedrun && !p.wardOffered && ids.length === 3) {
-    p.wardOffered = true;
-    if (pool.includes("ward")) {
-      const at = ids.indexOf("ward");
-      if (at === -1) ids[2] = "ward";
-      else if (at !== 2) { ids[at] = ids[2]; ids[2] = "ward"; }
+  /* SPEEDRUN's promise: the first rune offer of the run always shows WARD in the
+     rightmost slot, and the second shows SWIFT. Both stay in the pool afterwards —
+     this is one free showing each, not a reroll lock. Per-warden flags keep co-op
+     fair (each hand gets its own pair). */
+  if (typeof Meta !== "undefined" && Meta.speedrun && ids.length === 3) {
+    const promise = !p.wardOffered ? "ward" : !p.swiftOffered ? "swift" : null;
+    if (promise) {
+      if (promise === "ward") p.wardOffered = true; else p.swiftOffered = true;
+      if (pool.includes(promise)) {
+        const at = ids.indexOf(promise);
+        if (at === -1) ids[2] = promise;
+        else if (at !== 2) { ids[at] = ids[2]; ids[2] = promise; }
+      }
     }
   }
   return ids;
