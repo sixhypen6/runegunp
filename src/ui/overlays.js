@@ -4,6 +4,16 @@
    ========================================================= */
 "use strict";
 
+/* the long overlays keep their scroll position between visits — every open
+   starts at the top so the heading and the close button are where you left them */
+function resetPanelScroll(id) {
+  const el = $(id);
+  if (!el) return;
+  el.scrollTop = 0;
+  const panel = el.querySelector(".panel");
+  if (panel) panel.scrollTop = 0;
+}
+
 /* ---------- held codex ---------- */
 function renderHeld(gunEl = "gunLine", gridEl = "heldGrid", petEl = null) {
   const p = localPlayer();
@@ -447,6 +457,7 @@ function openVault() {
   if (!keeperUnlocked()) return;                 // the Vault stays sealed until the Keeper is freed
   if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("VAULT", "opened");
   renderVault(); setState("vault");
+  resetPanelScroll("vault");
   keeperSpeak("greet");                           // the proprietor stirs as you enter
   if (!_keeperRAF) keeperLoop();                  // draw immediately, then self-schedule
 }
@@ -707,7 +718,7 @@ function glossShowPage(page) {
   $("tabBestiary").classList.toggle("on", onBest);
   $("tabRunes").classList.toggle("on", !onBest);
 }
-function openGlossary() { renderGlossary(); glossShowPage("bestiary"); setState("glossary"); }
+function openGlossary() { renderGlossary(); glossShowPage("bestiary"); setState("glossary"); resetPanelScroll("glossary"); }
 function closeGlossary() { refreshMenu(); setState("menu"); }
 $("btnGlossary").addEventListener("click", openGlossary);
 $("glossaryClose").addEventListener("click", closeGlossary);
@@ -921,6 +932,7 @@ function openLeaderboard() {
   const nv = $("lbNativeView");
   if (nv) nv.style.display = Leaderboard.nativeUI() ? "" : "none";
   setState("leaderboard");
+  resetPanelScroll("leaderboardScreen");
   lbTab = "global"; lbMode = "normal"; lbMetric = "score";    // always land on the normal global score view
   lbSync();
 }
@@ -1418,6 +1430,26 @@ function doGameOver() {
   devRunEndLines("d");   // a TEST TOOLS run says plainly that nothing was kept
 }
 
+/* ---------- descent type: SOLO or CO-OP (the menu DESCEND asks this first) ---------- */
+let descentChoiceArmT = 0;
+function descentChoiceArmed() { return performance.now() - descentChoiceArmT > 250; }
+function openDescentChoice() {
+  descentChoiceArmT = performance.now();
+  $("descentChoice").classList.add("on");
+}
+function closeDescentChoice() { $("descentChoice").classList.remove("on"); }
+$("dcSolo").addEventListener("click", () => {
+  if (!descentChoiceArmed()) return;
+  closeDescentChoice();
+  openModeChoice();                 // the existing solo mode / challenge flow
+});
+$("dcCoop").addEventListener("click", () => {
+  if (!descentChoiceArmed()) return;
+  closeDescentChoice();
+  if (typeof Lobby !== "undefined") Lobby.open();
+});
+$("descentChoiceBack").addEventListener("click", () => { if (descentChoiceArmed()) closeDescentChoice(); });
+
 /* ---------- descent mode: NORMAL, HARD or CHAOS (only the menu DESCEND asks) ---------- */
 function hardUnlocked() { return !!Meta.slain["boss:4"] || Meta.bests.voidKills > 0; }
 /* CHAOS is the reward for the bottom of everything: THE UNKNOWN felled once */
@@ -1530,7 +1562,7 @@ function startGame() {
   else if (!Meta.seenTutorial) startTutorial("play");   // defensive: cutscene seen but tutorial not
   else enterPlay();                                     // returning player → straight into the run
 }
-$("btnStart").addEventListener("click", openModeChoice);   // menu DESCEND asks the mode first
+$("btnStart").addEventListener("click", openDescentChoice);   // menu DESCEND asks solo/co-op first
 $("btnRetry").addEventListener("click", () => {
   /* co-op: descend again TOGETHER in the mode the host chose — no chooser.
      Coop.retry returns false only if the link has already died, in which case

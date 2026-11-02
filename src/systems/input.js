@@ -59,6 +59,7 @@ function uiBack() {
   if ($("ctrlEdit").classList.contains("on")) { closeCtrlEdit(true); return; }
   if ($("controls").classList.contains("on")) { closeControls(); return; }
   if ($("settings").classList.contains("on")) { closeSettings(); return; }
+  if ($("descentChoice").classList.contains("on")) { closeDescentChoice(); return; }
   if ($("modeChoice").classList.contains("on")) { closeModeChoice(); return; }
   if (Game.state === "play" || Game.state === "pause") togglePause();
   else if (Game.state === "held") toggleRunesHeld();

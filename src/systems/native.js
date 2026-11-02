@@ -71,6 +71,7 @@
        The editor (z40) stacks ON TOP of a still-open settings (z20): topmost first. */
     if ($("ctrlEdit").classList.contains("on")) { closeCtrlEdit(true); return; }
     if ($("settings").classList.contains("on")) { closeSettings(); return; }
+    if ($("descentChoice").classList.contains("on")) { closeDescentChoice(); return; }
     switch (Game.state) {
       case "cutscene": endCutscene(); break;          // skip the intro
       case "vaultcut": endVaultCutscene(); break;      // skip the unchaining (still frees the Keeper)

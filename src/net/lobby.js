@@ -26,6 +26,7 @@ const Lobby = {
     this.reset();
     Signal.prewarm();     // wake the socket now, not when they press a button
     setState("lobby");
+    resetPanelScroll("coopLobby");
   },
 
   reset() {
@@ -475,7 +476,6 @@ const Lobby = {
   },
 };
 
-$("btnCoop").addEventListener("click", () => Lobby.open());
 $("coopHostCard").addEventListener("click", () => { if (Lobby.view === "entry") Lobby.host(); });
 $("coopJoinCard").addEventListener("click", () => { if (Lobby.view === "entry") Lobby.join(); });
 $("coopBrowseCard").addEventListener("click", () => { if (Lobby.view === "entry") Lobby.browse(); });

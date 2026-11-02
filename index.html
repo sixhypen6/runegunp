@@ -709,7 +709,6 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
   <div class="rule"></div>
   <button class="menu-btn" id="btnStart">ᛞ &nbsp;DESCEND&nbsp; ᛞ</button>
   <div class="menu-row">
-    <button class="menu-btn small" id="btnCoop">CO-OP</button>
     <button class="menu-btn small" id="btnVault">THE VAULT</button>
     <button class="menu-btn small" id="btnGlossary">THE GLOSSARY</button>
     <button class="menu-btn small" id="btnLeaderboard" style="display:none">LEADERBOARDS</button>
@@ -747,6 +746,23 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
       <button class="bj-btn" id="bjDouble">DOUBLE</button>
     </div>
   </div>
+</div>
+
+<!-- DESCENT TYPE — the menu DESCEND asks solo or co-op before either chooser opens -->
+<div class="overlay" id="descentChoice" style="z-index:20">
+  <div class="title" style="font-size:clamp(22px,5vw,44px)">DESCEND</div>
+  <div class="subtitle">ALONE, OR WITH OTHERS</div>
+  <div class="big-choice">
+    <div class="bc-card" id="dcSolo" style="color:var(--arcane)">
+      <div class="ic">ᛞ</div><div class="nm">SOLO</div>
+      <div class="ds">Walk the catacomb alone — then choose NORMAL, CLASSIC, HARD or CHAOS.</div>
+    </div>
+    <div class="bc-card" id="dcCoop" style="color:var(--frost)">
+      <div class="ic">ᛝ</div><div class="nm">CO-OP</div>
+      <div class="ds">Host a gate or join one — up to four wardens in a shared descent.</div>
+    </div>
+  </div>
+  <button class="menu-btn small" id="descentChoiceBack" style="margin-top:18px">RETURN</button>
 </div>
 
 <!-- DESCENT MODE — normal, hard or chaos; only the menu DESCEND opens this (retry repeats the last mode) -->
