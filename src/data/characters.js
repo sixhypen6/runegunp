@@ -47,7 +47,7 @@ const CHARS = {
     desc: "The Second Kindred. Hardblood strengthens her fists, saber and lance; at 5 Hardblood she may switch to a blood bow. Her dash is a body-check that bites — by the lance stage it is a skewering run. Starts with BLEED and VAMPIRE. Only granted by the authenticated co-op console.",
     hp: 95, speed: 320, dashCd: 0.65, startRunes: 0, rerolls: 3, runeSlots: 5,
     weaponBase: { dmg: 12, rate: 4.5, size: 16, speed: 400, knock: 80 },
-    startLoadout: ["bleed", "vampire"] },
+    startLoadout: ["bleed", "vampire", "bleed", "vampire"] },
     // whats startRunes? 0 is the default for all characters, but the Unknown has a special rule: it starts with 0 runes, but every time you die, it gains one more rune slot. So if you die 3 times, it will have 3 rune slots on your next run.
     //how is startRunes used in the code? It is used in the character selection screen to determine how many rune slots the character has at the start of the run. It is also used in the game logic to determine how many rune slots the character has when they die and respawn.
 };
