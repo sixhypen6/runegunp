@@ -715,7 +715,7 @@ $("tabBestiary").addEventListener("click", () => glossShowPage("bestiary"));
 $("tabRunes").addEventListener("click", () => glossShowPage("runes"));
 
 /* ---------- the reckoning: custom in-game leaderboard ---------- */
-let lbTab = "global", lbMode = "normal";   // scope (global|nearby) × mode (normal|hard|chaos)
+let lbTab = "global", lbMode = "normal", lbMetric = "score";   // scope × difficulty × record type
 
 /* "gunsmith" → "GUNSMITH"; anything unknown is shown as-is (a row may carry a
    character from a newer build than this one). */
@@ -810,28 +810,38 @@ const LB_HINT_HIDDEN = "YOUR SCORE IS RECORDED, YET A VEIL HIDES IT FROM OTHER P
 
 async function renderLeaderboard() {
   const list = $("lbList");
-  const tab = lbTab, mode = lbMode;                    // pin the view this request is for
+  const tab = lbTab, mode = lbMode, metric = lbMetric; // pin the view this request is for
   list.innerHTML = "<div class='lb-empty'>CONSULTING THE VOID…</div>";
-  const best = Leaderboard.localBest(mode);   // local data, read at render time — keyed by the overlay's own mode toggle
+  const isClear = metric === "clear";
+  const best = isClear ? 0 : Leaderboard.localBest(mode);   // local data, read at render time — keyed by the overlay's own mode toggle
   const tag = Leaderboard.tagFor(mode);
   /* Fired alongside the entries fetch (never rejects, resolves false unless the
      score is provably recorded yet absent from the public view for good) so the
      pending hints below can say WHY the row still isn't on the board. */
-  const hiddenReq = best > 0 ? Leaderboard.isLikelyHidden({ mode }) : Promise.resolve(false);
-  const res = (tab === "nearby")
-    ? await Leaderboard.getNearbyScores({ maxResults: 25, mode })
-    : await Leaderboard.getTopScores({ maxResults: 25, mode });
-  if (Game.state !== "leaderboard" || lbTab !== tab || lbMode !== mode) return;   // closed or switched view mid-await
+  const hiddenReq = !isClear && best > 0 ? Leaderboard.isLikelyHidden({ mode }) : Promise.resolve(false);
+  const res = isClear
+    ? (tab === "nearby" ? await Leaderboard.getNearbyClearTimes({ maxResults: 25, mode }) : await Leaderboard.getTopClearTimes({ maxResults: 25, mode }))
+    : (tab === "nearby" ? await Leaderboard.getNearbyScores({ maxResults: 25, mode }) : await Leaderboard.getTopScores({ maxResults: 25, mode }));
+  if (Game.state !== "leaderboard" || lbTab !== tab || lbMode !== mode || lbMetric !== metric) return;
   if (!res.ok) { list.innerHTML = "<div class='lb-empty'>THE VOID DOES NOT ANSWER</div>"; return; }
+  if (isClear) {
+    list.innerHTML = "";
+    if (!res.entries.length) {
+      list.innerHTML = "<div class='lb-empty'>NO FASTEST CLEAR RECORDED YET</div>";
+      return;
+    }
+    res.entries.forEach(e => list.appendChild(lbRow(e, Leaderboard.isMine(e))));
+    return;
+  }
   const hintPending = (await hiddenReq) ? LB_HINT_HIDDEN : LB_HINT_PENDING;
-  if (Game.state !== "leaderboard" || lbTab !== tab || lbMode !== mode) return;   // re-check across the second await
+  if (Game.state !== "leaderboard" || lbTab !== tab || lbMode !== mode || lbMetric !== metric) return;
 
   /* An empty player-centered window is NOT proof of an empty board — a player
      whose first score hasn't been tallied yet has no ranked row to center on
      (exactly the lag this simulation covers). The top page can still place them. */
   if (tab === "nearby" && !res.entries.length && best > 0) {
     const top = await Leaderboard.getTopScores({ maxResults: 25, mode });
-    if (Game.state !== "leaderboard" || lbTab !== tab || lbMode !== mode) return;
+    if (Game.state !== "leaderboard" || lbTab !== tab || lbMode !== mode || lbMetric !== metric) return;
     list.innerHTML = "";
     if (top.ok) {
       const p = Leaderboard.computeProjection(top.entries, best);
@@ -851,7 +861,7 @@ async function renderLeaderboard() {
   list.innerHTML = "";
   if (!res.entries.length && proj.kind !== "insert") {
     list.innerHTML = "<div class='lb-empty'>" +
-      (mode === "chaos" ? "NO CHAOS RECORDED YET" : "NO SOULS RECORDED YET") + "</div>";
+      (mode === "chaos" ? "NO CHAOS RECORDED YET" : mode === "classic" ? "NO CLASSIC SOULS RECORDED YET" : "NO SOULS RECORDED YET") + "</div>";
     return;
   }
   /* proj.rest = server rows with my stale row filtered out when a simulation is
@@ -876,23 +886,32 @@ function lbSync() {
   /* Play Games has no CHAOS board, so the tab only exists where it can pay off */
   const chaosTab = $("lbModeChaos");
   if (chaosTab) chaosTab.style.display = Leaderboard.modeSupported("chaos") ? "" : "none";
+  const classicTab = $("lbModeClassic");
+  if (classicTab) classicTab.style.display = Leaderboard.modeSupported("classic") ? "" : "none";
   $("lbTabGlobal").classList.toggle("on", lbTab === "global");
   $("lbTabNearby").classList.toggle("on", lbTab === "nearby");
   $("lbModeNormal").classList.toggle("on", mode === "normal");
   $("lbModeHard").classList.toggle("on", mode === "hard");
+  if (classicTab) classicTab.classList.toggle("on", mode === "classic");
   if (chaosTab) chaosTab.classList.toggle("on", mode === "chaos");
+  $("lbMetricScore").classList.toggle("on", lbMetric === "score");
+  $("lbMetricClear").classList.toggle("on", lbMetric === "clear");
   const list = $("lbList");
   list.classList.toggle("hard", mode === "hard");
+  list.classList.toggle("classic", mode === "classic");
   list.classList.toggle("chaos", mode === "chaos");
+  list.classList.toggle("clear", lbMetric === "clear");
   const sub = $("lbSubtitle");
-  sub.textContent = (mode === "hard" ? "HARD · " : mode === "chaos" ? "CHAOS · " : "") +
+  const modeName = mode.toUpperCase();
+  sub.textContent = modeName + " · " + (lbMetric === "clear" ? "FASTEST CLEAR · " : "BEST SOULS · ") +
     (lbTab === "nearby" ? "AROUND YOU" : "GLOBAL TOP");
   /* beats the inline gold style in the markup */
-  sub.style.color = mode === "hard" ? "var(--blood)" : mode === "chaos" ? CHAOS_COLOR : "var(--gold)";
+  sub.style.color = mode === "hard" ? "var(--blood)" : mode === "chaos" ? CHAOS_COLOR : mode === "classic" ? "#79d9ff" : "var(--gold)";
   renderLeaderboard();
 }
 function lbShowTab(tab) { lbTab = (tab === "nearby") ? "nearby" : "global"; lbSync(); }
-function lbShowMode(m) { lbMode = (m === "hard" || m === "chaos") ? m : "normal"; lbSync(); }
+function lbShowMode(m) { lbMode = (m === "hard" || m === "classic" || m === "chaos") ? m : "normal"; lbSync(); }
+function lbShowMetric(m) { lbMetric = m === "clear" ? "clear" : "score"; lbSync(); }
 
 function openLeaderboard() {
   if (!Leaderboard.available()) { Leaderboard.show(); return; }   // safety fallback (button is hidden when unavailable)
@@ -902,7 +921,7 @@ function openLeaderboard() {
   const nv = $("lbNativeView");
   if (nv) nv.style.display = Leaderboard.nativeUI() ? "" : "none";
   setState("leaderboard");
-  lbTab = "global"; lbMode = "normal";    // always land on the normal global view
+  lbTab = "global"; lbMode = "normal"; lbMetric = "score";    // always land on the normal global score view
   lbSync();
 }
 function closeLeaderboard() { refreshMenu(); setState("menu"); }
@@ -911,7 +930,10 @@ $("lbTabGlobal").addEventListener("click", () => lbShowTab("global"));
 $("lbTabNearby").addEventListener("click", () => lbShowTab("nearby"));
 $("lbModeNormal").addEventListener("click", () => lbShowMode("normal"));
 $("lbModeHard").addEventListener("click", () => lbShowMode("hard"));
+$("lbModeClassic").addEventListener("click", () => lbShowMode("classic"));
 $("lbModeChaos").addEventListener("click", () => lbShowMode("chaos"));
+$("lbMetricScore").addEventListener("click", () => lbShowMetric("score"));
+$("lbMetricClear").addEventListener("click", () => lbShowMetric("clear"));
 $("lbNativeView").addEventListener("click", () => Leaderboard.show({ mode: lbMode }));
 $("leaderboardClose").addEventListener("click", closeLeaderboard);
 

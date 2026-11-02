@@ -347,6 +347,11 @@
   .gloss-tab.chaos.on{border-color:#ff6bd6;color:#fff;box-shadow:0 0 16px rgba(255,107,214,.4)}
   .lb-list.chaos .lb-row .lb-score{color:#ff6bd6}
   .lb-list.chaos .lb-row.me{border-color:#ff6bd6;box-shadow:0 0 14px rgba(255,107,214,.35);background:rgba(255,107,214,.08)}
+  .gloss-tab.classic.on{border-color:#79d9ff;color:#fff;box-shadow:0 0 16px rgba(121,217,255,.35)}
+  .lb-list.classic .lb-row .lb-score{color:#79d9ff}
+  .lb-list.classic .lb-row.me{border-color:#79d9ff;box-shadow:0 0 14px rgba(121,217,255,.3);background:rgba(121,217,255,.07)}
+  .gloss-tab.clear.on{border-color:var(--gold);color:#fff;box-shadow:0 0 12px rgba(255,210,61,.28)}
+  .lb-list.clear .lb-row .lb-score{color:var(--frost)}
   /* a foretold reckoning — score submitted, not yet tallied by Play Games */
   @keyframes lbPendingPulse{0%,100%{opacity:.6}50%{opacity:1}}
   .lb-row.pending{border-style:dashed;animation:lbPendingPulse 1.6s ease-in-out infinite}
@@ -851,11 +856,16 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
 <div class="overlay" id="leaderboardScreen">
   <div class="panel">
     <h2>THE RECKONING</h2>
-    <div class="hint">souls hoarded by all who descend · <span style="color:var(--gold)" id="lbSubtitle">GLOBAL TOP</span></div>
+    <div class="hint">online records · <span style="color:var(--gold)" id="lbSubtitle">GLOBAL TOP</span></div>
     <div class="glossary-tabs lb-mode-tabs">
       <button class="menu-btn small gloss-tab on" id="lbModeNormal">NORMAL</button>
       <button class="menu-btn small gloss-tab hard" id="lbModeHard">HARD</button>
+      <button class="menu-btn small gloss-tab classic" id="lbModeClassic">CLASSIC</button>
       <button class="menu-btn small gloss-tab chaos" id="lbModeChaos">CHAOS</button>
+    </div>
+    <div class="glossary-tabs lb-mode-tabs">
+      <button class="menu-btn small gloss-tab on" id="lbMetricScore">BEST SOULS</button>
+      <button class="menu-btn small gloss-tab clear" id="lbMetricClear">FASTEST CLEAR</button>
     </div>
     <div class="glossary-tabs">
       <button class="menu-btn small gloss-tab on" id="lbTabGlobal">GLOBAL TOP</button>

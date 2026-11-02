@@ -12,7 +12,8 @@
 
      /scores/<auth.uid> = {
        name, display, place, updatedAt,
-       score, hardScore, chaosScore,          // one best per board
+      score, hardScore, classicScore, chaosScore,
+      normalClearMs, hardClearMs, classicClearMs, chaosClearMs,
        normal: { char, runes },               // the loadout behind that best
        hard:   { char, runes },
        chaos:  { char, runes },
@@ -60,7 +61,11 @@ const FirebaseBoard = (() => {
   const NAME_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
   /* one board per mode; the value is the row field that carries its score */
-  const FIELDS = { normal: "score", hard: "hardScore", chaos: "chaosScore" };
+  const FIELDS = { normal: "score", hard: "hardScore", classic: "classicScore", chaos: "chaosScore" };
+  const CLEAR_FIELDS = {
+    normal: "normalClearMs", hard: "hardClearMs",
+    classic: "classicClearMs", chaos: "chaosClearMs",
+  };
   const slotOf = id => (FIELDS[id] ? id : "normal");
 
   let app = null, db = null, auth = null;
@@ -202,7 +207,9 @@ const FirebaseBoard = (() => {
     }
     const name = ensureCallsign();
     const patch = { name, updatedAt: stamp() };
-    if (!row) { patch.score = 0; patch.hardScore = 0; patch.chaosScore = 0; }
+    if (!row) {
+      patch.score = 0; patch.hardScore = 0; patch.classicScore = 0; patch.chaosScore = 0;
+    }
     await guard(rowRef().update(patch), "claim");
   }
 
@@ -254,8 +261,23 @@ const FirebaseBoard = (() => {
     }
   }
 
+  async function submitClearTime(mode, timeMs) {
+    if (!signedIn || !uid || !CLEAR_FIELDS[mode]) return;
+    const amount = Math.round(Number(timeMs) || 0);
+    if (!(amount > 0) || amount > 86400000) return;
+    const key = CLEAR_FIELDS[mode];
+    let cur = 0;
+    try {
+      const snap = await guard(rowRef().child(key).get(), "clear-best");
+      cur = Number(snap && snap.val && snap.val()) || 0;
+    } catch (e) {}
+    if (cur > 0 && amount >= cur) return;
+    await guard(rowRef().update({ [key]: amount, updatedAt: stamp() }), "clear-submit");
+    cache[mode + ":clear"] = null;
+  }
+
   /* ---- reads ---- */
-function toEntry(id, row, key, slot) {
+function toEntry(id, row, key, slot, isClearTime) {
     const raw = Math.max(0, Math.floor(Number(row && row[key]) || 0));
     const tag = (row && row[slot]) || null;
     
@@ -268,7 +290,7 @@ function toEntry(id, row, key, slot) {
       rank: 0,
       displayName: preferredName,
       name: preferredName,
-      displayScore: "",
+      displayScore: isClearTime ? fmtClearMs(raw) : "",
       rawScore: raw,
       playerId: id,
       place: (row && typeof row.place === "string") ? row.place : "", // <-- THIS MUST BE HERE
@@ -278,36 +300,52 @@ function toEntry(id, row, key, slot) {
     };
   }
 
-  function rankRows(rows) {
-    rows.sort((a, b) => b.rawScore - a.rawScore ||
+  function fmtClearMs(ms) {
+    const total = ms / 1000;
+    const m = Math.floor(total / 60), s = total - m * 60;
+    return m + ":" + (s < 10 ? "0" : "") + s.toFixed(3);
+  }
+
+  function rankRows(rows, isClearTime) {
+    rows.sort((a, b) => (isClearTime ? a.rawScore - b.rawScore : b.rawScore - a.rawScore) ||
       (a.displayName < b.displayName ? -1 : a.displayName > b.displayName ? 1 : 0));
     let rank = 0, prev = null;
     rows.forEach((r, i) => {
       if (prev === null || r.rawScore !== prev) { rank = i + 1; prev = r.rawScore; }
       r.rank = rank;
-      r.displayScore = r.rawScore.toLocaleString("en-US");
+      if (!isClearTime) r.displayScore = r.rawScore.toLocaleString("en-US");
     });
     return rows;
   }
 
-  async function rowsFor(mode) {
-    const slot = slotOf(mode), key = field(slot);
+  async function rowsFor(mode, isClearTime = false) {
+    const slot = slotOf(mode), key = isClearTime ? CLEAR_FIELDS[slot] : field(slot);
+    if (!key) return [];
+    const cacheKey = slot + (isClearTime ? ":clear" : "");
     const now = Date.now();
-    const hit = cache[slot];
+    const hit = cache[cacheKey];
     if (hit && now - hit.at < CACHE_MS) return hit.rows;
-    const snap = await guard(db.ref(SCORES).orderByChild(key).limitToLast(SCAN_CAP).get(), "top");
+    let query = db.ref(SCORES).orderByChild(key);
+    if (isClearTime) query = query.startAt(1);
+    const snap = await guard((isClearTime ? query.limitToFirst(SCAN_CAP) : query.limitToLast(SCAN_CAP)).get(), "top");
     const val = (snap && snap.val && snap.val()) || {};
     const rows = Object.keys(val)
-      .map(id => toEntry(id, val[id], key, slot))
+      .map(id => toEntry(id, val[id], key, slot, isClearTime))
       .filter(r => r.rawScore > 0);
-    const ranked = rankRows(rows);
-    cache[slot] = { rows: ranked, at: now };
+    const ranked = rankRows(rows, isClearTime);
+    cache[cacheKey] = { rows: ranked, at: now };
     return ranked;
   }
 
   async function loadTopScores({ leaderboardID, maxResults = 25 } = {}) {
     if (!signedIn) throw new Error("board-signed-out");
     const rows = await rowsFor(leaderboardID);
+    return { entries: rows.slice(0, Math.max(1, maxResults)).map(r => ({ ...r })) };
+  }
+
+  async function loadTopClearTimes({ leaderboardID, maxResults = 25 } = {}) {
+    if (!signedIn) throw new Error("board-signed-out");
+    const rows = await rowsFor(leaderboardID, true);
     return { entries: rows.slice(0, Math.max(1, maxResults)).map(r => ({ ...r })) };
   }
 
@@ -320,6 +358,15 @@ function toEntry(id, row, key, slot) {
     const from = Math.max(0, i - half);
     const to = Math.min(rows.length, i + half + 1);
     return { entries: rows.slice(from, to).map(r => ({ ...r })) };
+  }
+
+  async function loadPlayerCenteredClearTimes({ leaderboardID, maxResults = 25 } = {}) {
+    if (!signedIn || !uid) throw new Error("board-signed-out");
+    const rows = await rowsFor(leaderboardID, true);
+    const i = rows.findIndex(r => r.playerId === uid);
+    if (i < 0) return { entries: [] };
+    const half = Math.max(3, Math.floor((Math.max(1, maxResults) - 1) / 2));
+    return { entries: rows.slice(Math.max(0, i - half), Math.min(rows.length, i + half + 1)).map(r => ({ ...r })) };
   }
 
   async function getUserTotalScore({ leaderboardID } = {}) {
@@ -353,7 +400,8 @@ function toEntry(id, row, key, slot) {
     };
   }
 
-  return { configured, signIn, submitScore, loadTopScores, loadPlayerCenteredScores,
+  return { configured, signIn, submitScore, submitClearTime, loadTopScores, loadTopClearTimes,
+           loadPlayerCenteredScores, loadPlayerCenteredClearTimes,
            getUserTotalScore, showLeaderboard, unlockAchievement, readGate, status,
            callsign: callsignOf, uid: () => uid };
 })();

@@ -84,6 +84,10 @@ const Meta = {
     wave: 0,
     depth: 0,
     speedSec: 0,
+    char: "gunsmith",
+    runes: "",
+    challenge: "",
+    tag: false,
   },
   bestsChaos: {       // personal records on CHAOS descents — local only, no Play Games board
     score: 0,
@@ -206,6 +210,7 @@ function metaLoad() {
       };
       loadTag(d.bests, Meta.bests);
       loadTag(d.bestsHard, Meta.bestsHard);
+      loadTag(d.bestsClassic, Meta.bestsClassic);
       loadTag(d.bestsChaos, Meta.bestsChaos);
       /* v3 migration: THE DROWNED NAVE was wedged in before the void, pushing the
          Event Horizon from kind/floor-index 3 to 4 — carry the old void records over.

@@ -74,6 +74,10 @@ const RunTimer = {
       const per = Meta.speedBests[key] || 0;
       if (!per || stamp < per) { Meta.speedBests[key] = stamp; newBest = true; }
       metaSave();
+      if (typeof Leaderboard !== "undefined" && typeof Leaderboard.submitClearTime === "function") {
+        const mode = Game.chaosMode ? "chaos" : Game.classicMode ? "classic" : Game.hardMode ? "hard" : "normal";
+        Leaderboard.submitClearTime(mode, stamp);
+      }
     }
     this.paint(true);
     const msg = "DESCENT COMPLETE · " + fmtRunTime(sec) + (newBest ? " · NEW BEST" : prev ? " · BEST " + fmtRunTime(prev) : "");

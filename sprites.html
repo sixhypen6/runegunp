@@ -182,6 +182,21 @@
 
     input[type="range"] { accent-color: var(--arcane); }
 
+    .background-toggle {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--bone);
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      cursor: pointer;
+    }
+
+    .background-toggle input {
+      accent-color: var(--arcane);
+      margin: 0;
+    }
+
     .export-btns {
       display: flex;
       gap: 6px;
@@ -408,6 +423,14 @@
       </div>
 
       <div class="ctrl-group">
+        <label for="backgroundToggle">Sprite Background</label>
+        <label class="background-toggle">
+          <input type="checkbox" id="backgroundToggle" checked>
+          Arcane rune dial
+        </label>
+      </div>
+
+      <div class="ctrl-group">
         <label for="scaleSelect">Export Scale</label>
         <select id="scaleSelect">
           <option value="1">1x (160px)</option>
@@ -623,10 +646,99 @@
 
     let gameTime = 0;
 
-    function renderSprite(targetCtx, width, height, scale, timeVal, bodyColor, weaponColor, kind, typeId, hpFrac, customAim) {
+    function drawRuneDialBackground(ctx, width, height) {
+      const cx = width / 2;
+      const cy = height / 2;
+      const radius = Math.min(width, height) * 0.45;
+      const outerRadius = radius * 0.98;
+      const innerRadius = radius * 0.78;
+      const faceRadius = radius * 0.55;
+
+      const backdrop = ctx.createRadialGradient(cx, cy, radius * 0.08, cx, cy, Math.max(width, height) * 0.72);
+      backdrop.addColorStop(0, "#171329");
+      backdrop.addColorStop(0.58, "#0c0a17");
+      backdrop.addColorStop(1, "#05040a");
+      ctx.fillStyle = backdrop;
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.strokeStyle = "#59439f";
+      ctx.shadowColor = "#7654cf";
+      ctx.shadowBlur = 7;
+      ctx.globalAlpha = 0.78;
+      ctx.lineWidth = Math.max(1, radius * 0.025);
+      ctx.beginPath();
+      ctx.arc(0, 0, outerRadius, 0, TAU);
+      ctx.stroke();
+      ctx.globalAlpha = 0.62;
+      ctx.lineWidth = Math.max(0.8, radius * 0.018);
+      ctx.beginPath();
+      ctx.arc(0, 0, innerRadius, 0, TAU);
+      ctx.stroke();
+
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 0.44;
+      ctx.strokeStyle = "#423477";
+      ctx.lineWidth = Math.max(0.7, radius * 0.012);
+      ctx.beginPath();
+      ctx.arc(0, 0, faceRadius, 0, TAU);
+      ctx.stroke();
+
+      // Fine radial marks and angular rune-like signs around the outer band.
+      for (let i = 0; i < 24; i++) {
+        const angle = i / 24 * TAU - Math.PI / 2;
+        const major = i % 3 === 0;
+        const inner = outerRadius * (major ? 0.86 : 0.91);
+        const outer = outerRadius * 0.96;
+        ctx.globalAlpha = major ? 0.72 : 0.38;
+        ctx.strokeStyle = major ? "#8063d4" : "#57458f";
+        ctx.lineWidth = major ? Math.max(1, radius * 0.018) : Math.max(0.7, radius * 0.011);
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner);
+        ctx.lineTo(Math.cos(angle) * outer, Math.sin(angle) * outer);
+        ctx.stroke();
+      }
+
+      const runes = ["ᚠ", "ᚢ", "ᚦ", "ᚨ", "ᚱ", "ᚲ", "ᚷ", "ᚹ"];
+      ctx.font = `bold ${Math.max(7, radius * 0.16)}px monospace`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      runes.forEach((rune, i) => {
+        const angle = i / runes.length * TAU - Math.PI / 2 + Math.PI / runes.length;
+        const runeRadius = (outerRadius + innerRadius) / 2;
+        ctx.save();
+        ctx.translate(Math.cos(angle) * runeRadius, Math.sin(angle) * runeRadius);
+        ctx.rotate(angle + Math.PI / 2);
+        ctx.globalAlpha = 0.66;
+        ctx.fillStyle = "#8064c7";
+        ctx.fillText(rune, 0, 0);
+        ctx.restore();
+      });
+
+      // Short broken arcs and spokes echo the engraved inner dial without a center emblem.
+      ctx.globalAlpha = 0.36;
+      ctx.strokeStyle = "#514183";
+      ctx.lineWidth = Math.max(0.8, radius * 0.014);
+      for (let i = 0; i < 8; i++) {
+        const angle = i / 8 * TAU;
+        ctx.beginPath();
+        ctx.arc(0, 0, faceRadius * 0.78, angle + 0.12, angle + 0.48);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(angle) * faceRadius * 0.9, Math.sin(angle) * faceRadius * 0.9);
+        ctx.lineTo(Math.cos(angle) * faceRadius * 1.2, Math.sin(angle) * faceRadius * 1.2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function renderSprite(targetCtx, width, height, scale, timeVal, bodyColor, weaponColor, kind, typeId, hpFrac, customAim, includeBackground = false) {
       targetCtx.save();
       targetCtx.clearRect(0, 0, width, height);
       targetCtx.scale(scale, scale);
+
+      if (includeBackground) drawRuneDialBackground(targetCtx, width / scale, height / scale);
 
       const baseW = width / scale;
       const baseH = height / scale;
@@ -1067,7 +1179,7 @@
       const currentAim = parseFloat(aimRange.value);
       const kind = kindSel.value;
       const typeId = selectedTypeId();
-      renderSprite(cx, canvas.width, canvas.height, 1, gameTime, selectedBodyColor, selectedGunColor, kind, typeId, hp, currentAim);
+      renderSprite(cx, canvas.width, canvas.height, 1, gameTime, selectedBodyColor, selectedGunColor, kind, typeId, hp, currentAim, backgroundToggle.checked);
       requestAnimationFrame(animate);
     }
 
@@ -1079,6 +1191,7 @@
     const aimVal = document.getElementById("aimVal");
     const hpSelect = document.getElementById("hpSelect");
     const scaleSelect = document.getElementById("scaleSelect");
+    const backgroundToggle = document.getElementById("backgroundToggle");
 
     speedRange.addEventListener("input", () => speedVal.textContent = speedRange.value);
     aimRange.addEventListener("input", () => {
@@ -1120,11 +1233,12 @@
       const currentAim = parseFloat(aimRange.value);
       const kind = kindSel.value;
       const typeId = selectedTypeId();
+      const includeBackground = backgroundToggle.checked;
       const exportCanvas = document.createElement("canvas");
       exportCanvas.width = 160 * scale;
       exportCanvas.height = 160 * scale;
       const exportCtx = exportCanvas.getContext("2d");
-      renderSprite(exportCtx, exportCanvas.width, exportCanvas.height, scale, 0, selectedBodyColor, selectedGunColor, kind, typeId, hp, currentAim);
+      renderSprite(exportCtx, exportCanvas.width, exportCanvas.height, scale, 0, selectedBodyColor, selectedGunColor, kind, typeId, hp, currentAim, includeBackground);
 
       const link = document.createElement("a");
       link.download = `${kind}-${typeId}-${scale}x.png`;
@@ -1139,6 +1253,7 @@
       const currentAim = parseFloat(aimRange.value);
       const kind = kindSel.value;
       const typeId = selectedTypeId();
+      const includeBackground = backgroundToggle.checked;
 
       const recordCanvas = document.createElement("canvas");
       recordCanvas.width = 160 * scale;
@@ -1174,7 +1289,7 @@
 
       function recordLoop() {
         gameTime += speed;
-        renderSprite(recordCtx, recordCanvas.width, recordCanvas.height, scale, gameTime, selectedBodyColor, selectedGunColor, kind, typeId, hp, currentAim);
+        renderSprite(recordCtx, recordCanvas.width, recordCanvas.height, scale, gameTime, selectedBodyColor, selectedGunColor, kind, typeId, hp, currentAim, includeBackground);
         if (Date.now() - startTime < 3000) {
           requestAnimationFrame(recordLoop);
         } else {

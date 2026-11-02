@@ -64,13 +64,13 @@ const Leaderboard = (() => {
      has nowhere to go. */
   function modeOf(o) {
     if (o && typeof o === "object") {
-      if (o.mode === "hard" || o.mode === "chaos") return o.mode;
+      if (o.mode === "hard" || o.mode === "classic" || o.mode === "chaos") return o.mode;
       return o.hard ? "hard" : "normal";
     }
-    return (o === "hard" || o === "chaos") ? o : "normal";
+    return (o === "hard" || o === "classic" || o === "chaos") ? o : "normal";
   }
   function runMode() {
-    return Game.chaosMode ? "chaos" : Game.hardMode ? "hard" : "normal";
+    return Game.chaosMode ? "chaos" : Game.classicMode ? "classic" : Game.hardMode ? "hard" : "normal";
   }
 
   function pg() {
@@ -96,15 +96,15 @@ const Leaderboard = (() => {
     const m = modeOf(mode), p = board();
     if (!p) return null;
     if (p !== pg()) return m;
-    return m === "hard" ? LB_HIGHSCORE_HARD : m === "chaos" ? null : LB_HIGHSCORE;
+    return m === "hard" ? LB_HIGHSCORE_HARD : (m === "chaos" || m === "classic") ? null : LB_HIGHSCORE;
   }
   /* True when this player is on a reachable board. */
   function available() { return !!board() && signedIn; }
   /* True when the CURRENT provider has a board for this mode. */
   function modeSupported(mode) {
     const m = modeOf(mode);
-    if (m !== "chaos") return true;
-    return !!fb() && board() === fb();   // chaos lives on the shared online board only
+    if (m !== "chaos" && m !== "classic") return true;
+    return !!fb() && board() === fb();   // CLASSIC and CHAOS live on the shared online board only
   }
   /* True only when Google's own leaderboard overlay can actually be opened. */
   function nativeUI() { return !!pg() && nativeSignedIn; }
@@ -151,6 +151,13 @@ async function submit(id, amount, tag) {
       }); 
     } catch (e) {}
   }
+
+  function submitClearTime(mode, seconds) {
+    const provider = fb();
+    const timeMs = Math.round(Number(seconds) * 1000);
+    if (!provider || board() !== provider || !signedIn || !modeSupported(mode) || !(timeMs > 0)) return;
+    provider.submitClearTime(modeOf(mode), timeMs).catch(() => {});
+  }
   
   /* Re-post the stored bests the moment sign-in succeeds. A best earned while
      signed out (first sessions before the player accepted Play Games, a launch
@@ -159,9 +166,10 @@ async function submit(id, amount, tag) {
      re-posting is always safe. */
   function resubmitBests() {
     if (typeof Meta === "undefined" || !Meta) return;
-    ["normal", "hard", "chaos"].forEach(mode => {
+    ["normal", "hard", "classic", "chaos"].forEach(mode => {
       const b = bestsFor(mode);
       if (b && b.score > 0) submit(boardId(mode), b.score, tagFor(mode));
+      if (b && b.speedSec > 0) submitClearTime(mode, b.speedSec);
     });
   }
 
@@ -282,7 +290,7 @@ async function submit(id, amount, tag) {
      link even though the custom UI is the primary surface now. Native only — a
      Firebase board has no Google surface to show. */
   async function show(opts = {}) {
-    const p = pg(), m = modeOf(opts), id = m === "hard" ? LB_HIGHSCORE_HARD : m === "chaos" ? null : LB_HIGHSCORE;
+    const p = pg(), m = modeOf(opts), id = m === "hard" ? LB_HIGHSCORE_HARD : (m === "chaos" || m === "classic") ? null : LB_HIGHSCORE;
     if (!p || !nativeSignedIn || !id) return;
     try { await p.showLeaderboard({ leaderboardID: id }); } catch (e) {}
   }
@@ -353,6 +361,24 @@ async function submit(id, amount, tag) {
     catch (e) { if (forceReload) lastFresh[key] = -1; return { ok: false, entries: [] }; }
   }
 
+  async function getTopClearTimes(opts = {}) {
+    const mode = modeOf(opts), p = board();
+    if (!p || !signedIn || !modeSupported(mode) || typeof p.loadTopClearTimes !== "function") return { ok: false, entries: [] };
+    try {
+      const res = await p.loadTopClearTimes({ leaderboardID: mode, maxResults: opts.maxResults || 25 });
+      return { ok: true, entries: normalizeEntries(res) };
+    } catch (e) { return { ok: false, entries: [] }; }
+  }
+
+  async function getNearbyClearTimes(opts = {}) {
+    const mode = modeOf(opts), p = board();
+    if (!p || !signedIn || !modeSupported(mode) || typeof p.loadPlayerCenteredClearTimes !== "function") return { ok: false, entries: [] };
+    try {
+      const res = await p.loadPlayerCenteredClearTimes({ leaderboardID: mode, maxResults: opts.maxResults || 25 });
+      return { ok: true, entries: normalizeEntries(res) };
+    } catch (e) { return { ok: false, entries: [] }; }
+  }
+
   function myPlayerId() { return playerId; }
   function myName() { return playerName; }
 
@@ -415,6 +441,7 @@ async function submit(id, amount, tag) {
     const m = modeOf(mode);
     if (typeof Meta === "undefined" || !Meta) return null;
     if (m === "chaos") return Meta.bestsChaos || null;
+    if (m === "classic") return Meta.bestsClassic || null;
     return m === "hard" ? (Meta.bestsHard || null) : (Meta.bests || null);
   }
   function localBest(mode) {
@@ -515,8 +542,8 @@ async function submit(id, amount, tag) {
     return null;
   }
 
-  return { available, init, submitRun, show, syncMenuButton, syncAchievements,
-           getTopScores, getNearbyScores, myPlayerId, myName,
+  return { available, init, submitRun, submitClearTime, show, syncMenuButton, syncAchievements,
+           getTopScores, getNearbyScores, getTopClearTimes, getNearbyClearTimes, myPlayerId, myName,
            localBest, tagFor, isMine, computeProjection, getProjectedRank,
            getMyServerScore, isLikelyHidden, modeSupported,
            nativeUI, backend: () => BOARD_BACKEND };
