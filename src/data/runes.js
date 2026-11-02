@@ -497,6 +497,9 @@ function checkRuneLock(p) {
   }
 }
 
+/* Sancho's bow fires a tight pair, not a fan — a narrow arc keeps both arrows
+   on the horror she is actually aiming at. */
+const SANCHO_BOW_SPREAD = 0.018;
 function buildWeaponModsFrom(runes, p) {
   const m = { dmg: 10, rate: 4.5, spread: 0.055, speed: 540, size: 4, count: 1,
     pierce: 0, bounce: 0, homing: 0, knock: 60, twin: 0, mirror: 0, mirrorDmg: 1,
@@ -514,7 +517,7 @@ function buildWeaponModsFrom(runes, p) {
     const blood = p.hardblood || 1, stage = p.hbStage || (blood >= 20 ? 3 : blood >= 10 ? 2 : 1);
     if (p.weaponMode === "ranged") {
       const scale = Math.floor(blood / 10);
-      Object.assign(m, { dmg: 7 + scale * 2, rate: 6.5 + scale, size: 6, speed: 1000, count: 2, spread: 0.04, knock: 35 });
+      Object.assign(m, { dmg: 7 + scale * 2, rate: 6.5 + scale, size: 6, speed: 1000, count: 2, spread: SANCHO_BOW_SPREAD, knock: 35 });
     } else if (stage === 3) Object.assign(m, { dmg: 26, rate: 4.2, size: 26, speed: 400, knock: 125 });
     else if (stage === 2) Object.assign(m, { dmg: 18, rate: 5.2, size: 20, speed: 400, knock: 100 });
     else Object.assign(m, { dmg: 12 + (p.sanchoBonusDmg || 0), rate: 4.5, size: 16, speed: 400, knock: 80 });

@@ -196,6 +196,7 @@ function updatePlayer(p, inp, dt) {
     p.dashAng = (mx || my) ? Math.atan2(my, mx) : p.aim;
     p.wasOverLava = false;
     p.mineTrailT = 0;   // DEMOLITIONIST: the first dash-mine drops immediately
+    if (p.char === "sancho") p.dashHitSet = null;   // each pass gets one hit per horror
     AudioFX.dash();
   }
   if (p.dashT > 0) {
@@ -203,6 +204,8 @@ function updatePlayer(p, inp, dt) {
     p.x += Math.cos(p.dashAng) * (p.dashSpeed || 720) * dt;
     p.y += Math.sin(p.dashAng) * (p.dashSpeed || 720) * dt;
     particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, t: 0, life: 0.25, r: 9, color: "rgba(94,230,255,0.5)" });
+    /* SANCHO — the dash itself bites (entities/combat.js) */
+    if (p.char === "sancho") sanchoDashHit(p);
     if (p.dashT <= 0 && p.char === "wraith") {
       p.iframes = Math.max(p.iframes, 0.35);
     }

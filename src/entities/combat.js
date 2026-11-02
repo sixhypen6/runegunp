@@ -55,14 +55,54 @@ function contactHurt(e, pad, dmg) {
   }
 }
 
+/* ---------- SANCHO · reach and the dash ----------
+   Her melee is short by design, but not THIS short: the reach below is the whole
+   arc she sweeps, by Hardblood stage (fists → saber → lance). */
+const SANCHO_REACH = [0, 84, 106, 136];          // stage 1 / 2 / 3 (index 0 unused)
+const SANCHO_HALF_ARC = [0, 0.9, 0.72, 0.32];    // half the sweep cone, radians
+/* The dash is a body-check that grows teeth: by stage 2 the saber leads, by
+   stage 3 the lance turns the whole pass into a skewer. Damage is a multiple of
+   her melee blow, so runes and HARDBLOOD carry straight into it. One hit per
+   enemy per dash stops a lance run from deleting a crowd in three frames. */
+const SANCHO_DASH_DMG_MUL = [0, 0.85, 1.1, 1.45]; // stage 1 / 2 / 3 (index 0 unused)
+const SANCHO_DASH_KNOCK = [0, 110, 150, 210];
+const SANCHO_DASH_PAD = [0, 12, 18, 30];          // grace past the bodies; the lance reaches further
+function sanchoDashHit(p) {
+  if (!p.dashHitSet) p.dashHitSet = new Set();
+  const m = p.mods, stage = p.hbStage || 1;
+  const dmg = m.dmg * (SANCHO_DASH_DMG_MUL[stage] || 1);
+  const pad = SANCHO_DASH_PAD[stage] || SANCHO_DASH_PAD[1];
+  for (const e of enemies) {
+    if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p" || p.dashHitSet.has(e)) continue;
+    if (dist2(p.x, p.y, e.x, e.y) > (p.r + e.r + pad) ** 2) continue;
+    p.dashHitSet.add(e);
+    const crit = m.crit > 0 && Math.random() < m.crit;
+    damageEnemy(e, dmg * (crit ? m.critMul : 1), {
+      owner: p, x: p.x, y: p.y, knock: SANCHO_DASH_KNOCK[stage] || 0, melee: true, critHit: crit,
+    });
+    if (!e.dead && m.bleed > 0) {
+      e.bleedT = Math.max(e.bleedT || 0, 1 + 0.5 * m.bleed);
+      e.bleedDps = Math.max(e.bleedDps || 0, 3 * m.bleed);
+      e.bleedBy = p;
+    }
+    /* the pass leaves a short red tear behind it */
+    if (particles.length < 480) for (let i = 0; i < 4; i++) particles.push({
+      x: e.x + rnd(-8, 8), y: e.y + rnd(-8, 8),
+      vx: Math.cos(p.dashAng + Math.PI) * rnd(60, 180) + rnd(-40, 40),
+      vy: Math.sin(p.dashAng + Math.PI) * rnd(60, 180) + rnd(-40, 40),
+      t: 0, life: 0.28, r: rnd(1.5, 3), color: "#ff7180",
+    });
+  }
+}
+
 /* Sancho's close weapons are real melee sweeps: enemies are tested in a forward
    arc and damaged in place. They never enter the projectile array. */
 function sanchoSwing(p, x, y, aim) {
   const m = p.mods;
   const stage = p.hbStage || 1;
   const ranged = p.weaponMode === "ranged";
-  const reach = ranged ? 0 : stage === 3 ? 108 : stage === 2 ? 82 : 66;
-  const halfArc = stage === 3 ? 0.32 : stage === 2 ? 0.72 : 0.9;
+  const reach = ranged ? 0 : (SANCHO_REACH[stage] || SANCHO_REACH[1]);
+  const halfArc = SANCHO_HALF_ARC[stage] || SANCHO_HALF_ARC[1];
   p.sanchoSlashT = 0.16;
   p.sanchoSlashAng = aim;
   p.sanchoSlashStage = stage;

@@ -1726,8 +1726,8 @@ function drawWarden(P) {
         /* A short-lived sweep flash follows the attack cone, attached to Sancho. */
         if (P.sanchoSlashT > 0 && mode !== "ranged") {
           const stage = P.sanchoSlashStage || 1;
-          const radius = P.sanchoSlashReach || (stage >= 3 ? 108 : stage === 2 ? 82 : 66);
-          const half = stage >= 3 ? 0.32 : stage === 2 ? 0.72 : 0.9;
+          const radius = P.sanchoSlashReach || SANCHO_REACH[stage] || SANCHO_REACH[1];
+          const half = SANCHO_HALF_ARC[stage] || SANCHO_HALF_ARC[1];
           const t = clamp(P.sanchoSlashT / 0.16, 0, 1);
           cx.save(); cx.translate(px, py); cx.rotate(P.sanchoSlashAng || aim);
           cx.globalAlpha = 0.85 * t; cx.strokeStyle = "#ff7180"; cx.lineWidth = stage >= 2 ? 5 : 4;
