@@ -287,7 +287,7 @@ if (PC_CONTROLS) {
 /* ---------- the CONTROLS panel ---------- */
 const BIND_ROWS = [
   ["up", "MOVE UP"], ["down", "MOVE DOWN"], ["left", "MOVE LEFT"], ["right", "MOVE RIGHT"],
-  ["fire", "FIRE"], ["dash", "DASH"], ["use", "SEAL / INTERACT"], ["recall", "RECALL THRALLS"], ["runes", "RUNES HELD"],
+  ["fire", "FIRE"], ["dash", "DASH"], ["use", "SEAL / INTERACT"], ["recall", "ABILITY / RECALL"], ["runes", "RUNES HELD"],
 ];
 /* never bindable: pause (Escape / P), the OS key, fullscreen, the console's F9 / ` */
 const RESERVED_KEYS = ["Escape", "KeyP", "MetaLeft", "MetaRight", "F11", "F9", "Backquote"];

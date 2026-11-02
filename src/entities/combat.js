@@ -67,6 +67,11 @@ const SANCHO_HALF_ARC = [0, 0.9, 0.72, 0.32];    // half the sweep cone, radians
 const SANCHO_DASH_DMG_MUL = [0, 0.85, 1.1, 1.45]; // stage 1 / 2 / 3 (index 0 unused)
 const SANCHO_DASH_KNOCK = [0, 110, 150, 210];
 const SANCHO_DASH_PAD = [0, 12, 18, 30];          // grace past the bodies; the lance reaches further
+/* Bloodfeast refinement — the auto turn and the R ability spend the same fuel. */
+const SANCHO_REFINE_COST = 50;                    // Bloodfeast per Hardblood
+const SANCHO_HARDBLOOD_MAX = 30;
+const SANCHO_REFINE_ATTACKS = 15;                 // auto-refine cadence, in weapon attacks
+const SANCHO_REFINE_AUTO_MAX = 3;                 // most stacks one auto-refine may take
 function sanchoDashHit(p) {
   if (!p.dashHitSet) p.dashHitSet = new Set();
   const m = p.mods, stage = p.hbStage || 1;
@@ -127,6 +132,31 @@ function sanchoSwing(p, x, y, aim) {
     }
   }
   return true;
+}
+
+/* =========================================================
+   SANCHO · Bloodfeast refinement
+   Auto (every SANCHO_REFINE_ATTACKS) and manual (R) both funnel here:
+   spend SANCHO_REFINE_COST Bloodfeast for one Hardblood, up to the cap.
+   `maxTurns` is how many stacks the call may take at once.
+   ========================================================= */
+function sanchoRefine(p, maxTurns) {
+  const gain = Math.min(maxTurns, Math.floor((Game.bloodfeast || 0) / SANCHO_REFINE_COST),
+    SANCHO_HARDBLOOD_MAX - p.hardblood);
+  if (gain <= 0) return 0;
+  Game.bloodfeast = Math.max(0, (Game.bloodfeast || 0) - gain * SANCHO_REFINE_COST);
+  p.hardblood += gain;
+  recalc(p);
+  toast("BLOOD REFINED: +" + gain + " HARDBLOOD");
+  return gain;
+}
+
+/* R — the ABILITY key. One press, one Hardblood, with a readable reason
+   when it cannot happen (instead of silently eating the tap). */
+function sanchoManualRefine(p) {
+  if (p.hardblood >= SANCHO_HARDBLOOD_MAX) { toast("HARDBLOOD FULL"); return; }
+  if ((Game.bloodfeast || 0) < SANCHO_REFINE_COST) { toast("BLOODFEAST TOO THIN"); return; }
+  sanchoRefine(p, 1);
 }
 
 /* Spawn one full weapon shot (mirror copies, scatter fan, twin parallels) from (x, y)
@@ -260,17 +290,11 @@ function fireWeapon(p, inp, dt) {
     return;
   }
   p.fireT = 1 / (m.rate * jamMul);
-  if (p.char === "sancho") {
+  if (p.char === "sancho" && reanimatorAuthority()) {
     p.sanchoAttackCount = (p.sanchoAttackCount || 0) + 1;
-    if (p.sanchoAttackCount >= 15) {
+    if (p.sanchoAttackCount >= SANCHO_REFINE_ATTACKS) {
       p.sanchoAttackCount = 0;
-      const gain = Math.min(3, Math.floor((Game.bloodfeast || 0) / 50), 30 - p.hardblood);
-      if (gain > 0) {
-        Game.bloodfeast -= gain * 50;
-        p.hardblood += gain;
-        recalc(p);
-        toast("BLOOD REFINED: +" + gain + " HARDBLOOD");
-      }
+      sanchoRefine(p, SANCHO_REFINE_AUTO_MAX);
     }
   }
   spawnShot(p, p.x, p.y, aim);

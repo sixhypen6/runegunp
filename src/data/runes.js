@@ -80,6 +80,21 @@ const TAPERED_RUNES = new Set(["scatter", "heavy", "rapid", "venom", "ember", "t
   "mend", "dread", "prickle", "slime"]);
 
 /* =========================================================
+   PHASE / PRICKLE — the crimson wake and the thorn ring
+   PHASE's dash trail is always red and opens a bleed on whatever it
+   cuts; the elemental riders it also carries live in game/update.js.
+   PRICKLE ticks on a shared 0.4 s enemy timer, so these two numbers are
+   the damage PER TICK (not per second): at effective stack 8 it lands
+   2 + 1.0 × 5.9 ≈ 7.9 a tick, up from the old 3.0.
+   ========================================================= */
+const PHASE_WAKE_COLOR = "#ff4d5e";
+const PHASE_BLEED_TIME = 2;           // seconds the wake's cut keeps bleeding
+const PHASE_BLEED_DPS = 4;            // bleed damage per second (1 s bleed ticks)
+const PRICKLE_TICK = 0.4;             // seconds between thorn bites per enemy
+const PRICKLE_BASE_DMG = 2;           // per tick, before stacks
+const PRICKLE_STACK_DMG = 1;          // per effective PRICKLE stack, per tick
+
+/* =========================================================
    REPRIEVE — the death-save's tuning
    One source for the save itself (entities/combat.js), the hold in the
    enemy loop (game/update.js), the rune card and the held codex.
@@ -192,8 +207,8 @@ const RUNES = {
   bulwark: { name: "BULWARK", glyph: "ᛒ", color: "#e0a86b",
     desc: "A shield orbits you, soaking one hit then bursting to sear nearby foes. Each stack holds one more charge — up to 3 — and further stacks deepen the blast. Spent charges return one at a time.",
     mod: (m, n) => { m.shield = n; } },
-  phase: { name: "PHASE", glyph: "ᚷ", color: "#7ad7ff",
-    desc: "Dash recharges faster and leaves a cutting wake that carries your elements — burning, chilling, poisoning and shocking whatever you dash through. Stacks sharpen both.",
+  phase: { name: "PHASE", glyph: "ᚷ", color: "#ff4d5e",
+    desc: "Dash recharges faster and leaves a crimson cutting wake that bleeds whatever you dash through — and carries your other elements, burning, chilling, poisoning and shocking. Stacks sharpen both.",
     mod: (m, n) => { m.dashCdMul *= stackMul(0.85, n); m.dashTrail += stackCurve(n); } },
   mirror: { name: "MIRROR", glyph: "ᛖ", color: "#f3c4ff",
     desc: "Fires a copy of your shot backwards per stack. Watch your six — it's armed.",
@@ -243,7 +258,7 @@ const RUNES = {
     desc: "The air around you thickens — time drags within arm's reach. Enemies and even their bullets crawl inside the bubble. Stacks widen the field and deepen the lull.",
     mod: (m, n) => { m.timeField = Math.min(3, m.timeField + n); m.timeR = 110 + 42 * m.timeField; m.timeMul = Math.max(0.35, 0.6 - 0.08 * m.timeField); } },
   prickle: { name: "PRICKLE", glyph: "ᛡ", color: "#d6e85a",
-    desc: "A bristling thornfield rings you, pricking any foe that strays too close for a slow trickle of damage. Each stack widens the ring of barbs.",
+    desc: "A bristling thornfield rings you, tearing any foe that strays too close. Each stack widens the ring and sharpens the barbs.",
     mod: (m, n) => { m.prickle += stackCurve(n); m.prickleR = 50 + 16 * m.prickle; } },
   slime: { name: "SLIME", glyph: "ᛠ", color: "#86d020",
     desc: "You leave a slick of caustic slime in your wake that lingers, then fades. Anything that wades through it festers with damage over time. Stacks thicken and widen the trail.",
@@ -328,8 +343,8 @@ const UNK_PLAYER_RUNES = {
   bulwark: { name: "THE SHIELDS", glyph: "ᛒ", color: "#e0a86b",
     desc: "A shield orbits you, soaking one hit then bursting to sear nearby foes. Each stack holds one more charge — up to 3 — and further stacks deepen the blast. Spent charges return one at a time.",
     mod: (m, n) => { m.shield = n; } },
-  phase: { name: "BLINKSTEP", glyph: "ᚷ", color: "#7ad7ff",
-    desc: "Dash recharges faster and leaves a cutting wake that carries your elements — burning, chilling, poisoning and shocking whatever you dash through. Stacks sharpen both.",
+  phase: { name: "BLINKSTEP", glyph: "ᚷ", color: "#ff4d5e",
+    desc: "Dash recharges faster and leaves a crimson cutting wake that bleeds whatever you dash through — and carries your other elements, burning, chilling, poisoning and shocking. Stacks sharpen both.",
     mod: (m, n) => { m.dashCdMul *= stackMul(0.85, n); m.dashTrail += stackCurve(n); } },
   mirror: { name: "THE REFLECTION", glyph: "ᛖ", color: "#f3c4ff",
     desc: "Fires a copy of your shot backwards per stack. Watch your six — it's armed.",

@@ -23,6 +23,9 @@ const Input = {
    own map — null means these defaults, which are exactly the keys the game always
    had, so nothing changes for anyone who never opens CONTROLS (or for Android).
    PAUSE is not rebindable: Escape / P on the keyboard, MENU (9) on a controller. */
+/* R is the shared ABILITY key: the Reanimator recalls thralls with it, Sancho
+   refines Bloodfeast into Hardblood. The action id stays "recall" so existing
+   saves and the co-op input counters keep working; CONTROLS labels it ABILITY. */
 const KEY_ACTIONS = ["up", "down", "left", "right", "fire", "dash", "use", "recall", "runes"];
 const KEY_DEFAULTS = {
   up: ["KeyW", "ArrowUp"], down: ["KeyS", "ArrowDown"], left: ["KeyA", "ArrowLeft"], right: ["KeyD", "ArrowRight"],
@@ -42,11 +45,12 @@ function fireHeld() { return keyHeld("fire") || (typeof Pad !== "undefined" && P
 
 /* A bound key or mouse button went down: latch its action. Dash / seal taps only
    latch during live play — a key pressed on an overlay must not fire a buffered
-   dash the instant the game resumes. */
+   dash the instant the game resumes. The ABILITY key (R) ignores auto-repeat so
+   one press is one refine/recall, not a held key dumping every stack at once. */
 function pressBound(code, e) {
   if (keyBound("dash", code)) { if (Game.state === "play") Input.dashTap = true; if (e) e.preventDefault(); }
   if (keyBound("use", code) && Game.state === "play") Input.useTap = true;
-  if (keyBound("recall", code) && Game.state === "play") Input.recallTap = true;
+  if (keyBound("recall", code) && Game.state === "play" && !(e && e.repeat)) Input.recallTap = true;
   if (keyBound("runes", code)) { if (e) e.preventDefault(); toggleRunesHeld(); }
 }
 

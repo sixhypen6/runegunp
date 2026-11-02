@@ -185,9 +185,12 @@ function updatePlayer(p, inp, dt) {
     return;
   }
   /* REANIMATOR — the thrall rites. The host owns them in a shared descent;
-     the guest only keeps its own HUD cue in step with the host's timer. */
+     the guest only keeps its own HUD cue in step with the host's timer.
+     R is the shared ABILITY key: the Reanimator recalls thralls with it,
+     Sancho refines Bloodfeast into Hardblood. */
   if (reanimatorAuthority()) {
     if (p.char === "necromancer" && inp.recallTap) reanimatorRecallNow(p);
+    if (p.char === "sancho" && inp.recallTap) sanchoManualRefine(p);
     reanimatorTick(p, dt);
   }
   if (inp.dashTap && p.dashCd <= 0) {
@@ -203,7 +206,8 @@ function updatePlayer(p, inp, dt) {
     p.dashT -= dt;
     p.x += Math.cos(p.dashAng) * (p.dashSpeed || 720) * dt;
     p.y += Math.sin(p.dashAng) * (p.dashSpeed || 720) * dt;
-    particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, t: 0, life: 0.25, r: 9, color: "rgba(94,230,255,0.5)" });
+    particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, t: 0, life: 0.25, r: 9,
+      color: p.mods.dashTrail ? "rgba(255,77,94,0.55)" : "rgba(94,230,255,0.5)" });
     /* SANCHO — the dash itself bites (entities/combat.js) */
     if (p.char === "sancho") sanchoDashHit(p);
     if (p.dashT <= 0 && p.char === "wraith") {
@@ -229,12 +233,12 @@ function updatePlayer(p, inp, dt) {
       p.mineTrailT = (p.mineTrailT || 0) - dt;
       if (p.mineTrailT <= 0) { p.mineTrailT = 0.055; placeMine(p, p.x, p.y); }
     }
-    /* PHASE rune: cutting wake — carries your elemental kit (burn / chill / poison / storm) */
+    /* PHASE rune: a crimson cutting wake that always bleeds, and also carries
+       your elemental kit (burn / chill / poison / storm) through game/update.js */
     if (p.mods.dashTrail) {
       const m = p.mods;
-      const col = m.ember ? "#ff7a3d" : m.venom ? "#7dff5e" : m.frost ? "#5ee6ff" : "#7ad7ff";
       puddles.push({ x: p.x, y: p.y, r: 20 + 5 * m.dashTrail, t: 0, life: 1.1,
-        team: "p", dmg: 5 + 4 * m.dashTrail, color: col, tickMap: {}, phase: true, owner: p });
+        team: "p", dmg: 5 + 4 * m.dashTrail, color: PHASE_WAKE_COLOR, tickMap: {}, phase: true, owner: p });
     }
   } else {
     const weightMul = curseActive(p, "weight") ? 0.5 : 1;
@@ -673,11 +677,12 @@ function update(dt) {
     }
     /* PRICKLE: any warden's thornfield pricks whatever strays in, for very little */
     if (!e.ghost && e.team !== "p") {
+      /* PRICKLE — thornfield damage per shared tick (tuned in data/runes.js) */
       e.prickleTick = (e.prickleTick || 0) - dt;
       if (e.prickleTick <= 0) for (const p of alivePlayers()) {
         if (p.mods.prickle && dist2(e.x, e.y, p.x, p.y) < p.mods.prickleR ** 2) {
-          e.prickleTick = 0.4;
-          damageEnemy(e, 0.6 + 0.4 * p.mods.prickle, { owner: p });
+          e.prickleTick = PRICKLE_TICK;
+          damageEnemy(e, PRICKLE_BASE_DMG + PRICKLE_STACK_DMG * p.mods.prickle, { owner: p });
           break;
         }
       }
@@ -693,6 +698,12 @@ function update(dt) {
             const pown = pu.owner;
             const m = pown ? pown.mods : null;
             e.puddleTick = 0.4; damageEnemy(e, pu.dmg, pown ? { owner: pown } : undefined);
+            /* PHASE's crimson wake always opens a bleed, whatever else the build carries */
+            if (pu.phase && pown && !e.dead) {
+              e.bleedT = Math.max(e.bleedT || 0, PHASE_BLEED_TIME);
+              e.bleedDps = Math.max(e.bleedDps || 0, PHASE_BLEED_DPS);
+              e.bleedBy = pown;
+            }
             if (m && m.ember) { e.burnT = Math.max(e.burnT, 2 + m.ember); e.burnDps = Math.max(e.burnDps, 2 + 2 * m.ember); e.burnBy = pown; }
             if (m && m.frost) e.slowT = Math.max(e.slowT, 1 + 0.7 * m.frost);
             if (m && m.storm && !e.dead) chainStorm(e, m.storm, new Set([e]), pown);
