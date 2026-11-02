@@ -12,6 +12,12 @@ const RIFT_LINE = "Tread lightly in the unknown, traveller";
 /* how near you must stand to one of the three runes to take it */
 const RIFT_PICK_R = 30;
 const RIFT_PICK_SLOTS = 2;          // the real unknown's absence pays better than its rite
+/* SPEEDRUN compresses the creature's rite — every beat still plays, just on a
+   faster clock. 1 = normal pace; 2 = half the wait. Tweak freely. */
+const RIFT_SPEEDRUN_RATE = 2;
+function riftClockRate() {
+  return (typeof Meta !== "undefined" && Meta.speedrun) ? RIFT_SPEEDRUN_RATE : 1;
+}
 
 /* step through the small portal: pay half your max vitality, descend into the hush */
 function enterRift() {
@@ -245,7 +251,7 @@ function updateRift(dt) {
       }
 
     } else if (rc.phase === "ritual") {
-      rc.ritualT += dt;
+      rc.ritualT += dt * riftClockRate();
       rc.spin = 1 + rc.ritualT * 4;
       /* runes spiral inward and a current pours from the creature into the player */
       for (const g of rc.glyphs) g.orbitR = lerp(g.orbitR, 10, 1 - Math.pow(0.04, dt));
@@ -273,7 +279,7 @@ function updateRift(dt) {
       if (rc.ritualT > 2.4) { rc.phase = "speak"; rc.speakT = 0; AudioFX.bossRoar(); }
 
     } else if (rc.phase === "speak") {
-      rc.speakT += dt;
+      rc.speakT += dt * riftClockRate();
       if (rc.speakT > 1.4) rc.fade = clamp(1 - (rc.speakT - 1.4) / 1.3, 0, 1);
       /* once it has finished speaking and faded, a way onward opens where it stood */
       if (rc.speakT > 2.9 && !portal) {
