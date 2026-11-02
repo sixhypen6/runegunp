@@ -130,6 +130,16 @@ const Leaderboard = (() => {
     try { localStorage.setItem(STAMP_PREFIX + id, JSON.stringify({ a: amount, t: Date.now() })); } catch (e) {}
   }
 
+  function submissionPlace() {
+    if (typeof window === "undefined" || !window.location) return "unknown";
+    const host = window.location.host || window.location.hostname || "";
+    const hostname = window.location.hostname || "";
+    if (hostname === "github.io" || hostname.endsWith(".github.io")) return "github pages";
+    if (hostname === "127.0.0.1" || hostname === "localhost" || hostname === "::1")
+      return "live server (" + host + ")";
+    return "unknown";
+  }
+
 async function submit(id, amount, tag) {
     const p = board();
     if (!p || !signedIn || !id || !(amount > 0)) return;
@@ -138,9 +148,7 @@ async function submit(id, amount, tag) {
         rows are never "pending" and need no stamp. */
     if (p === pg()) stampSubmit(id, amount);
     
-    // Automatically detect host environment (GitHub vs Live Server)
-    const host = typeof window !== "undefined" && window.location ? window.location.hostname : "";
-    const placeVal = host.includes("github.io") ? "github" : "vscode live server";
+    const placeVal = submissionPlace();
 
     try { 
       await p.submitScore({ 
@@ -156,7 +164,7 @@ async function submit(id, amount, tag) {
     const provider = fb();
     const timeMs = Math.round(Number(seconds) * 1000);
     if (!provider || board() !== provider || !signedIn || !modeSupported(mode) || !(timeMs > 0)) return;
-    provider.submitClearTime(modeOf(mode), timeMs).catch(() => {});
+    provider.submitClearTime(modeOf(mode), timeMs, submissionPlace()).catch(() => {});
   }
   
   /* Re-post the stored bests the moment sign-in succeeds. A best earned while
@@ -313,6 +321,8 @@ async function submit(id, amount, tag) {
       raw:      Number(e.rawScore) || 0,
       icon:     e.iconImageUri || null,
       playerId: e.playerId || null,
+      place:    e.place || "unknown",
+      pending:  !!e.pending,
       /* the loadout tag (Firebase only; Play Games rows have none) */
       char:     e.char || "",
       runes:    e.runes || "",
@@ -357,7 +367,7 @@ async function submit(id, amount, tag) {
     if (!p || !signedIn || !id || typeof p.loadPlayerCenteredScores !== "function") return { ok: false, entries: [] };
     const key = "nearby:" + mode;
     const forceReload = wantFresh(key);
-    try { return { ok: true, entries: normalizeEntries(await p.loadPlayerCenteredScores({ leaderboardID: id, maxResults, forceReload })) }; }
+    try { return { ok: true, entries: normalizeEntries(await p.loadPlayerCenteredScores({ leaderboardID: id, maxResults, forceReload, targetScore: localBest(mode) })) }; }
     catch (e) { if (forceReload) lastFresh[key] = -1; return { ok: false, entries: [] }; }
   }
 
@@ -374,7 +384,9 @@ async function submit(id, amount, tag) {
     const mode = modeOf(opts), p = board();
     if (!p || !signedIn || !modeSupported(mode) || typeof p.loadPlayerCenteredClearTimes !== "function") return { ok: false, entries: [] };
     try {
-      const res = await p.loadPlayerCenteredClearTimes({ leaderboardID: mode, maxResults: opts.maxResults || 25 });
+      const best = bestsFor(mode);
+      const targetTimeMs = best && best.speedSec > 0 ? Math.round(best.speedSec * 1000) : 0;
+      const res = await p.loadPlayerCenteredClearTimes({ leaderboardID: mode, maxResults: opts.maxResults || 25, targetTimeMs });
       return { ok: true, entries: normalizeEntries(res) };
     } catch (e) { return { ok: false, entries: [] }; }
   }
@@ -546,7 +558,7 @@ async function submit(id, amount, tag) {
            getTopScores, getNearbyScores, getTopClearTimes, getNearbyClearTimes, myPlayerId, myName,
            localBest, tagFor, isMine, computeProjection, getProjectedRank,
            getMyServerScore, isLikelyHidden, modeSupported,
-           nativeUI, backend: () => BOARD_BACKEND };
+           nativeUI, submissionPlace, backend: () => BOARD_BACKEND };
 })();
 
 /* Sign-in is kicked off from main.js boot — after the save is loaded, and after

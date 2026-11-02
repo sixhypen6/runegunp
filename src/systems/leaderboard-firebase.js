@@ -255,13 +255,14 @@ const FirebaseBoard = (() => {
 
     await guard(rowRef().update(updatePayload), "submit");
     cache[slot] = null;
+    cache.allRows = null;
     if (tag) {
       try { await guard(rowRef().child(slot).set(cleanTag(tag)), "tag"); }
       catch (e) {}
     }
   }
 
-  async function submitClearTime(mode, timeMs) {
+  async function submitClearTime(mode, timeMs, place) {
     if (!signedIn || !uid || !CLEAR_FIELDS[mode]) return;
     const amount = Math.round(Number(timeMs) || 0);
     if (!(amount > 0) || amount > 86400000) return;
@@ -272,8 +273,11 @@ const FirebaseBoard = (() => {
       cur = Number(snap && snap.val && snap.val()) || 0;
     } catch (e) {}
     if (cur > 0 && amount >= cur) return;
-    await guard(rowRef().update({ [key]: amount, updatedAt: stamp() }), "clear-submit");
+    const updatePayload = { [key]: amount, updatedAt: stamp() };
+    if (typeof place === "string" && place) updatePayload.place = place.slice(0, 80);
+    await guard(rowRef().update(updatePayload), "clear-submit");
     cache[mode + ":clear"] = null;
+    cache.allRows = null;
   }
 
   /* ---- reads ---- */
@@ -293,7 +297,7 @@ function toEntry(id, row, key, slot, isClearTime) {
       displayScore: isClearTime ? fmtClearMs(raw) : "",
       rawScore: raw,
       playerId: id,
-      place: (row && typeof row.place === "string") ? row.place : "", // <-- THIS MUST BE HERE
+      place: (row && typeof row.place === "string") ? row.place : "unknown",
       char: (tag && typeof tag.char === "string") ? tag.char : "",
       runes: (tag && typeof tag.runes === "string") ? tag.runes : "",
       challenge: (tag && typeof tag.challenge === "string") ? tag.challenge : "",
@@ -337,6 +341,52 @@ function toEntry(id, row, key, slot, isClearTime) {
     return ranked;
   }
 
+  async function allRowsFor(mode, isClearTime = false) {
+    const slot = slotOf(mode), key = isClearTime ? CLEAR_FIELDS[slot] : field(slot);
+    if (!key) return [];
+    let hit = cache.allRows;
+    if (!hit || Date.now() - hit.at >= CACHE_MS) {
+      const snap = await guard(db.ref(SCORES).get(), "around");
+      hit = { value: (snap && snap.val && snap.val()) || {}, at: Date.now() };
+      cache.allRows = hit;
+    }
+    return Object.keys(hit.value)
+      .map(id => toEntry(id, hit.value[id], key, slot, isClearTime))
+      .filter(row => row.rawScore > 0);
+  }
+
+  async function centeredRows(mode, isClearTime, maxResults, targetValue) {
+    if (!signedIn || !uid) throw new Error("board-signed-out");
+    const slot = slotOf(mode), key = isClearTime ? CLEAR_FIELDS[slot] : field(slot);
+    const rows = (await allRowsFor(slot, isClearTime)).map(row => ({ ...row }));
+    const current = rows.find(row => row.playerId === uid);
+    const target = Math.round(Number(targetValue) || 0);
+    const better = isClearTime
+      ? target > 0 && (!current || target < current.rawScore)
+      : target > 0 && (!current || target > current.rawScore);
+
+    // Include a local best not submitted yet, so Around You still centers on
+    // this player while a first score/clear is waiting to reach Firebase.
+    if (better && target <= (isClearTime ? 86400000 : SCORE_CAP)) {
+      const rowData = {
+        ...(current || {}),
+        name: (current && current.name) || callsign || "WARDEN",
+        [key]: target,
+      };
+      const virtual = toEntry(uid, rowData, key, slot, isClearTime);
+      virtual.pending = true;
+      const index = rows.findIndex(row => row.playerId === uid);
+      if (index >= 0) rows.splice(index, 1);
+      rows.push(virtual);
+    }
+
+    const ranked = rankRows(rows, isClearTime);
+    const center = ranked.findIndex(row => row.playerId === uid);
+    if (center < 0) return [];
+    const half = Math.max(3, Math.floor((Math.max(1, maxResults) - 1) / 2));
+    return ranked.slice(Math.max(0, center - half), Math.min(ranked.length, center + half + 1));
+  }
+
   async function loadTopScores({ leaderboardID, maxResults = 25 } = {}) {
     if (!signedIn) throw new Error("board-signed-out");
     const rows = await rowsFor(leaderboardID);
@@ -349,24 +399,12 @@ function toEntry(id, row, key, slot, isClearTime) {
     return { entries: rows.slice(0, Math.max(1, maxResults)).map(r => ({ ...r })) };
   }
 
-  async function loadPlayerCenteredScores({ leaderboardID, maxResults = 25 } = {}) {
-    if (!signedIn || !uid) throw new Error("board-signed-out");
-    const rows = await rowsFor(leaderboardID);
-    const i = rows.findIndex(r => r.playerId === uid);
-    if (i < 0) return { entries: [] };
-    const half = Math.max(3, Math.floor((Math.max(1, maxResults) - 1) / 2));
-    const from = Math.max(0, i - half);
-    const to = Math.min(rows.length, i + half + 1);
-    return { entries: rows.slice(from, to).map(r => ({ ...r })) };
+  async function loadPlayerCenteredScores({ leaderboardID, maxResults = 25, targetScore = 0 } = {}) {
+    return { entries: await centeredRows(leaderboardID, false, maxResults, targetScore) };
   }
 
-  async function loadPlayerCenteredClearTimes({ leaderboardID, maxResults = 25 } = {}) {
-    if (!signedIn || !uid) throw new Error("board-signed-out");
-    const rows = await rowsFor(leaderboardID, true);
-    const i = rows.findIndex(r => r.playerId === uid);
-    if (i < 0) return { entries: [] };
-    const half = Math.max(3, Math.floor((Math.max(1, maxResults) - 1) / 2));
-    return { entries: rows.slice(Math.max(0, i - half), Math.min(rows.length, i + half + 1)).map(r => ({ ...r })) };
+  async function loadPlayerCenteredClearTimes({ leaderboardID, maxResults = 25, targetTimeMs = 0 } = {}) {
+    return { entries: await centeredRows(leaderboardID, true, maxResults, targetTimeMs) };
   }
 
   async function getUserTotalScore({ leaderboardID } = {}) {
