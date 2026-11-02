@@ -1362,6 +1362,16 @@ function draw() {
   for (const b of bullets) {
     if (b.x < cullL - 60 || b.x > cullR + 60 || b.y < cullT - 60 || b.y > cullB + 60) continue;
     const col = b.pet ? "#ffe08a" : b.shard ? "#d0c4ff" : b.bleed ? "#ff4d5e" : b.venom ? "#7dff5e" : b.frost ? "#5ee6ff" : b.ember ? "#ff7a3d" : (b.owner && b.owner.char === "shredder") ? "#c9b8ff" : "#fff3c8";
+    /* SANCHO's Hardblood arrow: a thin piercing streak and a barbed point */
+    if (b.owner && b.owner.char === "sancho" && !b.melee) {
+      cx.save(); cx.translate(b.x, b.y); cx.rotate(Math.atan2(b.vy, b.vx));
+      cx.strokeStyle = col; cx.lineWidth = 2; cx.globalAlpha = 0.9;
+      cx.beginPath(); cx.moveTo(-15, 0); cx.lineTo(15, 0); cx.stroke();
+      cx.fillStyle = col;
+      cx.beginPath(); cx.moveTo(15, 0); cx.lineTo(8, -4); cx.lineTo(8, 4); cx.closePath(); cx.fill();
+      cx.restore();
+      continue;
+    }
     const s = glowTrailSprite(col, b.r);
     cx.save();
     cx.translate(b.x, b.y); cx.rotate(Math.atan2(b.vy, b.vx));
@@ -1681,50 +1691,124 @@ function drawWarden(P) {
         cx.fillText("?", 0, 1);
         cx.restore();
       } else if (P.char === "sancho") {
-        /* Sancho's attacks are arcs, never flying blade-shaped bullets. */
-        cx.save(); cx.translate(px, py); cx.rotate(aim);
-        cx.fillStyle = col;
-        cx.beginPath(); cx.moveTo(-2, -13); cx.lineTo(9, -10); cx.lineTo(14, -3); cx.lineTo(11, 10);
-        cx.lineTo(0, 14); cx.lineTo(-10, 7); cx.lineTo(-12, -5); cx.closePath(); cx.fill();
-        cx.fillStyle = "#0b0b14"; cx.fillRect(2, -4, 7, 2.5);
+        /* SANCHO: the Second Kindred — black suit, layered red cape, blonde hair
+           and the weapons Hardblood grows. The attacks are still swept arcs
+           (entities/combat.js); this is the old Limbus-inspired silhouette. */
         const mode = P.weaponMode || "melee";
-        cx.strokeStyle = mode === "ranged" ? "#e8e2d0" : "#ff6675";
-        cx.lineWidth = 2.4; cx.lineCap = "round"; cx.lineJoin = "round";
-        if (mode === "ranged") {
-          /* compact recurved bow and taut string */
-          cx.beginPath(); cx.moveTo(13, -12); cx.quadraticCurveTo(25, 0, 13, 12); cx.stroke();
-          cx.strokeStyle = "#ffd6db"; cx.lineWidth = 1;
-          cx.beginPath(); cx.moveTo(13, -12); cx.lineTo(13, 12); cx.stroke();
-        } else if ((P.hbStage || 1) >= 3) {
-          /* lance: one clean shaft, point, and short guard */
-          cx.strokeStyle = "#ffb3bb"; cx.lineWidth = 3;
-          cx.beginPath(); cx.moveTo(8, 0); cx.lineTo(44, 0); cx.stroke();
-          cx.fillStyle = "#fff0f2"; cx.beginPath(); cx.moveTo(49, 0); cx.lineTo(40, -4); cx.lineTo(40, 4); cx.closePath(); cx.fill();
-          cx.strokeStyle = "#ff6675"; cx.lineWidth = 2;
-          cx.beginPath(); cx.moveTo(20, -5); cx.lineTo(20, 5); cx.stroke();
-        } else if ((P.hbStage || 1) >= 2) {
-          /* saber: a single readable curved blade rather than two forked prongs */
-          cx.strokeStyle = "#ffd6db"; cx.lineWidth = 3;
-          cx.beginPath(); cx.moveTo(8, 4); cx.lineTo(17, 1); cx.quadraticCurveTo(25, -5, 32, -15); cx.stroke();
-          cx.strokeStyle = "#ff6675"; cx.lineWidth = 2;
-          cx.beginPath(); cx.moveTo(8, -1); cx.lineTo(15, 3); cx.stroke();
-        } else {
-          /* fists: two small armored knuckles, held close to the body */
-          cx.fillStyle = "#ff6675";
-          for (const side of [-1, 1]) {
-            cx.beginPath(); cx.arc(11, side * 8, 3.2, 0, TAU); cx.fill();
+        const stage = P.hbStage || 1;
+        const isMelee = mode !== "ranged";
+        cx.save();
+        cx.translate(px, py);
+        cx.shadowColor = "#b5162a"; cx.shadowBlur = 10;
+        /* 1. feathery red cape */
+        cx.fillStyle = "#880011";
+        const capePulse = Math.sin(Game.time * 4) * 2;
+        for (let i = 0; i < 3; i++) {
+          const off = i * 4;
+          cx.beginPath();
+          cx.moveTo(-10, -5 + off);
+          cx.bezierCurveTo(-25 - off, -15 + capePulse, -40 - off, 10 + off, -15, 25 + off);
+          cx.bezierCurveTo(-35, 40, -5, 35, 8, 25);
+          cx.fill();
+        }
+        /* 2. black suit + red tie */
+        cx.fillStyle = "#1a1a1a";
+        if (cx.roundRect) { cx.beginPath(); cx.roundRect(-8, -12, 16, 26, 4); cx.fill(); }
+        else cx.fillRect(-8, -12, 16, 26);
+        cx.fillStyle = "#aa0000"; cx.fillRect(-1.5, -8, 3, 7);
+        /* 3. blonde hair, a few loose strands */
+        cx.fillStyle = "#ffcc33";
+        cx.beginPath();
+        cx.moveTo(-10, -13); cx.lineTo(10, -13); cx.lineTo(13, -3);
+        cx.quadraticCurveTo(0, -6, -13, -3); cx.closePath(); cx.fill();
+        cx.strokeStyle = "#ffcc33"; cx.lineWidth = 1.5; cx.lineCap = "round";
+        for (let i = 0; i < 4; i++) {
+          const hx = -8 + i * 5;
+          cx.beginPath(); cx.moveTo(hx, -13); cx.lineTo(hx - 3, -19); cx.stroke();
+        }
+        /* 4. red eyes */
+        cx.fillStyle = "#ff0000";
+        cx.beginPath(); cx.arc(-3, -9, 1.5, 0, TAU); cx.fill();
+        cx.beginPath(); cx.arc(3, -9, 1.5, 0, TAU); cx.fill();
+        drawCracks(cx, hpFrac, 12);
+        cx.restore();
+
+        if (isMelee) {
+          if (stage === 1) {
+            /* fists: two armored knuckles that jab with the swing */
+            const punch = Math.sin(Game.time * 20) > 0 ? 10 : 0;
+            for (const s of [-1, 1]) {
+              cx.save(); cx.translate(px, py); cx.rotate(aim + s * 0.4);
+              cx.fillStyle = "#e8e2d0";
+              cx.beginPath(); cx.arc(14 + (s > 0 ? punch : 0), s * 5, 4, 0, TAU); cx.fill();
+              cx.restore();
+            }
+          } else if (stage === 2) {
+            /* saber: a single heavy curved blade with jagged barbs */
+            cx.save(); cx.translate(px, py); cx.rotate(aim + 0.5 + Math.sin(Game.time * 12) * 0.15);
+            const sizeMul = 1.3;
+            cx.strokeStyle = "#222"; cx.lineWidth = 3 * sizeMul; cx.lineCap = "round";
+            cx.beginPath(); cx.moveTo(5, 0); cx.lineTo(12, 0); cx.stroke();
+            cx.strokeStyle = "#cc0000"; cx.lineWidth = 4 * sizeMul;
+            cx.beginPath(); cx.moveTo(12, 0); cx.lineTo(40 * sizeMul, 0); cx.stroke();
+            cx.fillStyle = "#ff0000";
+            for (let j = 0; j < 4; j++) cx.fillRect(15 + j * 6 * sizeMul, -3 * sizeMul, 3 * sizeMul, 2 * sizeMul);
+            cx.restore();
+          } else {
+            /* the lance: braided black/red blade and a wide crossguard */
+            cx.save(); cx.translate(px, py); cx.rotate(aim);
+            const thrust = Math.sin(Game.time * 22) * 8;
+            cx.strokeStyle = "#111"; cx.lineWidth = 5; cx.lineCap = "round";
+            cx.beginPath(); cx.moveTo(-5, 0); cx.lineTo(15, 0); cx.stroke();
+            cx.beginPath(); cx.moveTo(15, -14); cx.lineTo(15, 14); cx.stroke();
+            cx.fillStyle = "#aa0000"; cx.beginPath(); cx.arc(15, 0, 4, 0, TAU); cx.fill();
+            cx.translate(15 + thrust, 0);
+            cx.fillStyle = "#050505";
+            cx.beginPath();
+            for (let i = 0; i <= 12; i++) {
+              const bx = i * 6, by = Math.sin(i + Game.time * 6) * 5;
+              i === 0 ? cx.moveTo(bx, by) : cx.lineTo(bx, by);
+            }
+            for (let i = 12; i >= 0; i--) {
+              const bx = i * 6, by = -Math.sin(i + Game.time * 6) * 5;
+              cx.lineTo(bx, by);
+            }
+            cx.closePath(); cx.fill();
+            cx.strokeStyle = "#880000"; cx.lineWidth = 2;
+            cx.beginPath();
+            for (let i = 0; i <= 12; i++) cx.lineTo(i * 6, Math.sin(i + Game.time * 6) * 5);
+            cx.stroke();
+            cx.strokeStyle = "#cc0000"; cx.beginPath();
+            for (let i = 0; i <= 12; i++) cx.lineTo(i * 6, -Math.sin(i + Game.time * 6) * 5);
+            cx.stroke();
+            cx.restore();
           }
+        } else {
+          /* Hardblood bow: bladed crimson limbs and a glowing string */
+          cx.save(); cx.translate(px, py); cx.rotate(aim);
+          cx.fillStyle = "#aa0000";
+          for (const s of [-1, 1]) {
+            cx.beginPath();
+            cx.moveTo(5, 0);
+            cx.quadraticCurveTo(15, s * 25, -10, s * 35);
+            cx.lineTo(-5, s * 35);
+            cx.quadraticCurveTo(20, s * 25, 5, 0);
+            cx.fill();
+          }
+          cx.strokeStyle = "#ff4d5e"; cx.lineWidth = 1.5; cx.globalAlpha = 0.5;
+          cx.beginPath(); cx.moveTo(-5, -30); cx.lineTo(-5, 30); cx.stroke();
+          cx.restore();
         }
         if (P.hardblood >= 20) {
+          cx.save(); cx.translate(px, py);
           cx.globalAlpha = 0.65 + 0.25 * Math.sin(Game.time * 8);
           cx.strokeStyle = "#ff4d5e"; cx.lineWidth = 1.5;
           cx.beginPath(); cx.arc(0, 0, 18, 0, TAU); cx.stroke();
+          cx.restore();
         }
-        drawCracks(cx, hpFrac, 10);
-        cx.restore();
 
         /* A short-lived sweep flash follows the attack cone, attached to Sancho. */
-        if (P.sanchoSlashT > 0 && mode !== "ranged") {
+        if (P.sanchoSlashT > 0 && isMelee) {
           const stage = P.sanchoSlashStage || 1;
           const radius = P.sanchoSlashReach || SANCHO_REACH[stage] || SANCHO_REACH[1];
           const half = SANCHO_HALF_ARC[stage] || SANCHO_HALF_ARC[1];
@@ -1832,9 +1916,10 @@ function drawWarden(P) {
     /* PRICKLE — a bristling ring of barbs around the carrier */
     if (P.mods && P.mods.prickle) {
       const R = P.mods.prickleR, spikes = 22 + Math.round(P.mods.prickle * 6);   // tapered stacks run fractional
+      const isSancho = P.char === "sancho";
       cx.save(); cx.translate(P.x, P.y); cx.rotate(Game.time * 0.6);
-      cx.strokeStyle = "#d6e85a"; cx.globalAlpha = 0.5 + 0.2 * Math.sin(Game.time * 5);
-      cx.lineWidth = 1.5; cx.shadowColor = "#d6e85a"; cx.shadowBlur = 6;
+      cx.strokeStyle = isSancho ? "#dd0000" : "#d6e85a"; cx.globalAlpha = 0.5 + 0.2 * Math.sin(Game.time * 5);
+      cx.lineWidth = 1.5; cx.shadowColor = isSancho ? "#aa0000" : "#d6e85a"; cx.shadowBlur = 6;
       cx.beginPath();
       for (let k = 0; k < spikes; k++) {
         const a = k / spikes * TAU;
@@ -1842,6 +1927,14 @@ function drawWarden(P) {
         cx.lineTo(Math.cos(a) * (R + 4), Math.sin(a) * (R + 4));
       }
       cx.stroke();
+      if (isSancho) {
+        /* the Rose Abnormality: crimson petals drift inside the barbs */
+        cx.fillStyle = "#aa0000";
+        for (let i = 0; i < 6; i++) {
+          const a = i / 6 * TAU + Game.time * 0.8;
+          cx.beginPath(); cx.arc(Math.cos(a) * (R - 4), Math.sin(a) * (R - 4), 3, 0, TAU); cx.fill();
+        }
+      }
       cx.globalAlpha = 0.16;
       cx.beginPath(); cx.arc(0, 0, R, 0, TAU); cx.stroke();
       cx.restore(); cx.shadowBlur = 0; cx.globalAlpha = 1;
