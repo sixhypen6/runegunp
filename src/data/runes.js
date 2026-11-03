@@ -269,6 +269,20 @@ const RUNES = {
   vampire: { name: "VAMPIRE", glyph: "ᛔ", color: "#ff4d5e",
     desc: "Hits against bleeding enemies deal +30% damage and heal 0.25 vitality per stack. Excess healing can grow max vitality. Only appears while you hold BLEED.",
     mod: (m, n) => { m.vampire += n; } },
+    glasscannon: {
+    name: "GLASS CANNON", glyph: "ᛥ", color: "#ffffff",
+    desc: "Deal +15% damage per stack. Take +8% more damage per stack (caps at +64%). Grants explosive speed the closer you are to death (up to 2.5x velocity).",
+    mod: function(m, n) {
+      m.dmg *= Math.pow(1.15, n); // 1. Offense: +15% damage per stack layer
+      let incomingPenalty = 0.08 * n; // 2. Defense: Take +8% damage per stack (cap at 64%)
+      if (incomingPenalty > 0.64) incomingPenalty = 0.64;
+      m.dr -= incomingPenalty; 
+      if (typeof player !== 'undefined' && player.maxHp > 0) { 
+        let missingHealthFrac = (player.maxHp - player.hp) / player.maxHp;
+        let speedBoostScalar = 1.0 + (missingHealthFrac * 1.5);
+        if (speedBoostScalar > 2.5) speedBoostScalar = 2.5;
+        m.speed *= speedBoostScalar; /* 3. Speed Curve: Moves faster the lower your active HP is (up to 2.5x max) */
+      }}},
 };
 
 /* =========================================================
