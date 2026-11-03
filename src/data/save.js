@@ -249,14 +249,26 @@ function heldRuneString(p) {
 function recordBests() {
   const b = modeBests(), improved = {};
   const survived = Math.floor(Game.time), d = depth();
+  const recordPlayer = typeof localPlayer === "function" ? localPlayer() : null;
+  const recordChar = recordPlayer && CHARS[recordPlayer.char] ? recordPlayer.char
+    : (CHARS[Meta.char] ? Meta.char : "gunsmith");
+  const recordRunes = heldRuneString(recordPlayer);
   const bump = (key, val, better) => { if (better) { b[key] = val; improved[key] = true; } };
   bump("score",       Game.score, Game.score > b.score);
   /* The character + runes belong to the run that set the record — capture them
      in the same breath as the score, or a later run's loadout would be shown
      beside an older number. */
   if (improved.score) {
-    b.char = (typeof CHARS !== "undefined" && CHARS[Meta.char]) ? Meta.char : "gunsmith";
-    b.runes = heldRuneString(typeof localPlayer === "function" ? localPlayer() : null);
+    b.char = recordChar;
+    b.runes = recordRunes;
+    b.challenge = Game.challenge || "";
+    b.tag = true;
+  }
+  /* Backfill records saved before loadout tags existed, but only when this run
+     reaches/ties the saved score so the tag still describes that score. */
+  if (!b.tag && Game.score >= b.score) {
+    b.char = recordChar;
+    b.runes = recordRunes;
     b.challenge = Game.challenge || "";
     b.tag = true;
   }

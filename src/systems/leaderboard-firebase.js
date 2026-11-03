@@ -247,18 +247,29 @@ const FirebaseBoard = (() => {
       const snap = await guard(rowRef().child(key).get(), "best");
       cur = Number(snap && snap.val && snap.val()) || 0;
     } catch (e) {}
-    if (amount <= cur) return;
+    if (amount < cur) return;
 
-    const updatePayload = { [key]: amount, updatedAt: stamp() };
+    const updatePayload = {};
+    if (amount > cur) updatePayload[key] = amount;
+    if (amount > cur) updatePayload.updatedAt = stamp();
     if (place) updatePayload.place = place;
     if (display) updatePayload.display = display; // Manual display name override
 
-    await guard(rowRef().update(updatePayload), "submit");
-    cache[slot] = null;
-    cache.allRows = null;
+    if (Object.keys(updatePayload).length) {
+      await guard(rowRef().update(updatePayload), "submit");
+      cache[slot] = null;
+      cache.allRows = null;
+    }
     if (tag) {
-      try { await guard(rowRef().child(slot).set(cleanTag(tag)), "tag"); }
-      catch (e) {}
+      try {
+        await guard(rowRef().child(slot).set(cleanTag(tag)), "tag");
+        cache[slot] = null;
+        cache.allRows = null;
+      }
+      catch (e) {
+        if (typeof console !== "undefined" && console.warn)
+          console.warn("[runegun] leaderboard loadout tag was rejected; verify the deployed Firebase rules allow /scores/" + slot, (e && e.message) || e);
+      }
     }
   }
 

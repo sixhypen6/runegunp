@@ -24,7 +24,7 @@ const CHALLENGE_DEFS = [
   },
   {
     id: "runeless", name: "RUNELESS", glyph: "⊘", color: "#7ad7ff", mul: 1.5,
-    desc: "No rune will answer. Rune boxes mend and hasten instead.",
+    desc: "Found runes will not answer; rune boxes mend and hasten instead. Signature loadouts remain.",
   },
   {
     id: "onerune", name: "ONE RUNE", glyph: "ᚱ", color: "#ffd23d", mul: 1.25,

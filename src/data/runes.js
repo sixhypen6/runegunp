@@ -80,14 +80,27 @@ const TAPERED_RUNES = new Set(["scatter", "heavy", "rapid", "venom", "ember", "t
   "mend", "dread", "prickle", "slime"]);
 
 /* =========================================================
-   PHASE / PRICKLE — the crimson wake and the thorn ring
-   PHASE's dash trail is always red and opens a bleed on whatever it
-   cuts; the elemental riders it also carries live in game/update.js.
+  PHASE / PRICKLE — the elemental wake and the thorn ring
+  PHASE's dash trail opens a bleed on whatever it cuts; its hue follows
+  the carried element (Sancho's signature wake remains crimson).
    PRICKLE ticks on a shared 0.4 s enemy timer, so these two numbers are
    the damage PER TICK (not per second): at effective stack 8 it lands
    2 + 1.0 × 5.9 ≈ 7.9 a tick, up from the old 3.0.
    ========================================================= */
-const PHASE_WAKE_COLOR = "#ff4d5e";
+const PHASE_WAKE_COLOR = "#7ad7ff";
+const PHASE_SANCHO_COLOR = "#ff4d5e";
+const PHASE_ELEMENT_ORDER = ["ember", "frost", "venom", "storm"];
+function phaseWakeColor(p, alpha) {
+  let color = PHASE_WAKE_COLOR;
+  if (p && p.char === "sancho") color = PHASE_SANCHO_COLOR;
+  else if (p && p.runes) {
+    const element = PHASE_ELEMENT_ORDER.find(id => p.runes[id] > 0);
+    if (element) color = runeDefFor(p, element).color || color;
+  }
+  if (alpha === undefined) return color;
+  const value = parseInt(color.slice(1), 16);
+  return "rgba(" + (value >> 16) + "," + ((value >> 8) & 255) + "," + (value & 255) + "," + alpha + ")";
+}
 const PHASE_BLEED_TIME = 2;           // seconds the wake's cut keeps bleeding
 const PHASE_BLEED_DPS = 4;            // bleed damage per second (1 s bleed ticks)
 const PRICKLE_TICK = 0.4;             // seconds between thorn bites per enemy
@@ -207,8 +220,8 @@ const RUNES = {
   bulwark: { name: "BULWARK", glyph: "ᛒ", color: "#e0a86b",
     desc: "A shield orbits you, soaking one hit then bursting to sear nearby foes. Each stack holds one more charge — up to 3 — and further stacks deepen the blast. Spent charges return one at a time.",
     mod: (m, n) => { m.shield = n; } },
-  phase: { name: "PHASE", glyph: "ᚷ", color: "#ff4d5e",
-    desc: "Dash recharges faster and leaves a crimson cutting wake that bleeds whatever you dash through — and carries your other elements, burning, chilling, poisoning and shocking. Stacks sharpen both.",
+  phase: { name: "PHASE", glyph: "ᚷ", color: "#7ad7ff",
+    desc: "Dash recharges faster and leaves a cutting wake that inherits your elemental kit (Burn, Chill, Poison, Storm, Bleed). Stacks shorten the dash cooldown and sharpen the wake.",
     mod: (m, n) => { m.dashCdMul *= stackMul(0.85, n); m.dashTrail += stackCurve(n); } },
   mirror: { name: "MIRROR", glyph: "ᛖ", color: "#f3c4ff",
     desc: "Fires a copy of your shot backwards per stack. Watch your six — it's armed.",
@@ -357,8 +370,8 @@ const UNK_PLAYER_RUNES = {
   bulwark: { name: "THE SHIELDS", glyph: "ᛒ", color: "#e0a86b",
     desc: "A shield orbits you, soaking one hit then bursting to sear nearby foes. Each stack holds one more charge — up to 3 — and further stacks deepen the blast. Spent charges return one at a time.",
     mod: (m, n) => { m.shield = n; } },
-  phase: { name: "BLINKSTEP", glyph: "ᚷ", color: "#ff4d5e",
-    desc: "Dash recharges faster and leaves a crimson cutting wake that bleeds whatever you dash through — and carries your other elements, burning, chilling, poisoning and shocking. Stacks sharpen both.",
+  phase: { name: "BLINKSTEP", glyph: "ᚷ", color: "#7ad7ff",
+    desc: "Dash recharges faster and leaves a cutting wake that bleeds whatever you dash through — and carries your other elements, burning, chilling, poisoning and shocking. Stacks sharpen both.",
     mod: (m, n) => { m.dashCdMul *= stackMul(0.85, n); m.dashTrail += stackCurve(n); } },
   mirror: { name: "THE REFLECTION", glyph: "ᛖ", color: "#f3c4ff",
     desc: "Fires a copy of your shot backwards per stack. Watch your six — it's armed.",
@@ -450,6 +463,8 @@ const SAW_VENOM_RUNE = Object.assign({}, RUNES.venom, {
   desc: "The blade itself is poisoned. Every third bite on the same horror leaves a standing pool behind it.",
 });
 function runeDefFor(p, id) {
+  if (p.char === "sancho" && id === "phase")
+    return Object.assign({}, RUNES.phase, { color: PHASE_SANCHO_COLOR });
   /* the SHREDDER has no trigger to fire venom through, so its card has to
      describe what the blade does instead (see SAW_VENOM_RUNE) */
   if (p.char === "shredder" && id === "venom") return SAW_VENOM_RUNE;

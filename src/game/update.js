@@ -208,7 +208,7 @@ function updatePlayer(p, inp, dt) {
     p.x += Math.cos(p.dashAng) * (p.dashSpeed || 720) * dt;
     p.y += Math.sin(p.dashAng) * (p.dashSpeed || 720) * dt;
     particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, t: 0, life: 0.25, r: 9,
-      color: p.mods.dashTrail ? "rgba(255,77,94,0.55)" : "rgba(94,230,255,0.5)" });
+      color: p.mods.dashTrail ? phaseWakeColor(p, 0.55) : "rgba(94,230,255,0.5)" });
     /* SANCHO — the dash itself bites (entities/combat.js) */
     if (p.char === "sancho") sanchoDashHit(p);
     if (p.dashT <= 0 && p.char === "wraith") {
@@ -234,12 +234,12 @@ function updatePlayer(p, inp, dt) {
       p.mineTrailT = (p.mineTrailT || 0) - dt;
       if (p.mineTrailT <= 0) { p.mineTrailT = 0.055; placeMine(p, p.x, p.y); }
     }
-    /* PHASE rune: a crimson cutting wake that always bleeds, and also carries
+    /* PHASE rune: a colored cutting wake that always bleeds, and also carries
        your elemental kit (burn / chill / poison / storm) through game/update.js */
     if (p.mods.dashTrail) {
       const m = p.mods;
       puddles.push({ x: p.x, y: p.y, r: 20 + 5 * m.dashTrail, t: 0, life: 1.1,
-        team: "p", dmg: 5 + 4 * m.dashTrail, color: PHASE_WAKE_COLOR, tickMap: {}, phase: true, owner: p });
+        team: "p", dmg: 5 + 4 * m.dashTrail, color: phaseWakeColor(p), tickMap: {}, phase: true, owner: p });
     }
   } else {
     const weightMul = curseActive(p, "weight") ? 0.5 : 1;
