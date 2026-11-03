@@ -147,8 +147,8 @@ function salGreets(hello) {
   const sancho = players.find(p => !p.gone && p.char === "sancho");
   if (sancho) {
     out.push(sancho === host
-      ? "Sancho. You brought the blood back in with you."
-      : "The Second Kindred. Keep her away from the bottles.");
+      ? "Was it sweet, your hollow, juvenile dream?..."
+      : "is that runegunp secretly using sancho from limbus company?...");
     out.push('"Sancho! I have conceived an idea most ingenious!"');
   }
   return out;
