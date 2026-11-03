@@ -16,12 +16,26 @@
 
 const ConsoleGate = {
   STORE_KEY: "runegun.coopConsole",
-  GATE_PATH: "console/coop",
+  /* Firebase paths that each gate an unlock. The host pastes each code's
+     SHA-256 digest as a String at its path in Firebase (console/coop,
+     console/john, console/nacho). */
+  GATE_PATHS: {
+    coop: "console/coop",
+    john: "console/john",
+    nacho: "console/nacho",
+  },
+  /* Which character each gate permanently unlocks. */
+  GATE_CHAR: {
+    coop: "sancho",
+    john: "john",
+    nacho: "sancho",
+  },
   CACHE_MS: 30000,
 
   _on: false,
-  _remote: null,
-  _remoteAt: 0,
+  /* per-path cached digest and fetch time */
+  _remote: {},
+  _remoteAt: {},
 
   /* One code, however it was typed: trimmed, quotes stripped, runs of
      whitespace collapsed, lower-cased. */
@@ -135,32 +149,55 @@ const ConsoleGate = {
     catch (e) { this._on = false; }
   },
 
-  /* The stored digest, with a short cache so repeated attempts don't hammer
-     the database. Returns "" when the node has not been created yet. */
-  async remoteHash(force) {
+  /* The stored digest for a given gate path, with a short cache so repeated
+     attempts don't hammer the database. Returns "" when the node has not been
+     created yet. */
+  async remoteHash(path, force) {
     if (typeof FirebaseBoard === "undefined" || typeof FirebaseBoard.readGate !== "function")
       throw new Error("Firebase is not loaded, so the gate cannot be read.");
     const now = Date.now();
-    if (!force && this._remote !== null && now - this._remoteAt < this.CACHE_MS) return this._remote;
-    const value = await FirebaseBoard.readGate(this.GATE_PATH);
-    this._remote = String(value || "").trim().toLowerCase();
-    this._remoteAt = now;
-    return this._remote;
+    const cached = this._remote[path];
+    if (!force && cached !== undefined && now - (this._remoteAt[path] || 0) < this.CACHE_MS) return cached;
+    const value = await FirebaseBoard.readGate(path);
+    this._remote[path] = String(value || "").trim().toLowerCase();
+    this._remoteAt[path] = now;
+    return this._remote[path];
   },
 
-  /* Compare the typed code with the stored digest. Grants on success only. */
-  async verify(code) {
+  /* Compare the typed code with the digest at a specific gate path.
+     Grants on success and returns { ok: true, gate: path }. */
+  async verifyAt(code, path) {
     const norm = this.normalize(code);
     if (!norm) return { ok: false, reason: "empty" };
     let stored;
-    try { stored = await this.remoteHash(); }
+    try { stored = await this.remoteHash(path); }
     catch (e) { return { ok: false, reason: "offline", error: e.message || String(e) }; }
     if (!stored) return { ok: false, reason: "unset" };
     if (!/^[a-f0-9]{64}$/.test(stored)) return { ok: false, reason: "malformed" };
     const got = await this.hashOf(norm);
     if (got !== stored) return { ok: false, reason: "mismatch" };
     this.grant();
-    return { ok: true };
+    return { ok: true, gate: path };
+  },
+
+  /* Check the typed code against every registered gate path. Returns the
+     first match as { ok: true, gate: "coop" | "john" | "nacho" }, or the
+     last failure reason when none match. */
+  async verifyAny(code) {
+    const norm = this.normalize(code);
+    if (!norm) return { ok: false, reason: "empty" };
+    let last;
+    for (const [gate, path] of Object.entries(this.GATE_PATHS)) {
+      const r = await this.verifyAt(norm, path);
+      if (r.ok) return { ok: true, gate };
+      last = r;
+    }
+    return last || { ok: false, reason: "unset" };
+  },
+
+  /* Backward-compatible single-gate check against console/coop. */
+  async verify(code) {
+    return this.verifyAt(code, this.GATE_PATHS.coop);
   },
 };
 

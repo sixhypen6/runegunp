@@ -160,8 +160,10 @@ const RunegunConsole = {
     }
   },
 
-  rememberDigest(digest) {
+  rememberDigest(digest, gate) {
+    gate = gate || "coop";
     this.lastDigest = digest || "";
+    this.lastGate = gate;
     if (this.copyBtn) this.copyBtn.disabled = !this.lastDigest;
   },
 
@@ -191,12 +193,12 @@ const RunegunConsole = {
 
   async copyDigest() {
     if (!this.lastDigest) {
-      this.log("No digest yet — run `auth hash <code>` first.");
+      this.log("No digest yet — run `auth hash <code> [coop|john|nacho]` first.");
       return false;
     }
     const copied = await this.copyText(this.lastDigest);
     this.log(copied
-      ? "DIGEST COPIED TO THE CLIPBOARD · paste it as a String at /console/coop in Firebase."
+      ? "DIGEST COPIED TO THE CLIPBOARD · paste it as a String at /console/" + this.lastGate + " in Firebase."
       : "The clipboard is locked in this browser — select the digest above and copy it by hand, or use COPY DIGEST.");
     return copied;
   },
@@ -316,8 +318,8 @@ const RunegunConsole = {
     const code = String(input || "").trim();
     if (!code) {
       this.log("CO-OP CONSOLE · " + (ConsoleGate.granted() ? "OPEN" : "sealed") +
-        "\n  auth <code>        open it (host only)\n" +
-        "  auth hash <code>   print the SHA-256 to store in Firebase\n" +
+        "\n  auth <code>        open it (host only — checks coop/john/nacho gates)\n" +
+        "  auth hash <code> [gate]   print the SHA-256 to store at /console/<gate> in Firebase\n" +
         "  auth off           seal it again");
       return;
     }
@@ -328,43 +330,50 @@ const RunegunConsole = {
     }
     const hashArg = /^hash(?:\s+([\s\S]+))?$/i.exec(code);
     if (hashArg) {
-      const target = String(hashArg[1] || "").trim();
-      if (!target) {
-        this.log("Usage: auth hash <code> — prints the digest to store at /console/coop.");
-        return;
-      }
+      const rest = String(hashArg[1] || "").trim();
+      /* `auth hash <code> [coop|john|nacho]` — defaults to coop. */
+      const m = /^([\s\S]*?)\s+(coop|john|nacho)$/i.exec(rest);
+      const target = m ? m[1].trim() : rest;
+      const gate = m ? m[2].toLowerCase() : "coop";
+      const path = ConsoleGate.GATE_PATHS[gate] || ConsoleGate.GATE_PATHS.coop;
       const digest = await ConsoleGate.hashOf(target);
-      this.rememberDigest(digest);
+      this.rememberDigest(digest, gate);
       this.log("SHA-256 · " + digest +
-        "\nCodes are case-insensitive. Paste the digest as a string at /console/coop.");
+        "\nCodes are case-insensitive. Paste the digest as a String at /console/" + gate + " in Firebase (" + path + ").");
       await this.copyDigest();
       return;
     }
     this.log("CHECKING THE GATE…");
-    const r = await ConsoleGate.verify(code);
+    const r = await ConsoleGate.verifyAny(code);
     if (r.ok) {
-      Meta.unlocked["char:sancho"] = true;
-      Meta.char = "sancho";
+      const charId = ConsoleGate.GATE_CHAR[r.gate] || "sancho";
+      Meta.unlocked["char:" + charId] = true;
+      Meta.char = charId;
       this.metaKeep();
       let equipped = false;
       if (["play", "pause", "rune", "wait", "held", "choice"].includes(Game.state) && players && players.length) {
         const p = this.targetPlayer();
-        p.char = "sancho"; p.hardblood = 1; p.hbTimer = 30; p.hbStage = 1;
-        p.weaponMode = "melee"; p.sanchoAttackCount = 0;
-        p.lockedRunes = null;
-        if (!p.runes.bleed) grantRune(p, "bleed", true);
-        if (!p.runes.vampire) grantRune(p, "vampire", true);
+        p.char = charId; p.lockedRunes = null;
+        if (charId === "sancho") {
+          p.hardblood = 1; p.hbTimer = 30; p.hbStage = 1;
+          p.weaponMode = "melee"; p.sanchoAttackCount = 0;
+          if (!p.runes.bleed) grantRune(p, "bleed", true);
+          if (!p.runes.vampire) grantRune(p, "vampire", true);
+        } else if (charId === "john") {
+          /* JOHN RUNEGUN — the man himself. Starts with his signature rune. */
+          grantRune(p, "runegun", true);
+        }
         recalc(p);
         checkRuneLock(p);
         this.afterEdit();
         equipped = true;
       }
-      this.log("CO-OP CONSOLE OPEN · SANCHO UNLOCKED" + (equipped ? " AND EQUIPPED ON " + this.targetTag(this.targetPlayer()) : " · selected for your next descent") + ".");
+      this.log("CO-OP CONSOLE OPEN · " + charId.toUpperCase() + " UNLOCKED" + (equipped ? " AND EQUIPPED ON " + this.targetTag(this.targetPlayer()) : " · selected for your next descent") + ".");
       return;
     }
     if (r.reason === "mismatch") this.log("ERROR: that code does not open the gate.");
-    else if (r.reason === "unset") this.log("ERROR: no digest is set at /console/coop yet — use `auth hash <code>` and paste it into Firebase.");
-    else if (r.reason === "malformed") this.log("ERROR: the value at /console/coop is not a SHA-256 digest (64 hex characters).");
+    else if (r.reason === "unset") this.log("ERROR: no digest is set for any gate yet — use `auth hash <code> [coop|john|nacho]` and paste it into Firebase at /console/<gate>.");
+    else if (r.reason === "malformed") this.log("ERROR: the value at the gate is not a SHA-256 digest (64 hex characters).");
     else if (r.reason === "offline") this.log("ERROR: the gate could not be read — " + (r.error || "the void does not answer") + ".");
     else this.log("ERROR: no code given.");
   },
