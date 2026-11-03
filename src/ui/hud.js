@@ -66,10 +66,12 @@ function updateSanchoCue(p) {
   const mode = p.weaponMode === "ranged" ? "BLOOD BOW"
     : (p.hbStage >= 3 ? "LANCE" : p.hbStage >= 2 ? "SABER" : "FISTS");
   const switchKey = typeof Input !== "undefined" && Input.touchMode ? "SEAL" : "E";
-  /* desktop / controller: R is the ability key — one press refines one Hardblood */
+  /* R refines Bloodfeast; Q (or its controller binding) triggers max-Hardblood Surge. */
   const abilityKey = typeof Input !== "undefined" && Input.touchMode ? "" :
     (typeof bindLabel === "function" ? bindLabel("recall") : "R");
-  const signature = [hardblood, feast, mode, switchKey, abilityKey].join("|");
+  const surgeKey = typeof Input !== "undefined" && Input.touchMode ? "" :
+    (typeof bindLabel === "function" ? bindLabel("surge") : "Q");
+  const signature = [hardblood, feast, mode, switchKey, abilityKey, surgeKey].join("|");
   if (signature === lastSanchoCue) return;
   lastSanchoCue = signature;
   $("sanchoHardbloodValue").textContent = hardblood + " / 30";
@@ -77,7 +79,7 @@ function updateSanchoCue(p) {
   $("sanchoFeastValue").textContent = Math.floor(feast) + " / 50 TO REFINE";
   $("sanchoFeastFill").style.width = (Math.min(feast, 50) / 50 * 100) + "%";
   $("sanchoWeaponMode").textContent = mode;
-  $("sanchoSwitchHint").textContent = (abilityKey ? abilityKey + " · REFINE   " : "") + switchKey + " · SWITCH";
+  $("sanchoSwitchHint").textContent = (abilityKey ? abilityKey + " REFINE · " + surgeKey + " SURGE · " : "") + switchKey + " SWITCH";
 }
 
 /* the partner bars are built once per seat and then updated in place — this

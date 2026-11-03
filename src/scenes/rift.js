@@ -116,7 +116,8 @@ function riftTakePick(q) {
     const id = (p.lockedRunes && p.lockedRunes[0]) || q.id;
     const R = runeDefFor(p, id);
     col = R.color;
-    p.lockedRunes = [id];
+    /* Sancho's exception: her two defaults stay sealed; the rift deepens the first. */
+    if (!(p.char === "sancho" && Array.isArray(p.lockedRunes) && p.lockedRunes.length > 1)) p.lockedRunes = [id];
     grantRune(p, id, true);
     grantRune(p, id, true);
     floatText(p.x, p.y - 36, R.name + " ×2", R.color, 18);
@@ -161,7 +162,7 @@ function riftChaosGift(p) {
   if (Game.challenge === "onerune") {
     const id = (p.lockedRunes && p.lockedRunes[0]) || pick(runePool(p));
     const R = runeDefFor(p, id);
-    p.lockedRunes = [id];
+    if (!(p.char === "sancho" && Array.isArray(p.lockedRunes) && p.lockedRunes.length > 1)) p.lockedRunes = [id];
     grantRune(p, id, true);
     grantRune(p, id, true);
     floatText(p.x, p.y - 34, R.name + " ×2", R.color, 18);

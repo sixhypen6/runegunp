@@ -72,6 +72,13 @@ const SANCHO_REFINE_COST = 50;                    // Bloodfeast per Hardblood
 const SANCHO_HARDBLOOD_MAX = 30;
 const SANCHO_REFINE_ATTACKS = 15;                 // auto-refine cadence, in weapon attacks
 const SANCHO_REFINE_AUTO_MAX = 3;                 // most stacks one auto-refine may take
+/* Hardblood Surge — at max hardblood, Q unleashes a crimson explosion and
+   drains hardblood down to 5. Tunable constants. */
+const SANCHO_SURGE_HARDBLOOD_MIN = 30;             // must be at max to surge
+const SANCHO_SURGE_HARDBLOOD_FLOOR = 5;            // drained down to this
+const SANCHO_SURGE_RADIUS = 220;
+const SANCHO_SURGE_DMG_MUL = 3.5;                 // multiple of m.dmg
+const SANCHO_SURGE_HEAL = 20;                     // vitality restored
 function sanchoDashHit(p) {
   if (!p.dashHitSet) p.dashHitSet = new Set();
   const m = p.mods, stage = p.hbStage || 1;
@@ -151,12 +158,48 @@ function sanchoRefine(p, maxTurns) {
   return gain;
 }
 
-/* R — the ABILITY key. One press, one Hardblood, with a readable reason
-   when it cannot happen (instead of silently eating the tap). */
+/* R — refine one Hardblood from Bloodfeast. At max hardblood it does nothing
+   (use Q for the surge instead). */
 function sanchoManualRefine(p) {
-  if (p.hardblood >= SANCHO_HARDBLOOD_MAX) { toast("HARDBLOOD FULL"); return; }
+  if (p.hardblood >= SANCHO_HARDBLOOD_MAX) { toast("HARDBLOOD FULL — USE Q TO SURGE"); return; }
   if ((Game.bloodfeast || 0) < SANCHO_REFINE_COST) { toast("BLOODFEAST TOO THIN"); return; }
   sanchoRefine(p, 1);
+}
+
+/* Q — Hardblood Surge. At max hardblood unleashes a crimson explosion and
+   drains hardblood down to 5. Otherwise does nothing. */
+function sanchoManualSurge(p) {
+  if (p.hardblood < SANCHO_SURGE_HARDBLOOD_MIN) { toast("HARDBLOOD NOT MAXED"); return; }
+  if (!sanchoSurge(p)) toast("SURGE FAILED");
+}
+
+/* Hardblood Surge — when hardblood is maxed, Q unleashes a crimson
+   explosion and drains hardblood down to 5. */
+function sanchoSurge(p) {
+  if (p.hardblood < SANCHO_SURGE_HARDBLOOD_MIN) return false;
+  const spent = p.hardblood - SANCHO_SURGE_HARDBLOOD_FLOOR;
+  p.hardblood = SANCHO_SURGE_HARDBLOOD_FLOOR;
+  p.hbStage = p.hardblood >= 20 ? 3 : p.hardblood >= 10 ? 2 : 1;
+  recalc(p);
+  const m = p.mods;
+  const dmg = m.dmg * SANCHO_SURGE_DMG_MUL;
+  for (const e of enemies) {
+    if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p") continue;
+    if (dist2(p.x, p.y, e.x, e.y) < (SANCHO_SURGE_RADIUS + e.r) ** 2) {
+      damageEnemy(e, dmg, { owner: p, x: p.x, y: p.y, knock: 220, melee: true });
+    }
+  }
+  p.hp = Math.min(p.maxHp, p.hp + SANCHO_SURGE_HEAL);
+  if (p === localPlayer() && typeof updateHp === "function") updateHp();
+  /* crimson burst visual */
+  if (particles.length < 560) for (let i = 0; i < 14; i++) {
+    const a = rnd(0, TAU), d = rnd(6, SANCHO_SURGE_RADIUS);
+    particles.push({ x: p.x + Math.cos(a) * d, y: p.y + Math.sin(a) * d,
+      vx: Math.cos(a) * rnd(40, 220), vy: Math.sin(a) * rnd(40, 220),
+      t: 0, life: rnd(0.25, 0.5), r: rnd(2, 4), color: "#ff4d5e" });
+  }
+  toast("HARDBLOOD SURGE — " + spent + " SPENT");
+  return true;
 }
 
 /* Spawn one full weapon shot (mirror copies, scatter fan, twin parallels) from (x, y)

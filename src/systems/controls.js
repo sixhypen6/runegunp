@@ -143,6 +143,7 @@ const Pad = {
       if (edge(padBind("dash"))) Input.dashTap = true;
       if (edge(padBind("use"))) Input.useTap = true;
       if (edge(padBind("recall"))) Input.recallTap = true;
+      if (edge(padBind("surge"))) Input.surgeTap = true;
       if (edge(padBind("runes"))) toggleRunesHeld();
       if (edge(9)) uiBack();                          // MENU pauses, like Escape
     } else if (this.active) {
@@ -287,7 +288,7 @@ if (PC_CONTROLS) {
 /* ---------- the CONTROLS panel ---------- */
 const BIND_ROWS = [
   ["up", "MOVE UP"], ["down", "MOVE DOWN"], ["left", "MOVE LEFT"], ["right", "MOVE RIGHT"],
-  ["fire", "FIRE"], ["dash", "DASH"], ["use", "SEAL / INTERACT"], ["recall", "ABILITY / RECALL"], ["runes", "RUNES HELD"],
+  ["fire", "FIRE"], ["dash", "DASH"], ["use", "SEAL / INTERACT"], ["recall", "REFINE / RECALL"], ["surge", "HARDBLOOD SURGE"], ["runes", "RUNES HELD"],
 ];
 /* never bindable: pause (Escape / P), the OS key, fullscreen, the console's F9 / ` */
 const RESERVED_KEYS = ["Escape", "KeyP", "MetaLeft", "MetaRight", "F11", "F9", "Backquote"];

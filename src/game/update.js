@@ -47,13 +47,13 @@ function localInputFrame() {
   const f = { mx, my, aimX: Input.aimX, aimY: Input.aimY, aiming: Input.aiming,
     mouseX: Input.mouseX, mouseY: Input.mouseY, mouseDown: Input.touchMode ? Input.mouseDown : fireHeld(),
     touchMode: Input.touchMode, aimMode: Meta.aimMode, deskMode: Meta.deskMode,
-    dashTap: Input.dashTap, useTap: Input.useTap, recallTap: Input.recallTap };
-  Input.dashTap = false; Input.useTap = false; Input.recallTap = false;
+    dashTap: Input.dashTap, useTap: Input.useTap, recallTap: Input.recallTap, surgeTap: Input.surgeTap };
+  Input.dashTap = false; Input.useTap = false; Input.recallTap = false; Input.surgeTap = false;
   return f;
 }
 function zeroFrame() {
   return { mx: 0, my: 0, aimX: 0, aimY: 0, aiming: false, mouseX: undefined, mouseY: undefined,
-    mouseDown: false, touchMode: true, aimMode: "auto", deskMode: "auto", dashTap: false, useTap: false, recallTap: false };
+    mouseDown: false, touchMode: true, aimMode: "auto", deskMode: "auto", dashTap: false, useTap: false, recallTap: false, surgeTap: false };
 }
 function inputFrameFor(p) {
   if (p === localPlayer()) return localInputFrame();
@@ -191,6 +191,7 @@ function updatePlayer(p, inp, dt) {
   if (reanimatorAuthority()) {
     if (p.char === "necromancer" && inp.recallTap) reanimatorRecallNow(p);
     if (p.char === "sancho" && inp.recallTap) sanchoManualRefine(p);
+    if (p.char === "sancho" && inp.surgeTap) sanchoManualSurge(p);
     reanimatorTick(p, dt);
   }
   if (inp.dashTap && p.dashCd <= 0) {

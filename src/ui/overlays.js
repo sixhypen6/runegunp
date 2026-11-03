@@ -792,8 +792,9 @@ function lbRow(entry, me, pending) {
 /* The simulated pending row: the local best at its projected position, with the
    loadout the local record was set with. */
 function lbSimRow(rank, best, tag) {
-  const host = typeof window !== "undefined" && window.location ? window.location.hostname : "";
-  const currentPlace = host.includes("github.io") ? "github" : "live server";
+  const currentPlace = (typeof Leaderboard !== "undefined" && Leaderboard.submissionPlace)
+    ? Leaderboard.submissionPlace()
+    : "unknown";
 
   return lbRow({ 
     rank, 

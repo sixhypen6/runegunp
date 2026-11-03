@@ -488,8 +488,10 @@ const heldRuneIds = p => Object.keys(p.runes).filter(id => p.runes[id] > 0);
    and THE UNKNOWN grants one more on top of that) */
 function runeSlotCount(p) {
   /* ONE RUNE: the whole descent answers with a single slot, whatever the warden
-     or the Unknown's usual bonuses would otherwise grant */
-  if (typeof Game !== "undefined" && Game.challenge === "onerune") return 1;
+     or the Unknown's usual bonuses would otherwise grant. Sancho's two default
+     runes (BLEED + VAMPIRE) are innate, so she keeps both slots. */
+  if (typeof Game !== "undefined" && Game.challenge === "onerune")
+    return p.char === "sancho" ? 2 : 1;
   return ((CHARS[p.char] && CHARS[p.char].runeSlots) || 4) + (p.bonusRuneSlots || 0);
 }
 /* CHAOS descent's colour — the chooser card, the HUD chip, the run-end tag */

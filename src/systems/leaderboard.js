@@ -133,9 +133,11 @@ const Leaderboard = (() => {
   function submissionPlace() {
     if (typeof window === "undefined" || !window.location) return "unknown";
     const host = window.location.host || window.location.hostname || "";
-    const hostname = window.location.hostname || "";
+    const hostname = (window.location.hostname || "").toLowerCase().replace(/^\[|\]$/g, "");
     if (hostname === "github.io" || hostname.endsWith(".github.io")) return "github pages";
-    if (hostname === "127.0.0.1" || hostname === "localhost" || hostname === "::1")
+    // Classify by loopback hostname, never by port: Live Server commonly uses
+    // 5500, but alternate ports such as 5506 are equally valid.
+    if (hostname === "localhost" || hostname.endsWith(".localhost") || hostname === "::1" || /^127(?:\.\d{1,3}){3}$/.test(hostname))
       return "live server (" + host + ")";
     return "unknown";
   }

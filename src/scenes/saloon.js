@@ -145,9 +145,12 @@ function salGreets(hello) {
   if (party > 2) out.push(SAL_GREET_MANY);
   else if (party === 2) out.push(SAL_GREET_PAIR);
   const sancho = players.find(p => !p.gone && p.char === "sancho");
-  if (sancho) out.push(sancho === host
-    ? "Sancho. You brought the blood back in with you."
-    : "The Second Kindred. Keep her away from the bottles.");
+  if (sancho) {
+    out.push(sancho === host
+      ? "Sancho. You brought the blood back in with you."
+      : "The Second Kindred. Keep her away from the bottles.");
+    out.push('"Sancho! I have conceived an idea most ingenious!"');
+  }
   return out;
 }
 

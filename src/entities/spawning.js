@@ -77,13 +77,19 @@ function resetRun(cfgs) {
     const runeless = Game.challenge === "runeless";
     const oneRune = Game.challenge === "onerune";
     let started = 0;
-    if (!runeless) {
+    /* RUNELESS strips every rune — except Sancho's. Her bleed/vampire kit is
+       her core mechanic, so she keeps her default loadout even runeless.
+       ONE RUNE also makes an exception: her two defaults are innate, so she
+       starts with both instead of a single carved rune. */
+    const sanchoDefaults = p.char === "sancho";
+    const sanchoKept = runeless && sanchoDefaults;
+    if (!runeless || sanchoKept) {
       if (c.startLoadout) for (const id of c.startLoadout) {
-        if (oneRune && started >= 1) break;
+        if (oneRune && started >= 1 && !sanchoDefaults) break;
         grantRune(p, id, true); started++;
       }
       for (let i = 0; i < (c.startRunes || 0); i++) {
-        if (oneRune && started >= 1) break;
+        if (oneRune && started >= 1 && !sanchoDefaults) break;
         grantRune(p, pick(runePool(p)), true); started++;
       }
     }

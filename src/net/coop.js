@@ -121,7 +121,7 @@ const Coop = {
     this.running = true;
     this._buf = []; this._inputs.clear(); this._taps.clear();
     this._snapT = 0; this._inputT = 0;
-    this._dashN = 0; this._useN = 0; this._recallN = 0;   // guest outgoing counters
+    this._dashN = 0; this._useN = 0; this._recallN = 0; this._surgeN = 0;   // guest outgoing counters
     this._prevWave = 0;
     this._stateN = 0;      // newest host-state packet acted on (see _stale)
     Net.onMessage = (m, peer) => this._onMsg(m, peer);
@@ -223,7 +223,7 @@ const Coop = {
     const m = rec && rec.m;
     const stale = !m || performance.now() - rec.at > 250;
     let taps = this._taps.get(idx);
-    if (!taps) { taps = { dash: 0, use: 0, recall: 0 }; this._taps.set(idx, taps); }
+    if (!taps) { taps = { dash: 0, use: 0, recall: 0, surge: 0 }; this._taps.set(idx, taps); }
     const f = zeroFrame();
     if (m && !stale) {
       f.mx = m.mx; f.my = m.my;
@@ -233,6 +233,7 @@ const Coop = {
       if (m.dashN > taps.dash) { f.dashTap = true; taps.dash = m.dashN; }
       if (m.useN > taps.use) { f.useTap = true; taps.use = m.useN; }
       if (m.recallN > taps.recall) { f.recallTap = true; taps.recall = m.recallN; }
+      if (m.surgeN > taps.surge) { f.surgeTap = true; taps.surge = m.surgeN; }
     } else if (m) {
       /* stale link: stand still but keep the last aim */
       f.aimX = Math.cos(m.aim); f.aimY = Math.sin(m.aim);
@@ -332,6 +333,7 @@ const Coop = {
     if (f.dashTap) this._dashN++;
     if (f.useTap) this._useN++;
     if (f.recallTap) this._recallN++;
+    if (f.surgeTap) this._surgeN++;
     this._sendInput(f, dt);
     if (Game.state !== "play" || !this._floorReady) return;
 
@@ -484,7 +486,7 @@ const Coop = {
     else if (f.deskMode === "auto") fire = !!self.autoFire;
     else if (f.deskMode === "cursor") fire = true;
     else fire = f.mouseDown;
-    Net.sendU({ t: "i", mx: f.mx, my: f.my, aim: self.aim, fire, dashN: this._dashN, useN: this._useN, recallN: this._recallN });
+    Net.sendU({ t: "i", mx: f.mx, my: f.my, aim: self.aim, fire, dashN: this._dashN, useN: this._useN, recallN: this._recallN, surgeN: this._surgeN });
   },
 
   /* interaction hints (display only — the host executes on our useTap) */
