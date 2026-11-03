@@ -1558,6 +1558,15 @@ $("challengeBack").addEventListener("click", () => {
   openModeChoice();
 });
 
+function enterFullscreen() {
+  const elem = document.documentElement;
+  if (elem.requestFullscreen) {
+    elem.requestFullscreen();
+  } else if (elem.webkitRequestFullscreen) { /* Safari / iOS */
+    elem.webkitRequestFullscreen();
+  }
+}
+
 function startGame() {
   if (Game.devRun) devEndRun();   // a real descent always starts from the real save
   AudioFX.unlock();
@@ -1569,7 +1578,10 @@ function startGame() {
   else if (!Meta.seenTutorial) startTutorial("play");   // defensive: cutscene seen but tutorial not
   else enterPlay();                                     // returning player → straight into the run
 }
-$("btnStart").addEventListener("click", openDescentChoice);   // menu DESCEND asks solo/co-op first
+$("btnStart").addEventListener("click", () => {
+  enterFullscreen();
+  openDescentChoice();
+});   // menu DESCEND asks solo/co-op first
 $("btnRetry").addEventListener("click", () => {
   /* co-op: descend again TOGETHER in the mode the host chose — no chooser.
      Coop.retry returns false only if the link has already died, in which case
