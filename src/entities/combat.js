@@ -79,6 +79,10 @@ const SANCHO_SURGE_HARDBLOOD_FLOOR = 5;            // drained down to this
 const SANCHO_SURGE_RADIUS = 220;
 const SANCHO_SURGE_DMG_MUL = 3.5;                 // multiple of m.dmg
 const SANCHO_SURGE_HEAL = 20;                     // vitality restored
+/* VAMPIRE on Sancho feeds on a SHOT cadence, not on every hit: multishot runes
+   (TWIN / SCATTER) must not multiply her healing. Tune both numbers here. */
+const SANCHO_VAMPIRE_HEAL_SHOTS = 4;              // one feed every N weapon attacks
+const SANCHO_VAMPIRE_HEAL_PER_STACK = 0.6;        // vitality per VAMPIRE stack per feed
 function sanchoDashHit(p) {
   if (!p.dashHitSet) p.dashHitSet = new Set();
   const m = p.mods, stage = p.hbStage || 1;
@@ -339,6 +343,12 @@ function fireWeapon(p, inp, dt) {
       p.sanchoAttackCount = 0;
       sanchoRefine(p, SANCHO_REFINE_AUTO_MAX);
     }
+    /* VAMPIRE: one measured draw every few attacks, never per landed hit */
+    p.sanchoVampShotN = (p.sanchoVampShotN || 0) + 1;
+    if (p.sanchoVampShotN >= SANCHO_VAMPIRE_HEAL_SHOTS) {
+      p.sanchoVampShotN = 0;
+      if (m.vampire > 0) healPlayer(p, SANCHO_VAMPIRE_HEAL_PER_STACK * m.vampire, true);
+    }
   }
   spawnShot(p, p.x, p.y, aim);
   p.kickT = 0.09;                       // sprite recoils opposite the shot
@@ -551,10 +561,12 @@ function damageEnemy(e, dmg, src) {
   dmg = deepDamage(e, dmg);
   /* QUARRY: the gun savors the afflicted — burning, chilled or bleeding foes take more */
   if (om && om.prey > 1 && (e.burnT > 0 || e.slowT > 0 || e.bleedT > 0)) dmg *= om.prey;
-  /* VAMPIRE: feeding only triggers on a weapon hit, never on the bleed's own tick */
+  /* VAMPIRE: feeding only triggers on a weapon hit, never on the bleed's own tick.
+     SANCHO is the exception: her heal rides a shot cadence in fireWeapon (so
+     TWIN/SCATTER hits cannot multiply it), but the +30% damage still applies. */
   if (ow && om && om.vampire > 0 && e.bleedT > 0 && !(src && src.bleedTick)) {
     dmg *= 1.3;
-    healPlayer(ow, 0.25 * om.vampire, true);
+    if (ow.char !== "sancho") healPlayer(ow, 0.25 * om.vampire, true);
   }
   /* WRATH: the closer you are to death, the harder you hit */
   if (om && om.wrath) dmg *= 1 + om.wrath * (1 - ow.hp / ow.maxHp);
@@ -725,7 +737,7 @@ function killEnemy(e, killer) {
   }
   /* slain horrors sometimes rise as allied ghosts; summoned units cannot reanimate. */
   const reanimator = killer && killer.char === "necromancer";
-  if (reanimator && reanimatorThrallCount(killer) < REANIMATOR_THRALL_CAP &&
+  if (reanimator && reanimatorThrallCount(killer) < reanimatorThrallCap(killer) &&
       !e.boss && !e.summoned && e.team !== "p" && Math.random() < 0.4) {
     const thrall = spawnEnemy(e.type, e.x, e.y);
     thrall.team = "p"; thrall.owner = killer; thrall.summoned = true;

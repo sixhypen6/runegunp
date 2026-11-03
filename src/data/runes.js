@@ -416,7 +416,7 @@ const HIDDEN_RUNES = {
       m.rate *= (rateMult > 3.75) ? 3.75 : rateMult;
     } },
   runegun: { name: "RUNEGUN", glyph: "⦿", color: "#ffffff",
-    desc: "john runegun",
+    desc: "JOHN RUNEGUN's signature. Each stack doubles damage; the doubling caps at 12 stacks (×4096).",
     mod: function(m, n) {
       m.dmg *= Math.pow(2, Math.min(n, 12));
     } },
@@ -446,14 +446,18 @@ function runeDefFor(p, id) {
    Per-player now — every function below takes the warden `p` whose build it touches. */
 function runePool(p) {
   if (p.char === "theUnknown") return UNK_PLAYER_RUNE_IDS;
-  let ids = p.lockedRunes || RUNE_IDS;
-  if (!(p.runes && p.runes.bleed > 0)) ids = ids.filter(id => id !== "vampire");
+  let ids = (p.lockedRunes || RUNE_IDS).slice();
   const isHiddenChar = CHARS[p.char] && CHARS[p.char].hidden;
-  if (!Meta.showHiddenRunes || !isHiddenChar) {
-    ids = ids.filter(id => !HIDDEN_RUNE_IDS.includes(id));
-  } else if (p.char !== "john") {
-    ids = ids.filter(id => id !== "runegun");
+  const hiddenAllowed = Meta.showHiddenRunes && isHiddenChar;
+  /* hidden wardens can find the hidden runes once the easter-egg toggle is on;
+     the sealed path stays sealed (a locked build never grows new options). */
+  if (!p.lockedRunes && hiddenAllowed) {
+    for (const id of HIDDEN_RUNE_IDS) if (!ids.includes(id)) ids.push(id);
   }
+  if (!hiddenAllowed) ids = ids.filter(id => !HIDDEN_RUNE_IDS.includes(id));
+  /* RUNEGUN is JOHN RUNEGUN exclusive */
+  if (p.char !== "john") ids = ids.filter(id => id !== "runegun");
+  if (!(p.runes && p.runes.bleed > 0)) ids = ids.filter(id => id !== "vampire");
   return ids;
 }
 function genThreeRunes(p) {

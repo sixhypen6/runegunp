@@ -20,6 +20,17 @@ const REANIMATOR = {
   sacrificeMax: 3,          // thralls offered per check
   sacrificeKeep: 3,         // …never leaving fewer than this many
   sacrificeHealMul: 2,      // per-thrall healing vs a normal SOUL FEED
+  /* pack growth — the ceiling rises as the descent deepens */
+  thrallCapBase: 8,         // thralls the pack may hold on floor I
+  thrallCapPerStep: 1,      // added to the cap each step
+  thrallCapEveryFloors: 2,  // …every this many floors descended (incl. loops)
+  thrallCapMax: 16,         // hard ceiling, however deep the run goes
+  /* thrall inheritance — a ghost carries a share of its master's gun and runes */
+  thrallDmgShare: 0.5,      // share of the master's m.dmg on a melee blow
+  thrallDmgMin: 8,          // floor so an unbuilt Reanimator's pack still bites
+  thrallShotShare: 0.5,     // share of status stacks on a bullet-born thrall shot
+  /* floor transition — the share of the pack that walks through the gate */
+  floorCarryFrac: 0.5,
 };
 
 /* the ordinary thrall-death healing roll, shared by combat.js and the tithe */
@@ -43,6 +54,56 @@ function livingThralls(owner) {
     if (e.team === "p" && e.owner === owner && e.summoned && !e.dead) out.push(e);
   }
   return out;
+}
+
+/* Snapshot the pack for a floor change. Called from setupFloor BEFORE the old
+   floor is torn down: the healthiest half of every Reanimator's pack is marked
+   to travel; the rest are spent where they stand, paying SOUL FEED (the
+   `sacrifice` flag doubles it, exactly like the emergency tithe). */
+function reanimatorFloorCarry() {
+  const out = [];
+  if (!reanimatorAuthority()) return out;
+  for (const p of players) {
+    if (!p || p.char !== "necromancer" || p.gone) continue;
+    const pack = livingThralls(p);
+    if (!pack.length) continue;
+    /* strongest first — the gate keeps the hands that can still fight */
+    pack.sort((a, b) => (b.hp / b.maxHp || 0) - (a.hp / a.maxHp || 0));
+    const keep = Math.max(1, Math.ceil(pack.length * REANIMATOR.floorCarryFrac));
+    for (let i = 0; i < pack.length; i++) {
+      const e = pack[i];
+      if (i < keep) {
+        out.push({ owner: p, type: e.type, hpFrac: clamp(e.hp / e.maxHp || 0, 0.05, 1),
+          buffed: e.buffed, wrath: e.wrath, rime: e.rime, sear: e.sear });
+      } else {
+        e.sacrifice = true;
+        killEnemy(e, p);
+      }
+    }
+  }
+  return out;
+}
+
+/* Rebuild the carried pack on the new floor, at its master's side. The bodies
+   are fresh spawns so nothing stale (a mid-leap slag, a ghosted shade) crosses
+   the portal — only the type, the share of vitality and the empowerment ride. */
+function reanimatorRestoreFloorCarry(carried) {
+  if (!carried || !carried.length) return;
+  for (const c of carried) {
+    const owner = c.owner;
+    if (!owner || owner.gone || owner.char !== "necromancer") continue;
+    const x = clamp(owner.x + rnd(-46, 46), 60, MAP.w - 60);
+    const y = clamp(owner.y + rnd(-46, 46), 60, MAP.h - 60);
+    const t = spawnEnemy(c.type, x, y);
+    t.team = "p"; t.owner = owner; t.summoned = true; t.inherit = true;
+    t.spawnT = 0.35; t.alerted = true;
+    t.buffed = !!c.buffed; t.wrath = !!c.wrath; t.rime = !!c.rime; t.sear = !!c.sear;
+    t.color = "rgba(138,134,160,0.72)";
+    /* raised thralls keep half their base vitality (combat.js); carry the
+       wounded share from the floor below on top of that */
+    t.hp = t.maxHp = Math.max(1, Math.floor(t.maxHp * 0.5 * c.hpFrac));
+    enemies.push(t);
+  }
 }
 
 /* Pull every living thrall into a ring around its master. Returns how many
@@ -162,7 +223,7 @@ function updateThrallCue(p) {
   const t = Math.ceil(p.thrallRecallT || 0);
   const ready = t <= 0;
   const key = ready && !Input.touchMode ? bindLabel("recall") : "";
-  const txt = "THRALLS " + n + " / " + REANIMATOR_THRALL_CAP + " · " +
+  const txt = "THRALLS " + n + " / " + reanimatorThrallCap(p) + " · " +
     (ready ? "RECALL READY" + (key ? " [" + key + "]" : "") : "RECALL IN " + t + "s");
   const cls = "on" + (ready && n ? " ready" : "");
   if (lastThrallCue !== txt + cls) {

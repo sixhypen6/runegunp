@@ -11,12 +11,55 @@
 /* how many revenants a single NECROMANCER (summoner) may raise in its lifetime,
    after which its well is dry — keeps the Ossuary clearable without wave-clear runes */
 const SUMMONER_RAISE_CAP = 4;
-const REANIMATOR_THRALL_CAP = 8;
 function reanimatorThrallCount(owner) {
   if (!owner) return 0;
   let n = 0;
   for (const e of enemies) if (e.team === "p" && e.owner === owner && e.summoned && !e.dead) n++;
   return n;
+}
+/* The pack ceiling grows with the descent (tunables live in REANIMATOR,
+   entities/reanimator.js). `owner` is accepted so the cap can one day vary
+   per warden; today every Reanimator shares the floor's ceiling. */
+function reanimatorThrallCap(owner) {
+  if (typeof REANIMATOR === "undefined" || typeof Game === "undefined") return 8;
+  const lap = typeof loopLen === "function" ? loopLen() : 8;
+  const floors = (Game.loop || 0) * lap + (Game.mapIdx || 0);
+  return Math.min(REANIMATOR.thrallCapMax,
+    REANIMATOR.thrallCapBase + Math.floor(floors / REANIMATOR.thrallCapEveryFloors) * REANIMATOR.thrallCapPerStep);
+}
+
+/* A thrall's melee blow carries a share of its master's gun, never below
+   thrallDmgMin so an unbuilt Reanimator's pack still bites. */
+function thrallHitDamage(owner) {
+  if (typeof REANIMATOR === "undefined") return 10;
+  const m = owner && owner.mods;
+  const base = m ? m.dmg * REANIMATOR.thrallDmgShare : 0;
+  return Math.max(REANIMATOR.thrallDmgMin, Math.round(base));
+}
+
+/* On-hit rune inheritance: a thrall's blow carries the master's status runes.
+   Bullet-born thralls pass their shot (`b`) so gunner/spitter keep their
+   half-strength inheritance; melee passes nothing and takes full stacks.
+   Any bullet-born thrall without pre-scaled fields falls back to the shot
+   share, so every raised archetype carries something. */
+function thrallRuneOnHit(target, owner, b) {
+  if (!target || target.dead || !owner || !owner.mods) return;
+  const m = owner.mods;
+  const share = (typeof REANIMATOR !== "undefined" && REANIMATOR.thrallShotShare) || 0.5;
+  const ember = b ? (b.ember != null ? b.ember : m.ember * share) : m.ember;
+  const bleed = b ? (b.bleed != null ? b.bleed : m.bleed * share) : m.bleed;
+  const frost = b ? (b.frost != null ? b.frost : m.frost * share) : m.frost;
+  const storm = b ? (b.storm != null ? b.storm : m.storm * share) : m.storm;
+  const venom = b ? (b.venom != null ? b.venom : m.venom * share) : m.venom;
+  if (ember) { target.burnT = Math.max(target.burnT || 0, 2 + ember); target.burnDps = Math.max(target.burnDps || 0, 2 + 2 * ember); target.burnBy = owner; }
+  if (bleed) {
+    target.bleedT = Math.max(target.bleedT || 0, 1 + 0.5 * bleed);
+    target.bleedDps = Math.max(target.bleedDps || 0, 3 * bleed);
+    target.bleedBy = owner;
+  }
+  if (frost) target.slowT = Math.max(target.slowT || 0, 1 + 0.7 * frost);
+  if (venom && typeof dropVenomPool === "function" && puddles.length < 140) dropVenomPool(target.x, target.y, venom, owner);
+  if (storm && typeof chainStorm === "function") chainStorm(target, storm, new Set([target]), owner);
 }
 
 function thrallFollowAI(e) {
@@ -104,14 +147,8 @@ const ETYPES = {
           if (target === e || target.dead || target.ghost || target.spawnT > 0 || target.team === "p") continue;
           if (dist2(e.x, e.y, target.x, target.y) < (e.r + target.r + 2) ** 2) {
             e.friendlyHitAt = Game.time + 0.55;
-            damageEnemy(target, 10, { owner: e.owner, x: e.x, y: e.y, knock: 18 });
-            if (e.inherit && e.owner && e.owner.mods) {
-              const m = e.owner.mods;
-              if (m.ember) { target.burnT = Math.max(target.burnT || 0, 1 + m.ember * 0.5); target.burnDps = Math.max(target.burnDps || 0, 1 + m.ember); target.burnBy = e.owner; }
-              if (m.frost) { target.slowT = Math.max(target.slowT || 0, 0.5 + 0.35 * m.frost); }
-              if (m.venom && puddles.length < 140) puddles.push({ x: target.x, y: target.y, r: 15 + 5 * m.venom * 0.5, t: 0, life: 1.5, team: "p", dmg: 1 + m.venom * 0.5, color: "#7dff5e", tickMap: {}, owner: e.owner });
-              if (m.storm && !target.dead) chainStorm(target, Math.max(1, Math.floor(m.storm * 0.5)), new Set([target]), e.owner);
-            }
+            damageEnemy(target, thrallHitDamage(e.owner), { owner: e.owner, x: e.x, y: e.y, knock: 18 });
+            if (e.inherit) thrallRuneOnHit(target, e.owner);
             break;
           }
         }
@@ -143,7 +180,7 @@ const ETYPES = {
         if (e.inherit && e.owner && e.owner.mods) {
           const m = e.owner.mods;
           b.pierce = Math.max(0, Math.floor(m.pierce * 0.5)); b.bounce = Math.max(0, Math.floor(m.bounce * 0.5)); b.homing = m.homing * 0.5;
-          b.venom = m.venom * 0.5; b.ember = m.ember * 0.5; b.frost = m.frost * 0.5; b.storm = m.storm * 0.5;
+          b.venom = m.venom * 0.5; b.ember = m.ember * 0.5; b.bleed = m.bleed * 0.5; b.frost = m.frost * 0.5; b.storm = m.storm * 0.5;
           b.execute = m.execute; b.knock = m.knock || 30;
         }
         ebullets.push(b);
@@ -224,7 +261,7 @@ const ETYPES = {
           if (e.inherit && e.owner && e.owner.mods) {
             const m = e.owner.mods;
             sb.pierce = Math.max(0, Math.floor(m.pierce * 0.5)); sb.bounce = Math.max(0, Math.floor(m.bounce * 0.5)); sb.homing = m.homing * 0.5;
-            sb.venom = m.venom * 0.5; sb.ember = m.ember * 0.5; sb.frost = m.frost * 0.5; sb.storm = m.storm * 0.5;
+            sb.venom = m.venom * 0.5; sb.ember = m.ember * 0.5; sb.bleed = m.bleed * 0.5; sb.frost = m.frost * 0.5; sb.storm = m.storm * 0.5;
             sb.execute = m.execute; sb.knock = m.knock || 30;
           }
           ebullets.push(sb);
@@ -282,13 +319,13 @@ const ETYPES = {
       e.cd -= dt;
       if (e.cd <= 0 && e.raised < SUMMONER_RAISE_CAP) {
         e.cd = 3.2;
-        const ownerRoom = e.team === "p" ? REANIMATOR_THRALL_CAP - reanimatorThrallCount(e.owner) : 2;
+        const ownerRoom = e.team === "p" ? reanimatorThrallCap(e.owner) - reanimatorThrallCount(e.owner) : 2;
         const count = Math.min(2, Math.max(0, ownerRoom));
         for (let i = 0; i < count && e.raised < SUMMONER_RAISE_CAP; i++) {
           const aa = rnd(0, TAU);
           const m = spawnEnemy("chaser", clamp(e.x + Math.cos(aa) * 70, 60, MAP.w - 60), clamp(e.y + Math.sin(aa) * 70, 60, MAP.h - 60));
           m.summoned = true; m.ambush = e.ambush; m.team = e.team; m.owner = e.owner;
-          if (m.team === "p") m.color = "rgba(138,134,160,0.72)";
+          if (m.team === "p") { m.inherit = true; m.color = "rgba(138,134,160,0.72)"; }
           if (e.ambush && Game.ambush) Game.ambush.remaining++;
           enemies.push(m); e.raised++;
         }

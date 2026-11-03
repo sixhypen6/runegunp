@@ -169,7 +169,8 @@ const Protocol = {
       if (!this._seen.has(e.id)) {
         this._seen.add(e.id);
         s.enew.push([e.id, e.type, QI(e.r), QI(e.maxHp), e.boss ? 1 : 0, e.color,
-          e.team === "p" ? 1 : 0, e.owner && e.owner.idx !== undefined ? e.owner.idx : -1]);
+          e.team === "p" ? 1 : 0, e.owner && e.owner.idx !== undefined ? e.owner.idx : -1,
+          (e.summoned ? 1 : 0) | (e.inherit ? 2 : 0)]);
       }
       let flags = 0;
       if (e.ghost) flags |= EFLAG.GHOST;
@@ -326,6 +327,7 @@ const Protocol = {
       e.type = h[1]; e.r = h[2]; e.maxHp = h[3]; e.boss = !!h[4]; e.color = h[5];
       e.team = h[6] ? "p" : "e";
       e.owner = h[7] >= 0 ? players[h[7]] : null;
+      if (h[8] !== undefined) { e.summoned = !!(h[8] & 1); e.inherit = !!(h[8] & 2); }
       if (e.boss) { e.graves = e.graves || []; e.vents = e.vents || []; e.meteors = e.meteors || [];
         e.cracks = e.cracks || []; e.marks = e.marks || []; e.wells = e.wells || []; }
     }

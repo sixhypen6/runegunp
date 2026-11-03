@@ -1690,6 +1690,38 @@ function drawWarden(P) {
         cx.fillStyle = col; cx.font = "bold 10px monospace"; cx.textAlign = "center"; cx.textBaseline = "middle";
         cx.fillText("?", 0, 1);
         cx.restore();
+      } else if (P.char === "john") {
+        /* JOHN RUNEGUN — the legend: heroic silhouette, electric visor, red
+           cape and the massive RUNEGUN. Art ported from the old RUNEGUN fork. */
+        cx.save(); cx.translate(px, py);
+        const aura = 0.5 + 0.5 * Math.sin(Game.time * 10);
+        cx.shadowColor = "#ffd23d"; cx.shadowBlur = 15 * aura;
+        cx.fillStyle = col;
+        if (cx.roundRect) { cx.beginPath(); cx.roundRect(-12, -18, 24, 34, 10); cx.fill(); }
+        else cx.fillRect(-12, -18, 24, 34);
+        /* helmet visor */
+        cx.fillStyle = "#5ee6ff"; cx.fillRect(-8, -8, 16, 3);
+        /* flowing cape */
+        cx.fillStyle = "#8a1a1a"; cx.globalAlpha = 0.8;
+        cx.beginPath(); cx.moveTo(-10, 5); cx.quadraticCurveTo(-25, 10, -35, 20);
+        cx.lineTo(-30, 0); cx.closePath(); cx.fill();
+        cx.globalAlpha = 1;
+        /* hands, aligned to aim */
+        cx.save(); cx.rotate(aim);
+        cx.fillStyle = col;
+        for (const s of [-1, 1]) { cx.beginPath(); cx.arc(4, s * 18, 6, 0, TAU); cx.fill(); }
+        cx.restore();
+        drawCracks(cx, hpFrac, 14);
+        cx.restore();
+        /* THE RUNEGUN */
+        cx.save(); cx.translate(px, py); cx.rotate(aim);
+        cx.strokeStyle = "#aa8844"; cx.lineWidth = 8;
+        cx.beginPath(); cx.moveTo(12, 0); cx.lineTo(38, 0); cx.stroke();
+        cx.strokeStyle = "#fff"; cx.lineWidth = 2;
+        cx.beginPath(); cx.moveTo(15, -4); cx.lineTo(35, -4); cx.stroke();
+        cx.beginPath(); cx.moveTo(15, 4); cx.lineTo(35, 4); cx.stroke();
+        cx.restore();
+
       } else if (P.char === "sancho") {
         /* SANCHO: the Second Kindred — black suit, layered red cape, blonde hair
            and the weapons Hardblood grows. The attacks are still swept arcs

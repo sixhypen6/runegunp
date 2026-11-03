@@ -21,7 +21,7 @@ function makePlayer(cfg, idx) {
     curses: {}, brandTick: 0, shield: 0, shieldMax: 0, shieldT: 0,
     /* the build — each warden carves their own path */
     runes: {}, lockedRunes: null, mods: null,
-    hardblood: 1, hbTimer: 30, hbStage: 1, weaponMode: "melee", sanchoAttackCount: 0,
+    hardblood: 1, hbTimer: 30, hbStage: 1, weaponMode: "melee", sanchoAttackCount: 0, sanchoVampShotN: 0,
     vampireExcess: 0, vampireMaxBonus: 0,
     rerolls: c.rerolls + (cfg.rerollBuff || 0),
     maxHpMul: 1, bonusRuneSlots: 0,
@@ -100,6 +100,9 @@ function resetRun(cfgs) {
 }
 
 function setupFloor(first) {
+  /* the Reanimator's pack: the healthiest half follows through the gate, the
+     rest are spent for vitality — snapshot before the old floor is torn down */
+  const carriedThralls = !first ? reanimatorFloorCarry() : [];
   /* leaving the saloon or the unknown: cleared before genMap(), which reads floorDef() */
   Game.inSaloon = false; Game.saloon = null;
   Game.inUnknown = false; Game.unk = null;
@@ -125,6 +128,8 @@ function setupFloor(first) {
     /* a floor change never carries a corpse through the portal */
     if (p.downed) { p.downed = false; p.hp = Math.max(p.hp, Math.round(p.maxHp * 0.3)); p.reviveT = 0; }
   }
+  /* the carried pack arrives at its master's side on the new floor */
+  reanimatorRestoreFloorCarry(carriedThralls);
   for (let i = 0; i < Game.chestsTotal; i++) spawnChest();
   if (Game.mapIdx !== 4) { for (let i = 0; i < 2; i++) spawnHealthBox(); }
   const F = floorDef();

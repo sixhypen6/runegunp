@@ -17,7 +17,7 @@ const CHARS = {
     desc: "160 vitality of stubborn meat. Slow. Fires one MASSIVE slug at a time — a glacial rate of fire, but the hardest-hitting base shot of any gunslinger, and it punches clean through the first body it hits.",
     hp: 160, speed: 210, dashCd: 1.4, startRunes: 0, rerolls: 3,
     weaponBase: { dmg: 44, rate: 1.0, size: 16, count: 1, knock: 160, pierce: 1 } },
-  demolitionist: { name: "DEMOLITIONIST", glyph: "ᛥ", color: "runelight", cost: 46000,
+  demolitionist: { name: "DEMOLITIONIST", glyph: "ᛥ", color: "#ff5e2e", cost: 46000,
     desc: "110 vitality. Works a stub MORTAR: each round a fat shell lobbed a short arc that clips whatever it crosses mid-air, then SLAMS on arrival — a crater ring, and the charge splinters into flying shot. Dashing sows waiting mines along the whole path; one shard always finds the fool who wakes one. Slow to load — the Juggernaut's glacial cadence.",
     hp: 110, speed: 240, dashCd: 1.2, startRunes: 0, rerolls: 3,
     weaponBase: { dmg: 24, rate: 1.0, size: 6, knock: 90 } },
@@ -29,7 +29,7 @@ const CHARS = {
     hp: 80, speed: 300, dashCd: 0.95, dashDur: 0.3, dashSpeed: 920, startRunes: 0, rerolls: 2,
     sawReach: 76, weaponBase: { dmg: 6, rate: 8, size: 4, count: 1 } },
   necromancer: { name: "REANIMATOR", glyph: "ᚻ", color: "#8a86a0", cost: 50000,
-    desc: "85 vitality. Slain horrors have a 40% chance to rise as ghost thralls. Thralls keep half their vitality and fight for you; their deaths feed your soul. Every 24s the pack is recalled to your side — or press recall. Below 35% vitality, a surplus of thralls is spent for doubled healing.",
+    desc: "85 vitality. Slain horrors have a 40% chance to rise as ghost thralls. Thralls carry a share of your gun and your on-hit runes, and fight for you; their deaths feed your soul. The pack's cap grows every 2 floors, and the healthiest half follows you through each gate — the rest are spent for healing. Every 24s the pack is recalled to your side — or press recall. Below 35% vitality, a surplus of thralls is tithed for doubled healing.",
     hp: 85, speed: 257.5, dashCd: 1.0, startRunes: 0, rerolls: 4,
     weaponBase: { dmg: 16, rate: 2.6, size: 4 } },
   theUnknown: { name: "THE UNKNOWN", glyph: "?", color: "#e8e2d0", cost: 999999,
@@ -48,6 +48,11 @@ const CHARS = {
     hp: 95, speed: 320, dashCd: 0.65, startRunes: 0, rerolls: 3, runeSlots: 5,
     weaponBase: { dmg: 12, rate: 4.5, size: 16, speed: 400, knock: 80 },
     startLoadout: ["bleed", "vampire", "bleed", "vampire"] },
+  john: { name: "JOHN RUNEGUN", glyph: "⦿", color: "#aa8844", cost: 100000,
+    hidden: true,
+    desc: "The absolute legend. Every stack of RUNEGUN doubles his damage (up to ×4096). Starts with 10 re-rolls and his signature rune.\nUNLOCK: 100,000 souls in the Keeper's vault — reveal hidden wardens in SETTINGS.",
+    hp: 125, speed: 275, dashCd: 1.0, startRunes: 0, rerolls: 10,
+    startLoadout: ["runegun"] },
     // whats startRunes? 0 is the default for all characters, but the Unknown has a special rule: it starts with 0 runes, but every time you die, it gains one more rune slot. So if you die 3 times, it will have 3 rune slots on your next run.
     //how is startRunes used in the code? It is used in the character selection screen to determine how many rune slots the character has at the start of the run. It is also used in the game logic to determine how many rune slots the character has when they die and respawn.
 };

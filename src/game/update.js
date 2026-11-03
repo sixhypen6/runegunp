@@ -966,6 +966,8 @@ function update(dt) {
       if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p") continue;
       if (dist2(b.x, b.y, e.x, e.y) < (b.r + e.r) ** 2) {
         damageEnemy(e, b.dmg, { owner: b.owner, x: b.x, y: b.y });
+        /* a thrall's shot carries the master's on-hit runes */
+        if (b.owner && typeof thrallRuneOnHit === "function") thrallRuneOnHit(e, b.owner, b);
         dead = true; break;
       }
     }
