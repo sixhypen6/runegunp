@@ -1137,7 +1137,9 @@ function posseAI(b, dt, P) {
     if (b.fanT <= 0 && b.fanN > 0) {
       b.fanT = 0.4 / 6;
       const k = b.stolen.length ? b.stolen[b.fanN % b.stolen.length] : null;
-      deepShot(b.x, b.y, b.fanA, 360, 6, 12, k && b.fanN <= b.stolen.length ? RUNES[k.id].color : "#ff5470", pierce ? { pierceRock: true } : null);
+      /* stolen runes can be hidden ones (RUNEGUN, EXTERMINATE) — HIDDEN_RUNES is a separate table */
+      const kRune = k ? (RUNES[k.id] || HIDDEN_RUNES[k.id]) : null;
+      deepShot(b.x, b.y, b.fanA, 360, 6, 12, kRune && b.fanN <= b.stolen.length ? kRune.color : "#ff5470", pierce ? { pierceRock: true } : null);
       b.fanA += 0.52 / 6; b.fanN--;
       AudioFX.enemyShoot();
       if (b.fanN <= 0) { b.atk = "reload"; b.at = 0.8; floatText(b.x, b.y - b.r - 14, "CLICK", "#ff5470", 13); }

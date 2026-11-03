@@ -288,7 +288,7 @@ function drawStolen(g, e) {
   if (!e.stolen || !e.stolen.length) return;
   g.font = "bold 16px monospace"; g.textAlign = "center"; g.textBaseline = "middle";
   for (let i = 0; i < e.stolen.length; i++) {
-    const R = RUNES[e.stolen[i].id]; if (!R) continue;
+    const R = RUNES[e.stolen[i].id] || HIDDEN_RUNES[e.stolen[i].id]; if (!R) continue;
     const a = Game.time * 1.6 + i / e.stolen.length * TAU;
     g.fillStyle = R.color; g.fillText(R.glyph, Math.cos(a) * (e.r + 22), Math.sin(a) * (e.r + 22));
   }
