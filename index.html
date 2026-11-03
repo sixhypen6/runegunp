@@ -192,20 +192,17 @@
   background: linear-gradient(180deg, rgba(6,4,16,0) 0%, rgba(6,4,16,.05) 34%, rgba(6,4,16,.55) 62%, rgba(6,4,16,.92) 100%);
   justify-content: center;
   align-items: center;
-  padding-top: max(40px, env(safe-area-inset-top));
-  padding-bottom: max(20px, env(safe-area-inset-bottom));
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  overflow-y: auto;
 }
 
 .menu-spacer {
   display: none;
 }
+
 #menu .title {
-  font-size: clamp(28px, 6vw, 64px);
-  background: linear-gradient(180deg, #f3efe2 14%, #c9b8ff 52%, #4d3590);
-  -webkit-background-clip: text;
-  background-clip: text;
-  filter: drop-shadow(0 0 22px rgba(157,107,255,.55)) drop-shadow(0 2px 14px rgba(0,0,0,.9));
-  animation: titleFlicker 7s infinite;
+  font-size: clamp(28px, 6vw, 56px);
+  margin-top: 4px;
 }
 
 #menu .subtitle {
