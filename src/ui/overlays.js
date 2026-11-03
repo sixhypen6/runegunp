@@ -735,9 +735,10 @@ function lbCharName(id) {
   return (typeof CHARS !== "undefined" && CHARS[id] && CHARS[id].name) ? CHARS[id].name : String(id).toUpperCase();
 }
 /* "warp,hex" → "ᚥ ᛜ". A rune this build doesn't know becomes its raw id, so a
-   row never renders as blank glyph soup. */
+   row never renders as blank glyph soup. 
 
-/* This displays the rune thingy (rapid,heavy,mend turns into R, H, D with a dot) */
+  This displays the rune thingy (rapid,heavy,mend turns into R, H, D with a dot)
+   hidden runes are now shown*/
 
 function lbRuneGlyphs(csv) {
   if (!csv) return "";

@@ -184,7 +184,10 @@
   /* ---------- main menu — the Void shows through ---------- */
   #menu{background:linear-gradient(180deg,rgba(6,4,16,0) 0%,rgba(6,4,16,.05) 34%,rgba(6,4,16,.55) 62%,rgba(6,4,16,.92) 100%);
     justify-content:flex-end;padding-bottom:max(26px,env(safe-area-inset-bottom))}
-  .menu-spacer{flex:1 1 auto;min-height:clamp(150px,39vh,540px)}   /* room for what waits above */
+  .menu-spacer {
+  flex: 1 1 auto;
+  min-height: clamp(20px, 15vh, 540px); /* Reduced minimum height from 150px to 20px */
+}   /* room for what waits above */
   #menu .title{background:linear-gradient(180deg,#f3efe2 14%,#c9b8ff 52%,#4d3590);
     -webkit-background-clip:text;background-clip:text;
     filter:drop-shadow(0 0 22px rgba(157,107,255,.55)) drop-shadow(0 2px 14px rgba(0,0,0,.9));
@@ -642,6 +645,36 @@
 /* at the table only the souls counter stays up; the rest of the HUD and the touch controls step aside */
 body.bjOn .hp-wrap,body.bjOn .wave-wrap,body.bjOn #rerolls,body.bjOn .combo-wrap,body.bjOn #pauseBtn,
 body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{display:none!important}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  #menu {
+    justify-content: center;
+    padding-top: max(10px, env(safe-area-inset-top));
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+  }
+  
+  .menu-spacer {
+    display: none;
+  }
+
+  #menu .title {
+    font-size: clamp(24px, 7vw, 42px);
+  }
+
+  #menu .subtitle, 
+  #menu .omen {
+    margin-top: 2px;
+  }
+
+  #menu .rule {
+    margin: 6px 0;
+  }
+
+  .menu-btn {
+    padding: 8px 24px;
+    margin-top: 6px;
+  }
+}
 </style>
 </head>
 <body>
@@ -723,8 +756,7 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
   <div class="vault-locked-note" id="vaultLockNote" style="display:none">⛓ THE VAULT IS SEALED IN THE WARDEN'S CHAINS — CLEAR THE FIRST FLOOR TO UNSEAL IT</div>
   <div class="bank-line">VAULT: <span id="bankMenu">0</span> SOULS</div>
   <!-- asset previewer, kept out of the button row; a quiet footer link is enough -->
-  <a class="menu-textsize" id="btnSprites" href="sprites.html" style="display:inline-block">SPRITE STUDIO</a>
-</div>
+  </div>
 
 <!-- THE SINGULAR's blackjack table: the buttons (the felt is painted on the canvas, scenes/blackjack.js) -->
 <div id="blackjack" aria-label="Blackjack table">
@@ -1210,6 +1242,7 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
          (EEA/UK). Google mandates a persistent way to change ad consent. -->
     <button class="menu-btn small" id="btnPrivacyOptions" style="width:100%;margin-top:24px;display:none">AD PRIVACY OPTIONS</button>
     <button class="menu-btn small" id="btnReplayCutscene" style="width:100%;margin-top:24px">REPLAY OPENING</button>
+    <button class="menu-btn small" id="btnOpenSprites" style="width:100%;margin-top:10px;border-color:var(--frost);color:var(--frost);" onclick="window.location.href='sprites.html'">SPRITE STUDIO</button>
     <button class="menu-btn small" id="btnHowToPlay" style="width:100%;margin-top:10px">HOW TO PLAY</button>
     <button class="menu-btn small" id="settingsClose" style="width:100%;margin-top:10px">CLOSE</button>
   </div>
