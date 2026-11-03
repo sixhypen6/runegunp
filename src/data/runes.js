@@ -474,14 +474,40 @@ function runePool(p) {
   if (!(p.runes && p.runes.bleed > 0)) ids = ids.filter(id => id !== "vampire");
   return ids;
 }
+function weightedPick(items, weights) {
+  let total = 0;
+  for (const w of weights) total += w;
+  let r = Math.random() * total, acc = 0;
+  for (let i = 0; i < items.length; i++) {
+    acc += weights[i];
+    if (r < acc) return i;
+  }
+  return items.length - 1;
+}
 function genThreeRunes(p) {
   const pool = runePool(p);
   const avail = [...pool];
+  const weights = avail.map(() => 1);
+  const hasBleed = p.runes && p.runes.bleed > 0;
+  const hasVampire = p.runes && p.runes.vampire > 0;
+  /* VAMPIRE only answers when you already bleed (enforced in runePool), and when
+     you haven't taken it yet it shows up more often — the first taste is the
+     hook. SANCHO lives off blood: BLEED and VAMPIRE both answer more for her. */
+  if (hasBleed && !hasVampire) {
+    for (let i = 0; i < avail.length; i++) if (avail[i] === "vampire") weights[i] *= 3;
+  }
+  if (p.char === "sancho") {
+    for (let i = 0; i < avail.length; i++) {
+      if (avail[i] === "bleed") weights[i] *= 2;
+      if (avail[i] === "vampire") weights[i] *= 2;
+    }
+  }
   const ids = [];
   for (let i = 0; i < 3 && avail.length > 0; i++) {
-    const idx = Math.floor(Math.random() * avail.length);
+    const idx = weightedPick(avail, weights);
     ids.push(avail[idx]);
     avail.splice(idx, 1);
+    weights.splice(idx, 1);
   }
   while (ids.length < 3) ids.push(ids[ids.length - 1]);
   /* SPEEDRUN's promise: the first rune offer of the run always shows WARD in the
