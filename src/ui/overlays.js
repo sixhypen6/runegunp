@@ -736,10 +736,15 @@ function lbCharName(id) {
 }
 /* "warp,hex" → "ᚥ ᛜ". A rune this build doesn't know becomes its raw id, so a
    row never renders as blank glyph soup. */
+
+/* This displays the rune thingy (rapid,heavy,mend turns into R, H, D with a dot) */
+
 function lbRuneGlyphs(csv) {
   if (!csv) return "";
   return csv.split(",").slice(0, 8).map(id => {
-    const R = (typeof RUNES !== "undefined") ? RUNES[id] : null;
+    const R = (typeof RUNES !== "undefined" && RUNES[id]) 
+           || (typeof HIDDEN_RUNES !== "undefined" && HIDDEN_RUNES[id]) 
+           || null;
     return R && R.glyph ? R.glyph : id;
   }).join(" ");
 }
