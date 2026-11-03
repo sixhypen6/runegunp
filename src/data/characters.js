@@ -81,7 +81,7 @@ const SKINS = {
   crimson:  { name: "SANGUINE",  color: "#880011", cost: 12000, desc: "The deep, dark red of a thousand cycles. It smells of ancient iron." },
   nebula:   { name: "NEBULA",    color: "#5d00ff", cost: 14000, desc: "A saturated, deep cosmic purple that seems to pull at the air around it." },
   sulfur:   { name: "SULFUR",    color: "#ccff00", cost: 16000, desc: "A violent, neon yellow-green that warns of imminent danger." },
-  rainbow:   { name: "RAINBOW",    color: "#ffffff", cost: 25000, desc: "A shifting spectrum of colours that dances across the surface." },
+  rainbow:   { name: "RAINBOW",    color: "#ffffff", cost: 50000, desc: "A shifting spectrum of colours that dances across the surface." },
 };
 
 //how does one make rainbow work :sob
