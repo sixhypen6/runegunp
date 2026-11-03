@@ -1696,16 +1696,32 @@ function drawWarden(P) {
         cx.save(); cx.translate(px, py);
         const aura = 0.5 + 0.5 * Math.sin(Game.time * 10);
         cx.shadowColor = "#ffd23d"; cx.shadowBlur = 15 * aura;
+        /* Flowing cape: it streams opposite the aim (and sways a little) so it
+           swings with the cursor instead of hanging in world space. Drawn
+           first so the body sits over its root. */
+        const capeA = aim + Math.PI + Math.sin(Game.time * 5) * 0.13 + Math.sin(Game.time * 2.3) * 0.06;
+        const capeLen = 30 + Math.sin(Game.time * 6) * 3;
+        cx.save(); cx.rotate(capeA);
+        cx.fillStyle = "#8a1a1a"; cx.globalAlpha = 0.8;
+        cx.beginPath();
+        cx.moveTo(4, -9);
+        cx.quadraticCurveTo(capeLen * 0.55, -13, capeLen, -5);
+        cx.quadraticCurveTo(capeLen * 0.88, 3, capeLen * 0.68, 11);
+        cx.quadraticCurveTo(capeLen * 0.34, 5, 3, 9);
+        cx.closePath(); cx.fill();
+        cx.strokeStyle = "#c22a2a"; cx.globalAlpha = 0.5; cx.lineWidth = 1.5;
+        cx.beginPath();
+        cx.moveTo(5, -8.5);
+        cx.quadraticCurveTo(capeLen * 0.55, -12, capeLen * 0.97, -5.5);
+        cx.stroke();
+        cx.globalAlpha = 1;
+        cx.restore();
+        /* Heroic body (a more vertical rectangle than the Juggernaut) */
         cx.fillStyle = col;
         if (cx.roundRect) { cx.beginPath(); cx.roundRect(-12, -18, 24, 34, 10); cx.fill(); }
         else cx.fillRect(-12, -18, 24, 34);
         /* helmet visor */
         cx.fillStyle = "#5ee6ff"; cx.fillRect(-8, -8, 16, 3);
-        /* flowing cape */
-        cx.fillStyle = "#8a1a1a"; cx.globalAlpha = 0.8;
-        cx.beginPath(); cx.moveTo(-10, 5); cx.quadraticCurveTo(-25, 10, -35, 20);
-        cx.lineTo(-30, 0); cx.closePath(); cx.fill();
-        cx.globalAlpha = 1;
         /* hands, aligned to aim */
         cx.save(); cx.rotate(aim);
         cx.fillStyle = col;
