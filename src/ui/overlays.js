@@ -1205,10 +1205,14 @@ function cycleJuice() {
 }
 $("btnJuice").addEventListener("click", cycleJuice);
 
-/* ---------- hidden runes (easter eggs) — off by default, only hidden wardens see them ---------- */
-const HIDDEN_RUNES_LABEL = { true: "HIDDEN RUNES: ON", false: "HIDDEN RUNES: OFF" };
+/* ---------- hidden wardens & runes (easter eggs) — off by default ---------- */
+const HIDDEN_RUNES_LABEL = { true: "HIDDEN WARDENS: ON", false: "HIDDEN WARDENS: OFF" };
 function applyHiddenRunesUI() {
   const b = $("btnHiddenRunes"); if (b) b.textContent = HIDDEN_RUNES_LABEL[Meta.showHiddenRunes];
+  const n = $("hiddenRunesNote");
+  if (n) n.textContent = Meta.showHiddenRunes
+    ? "hidden wardens now stand on THE VAULT shelves — they also find their hidden runes"
+    : "off by default — reveal hidden wardens in THE VAULT and let them find their hidden runes";
 }
 function cycleHiddenRunes() {
   Meta.showHiddenRunes = !Meta.showHiddenRunes;
