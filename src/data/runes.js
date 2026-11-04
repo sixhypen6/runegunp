@@ -103,6 +103,19 @@ function phaseWakeColor(p, alpha) {
 }
 const PHASE_BLEED_TIME = 2;           // seconds the wake's cut keeps bleeding
 const PHASE_BLEED_DPS = 4;            // bleed damage per second (1 s bleed ticks)
+
+/* =========================================================
+   BLEED — the wound model, in one place so it stays tunable.
+   Each stack lengthens the cut AND deepens the damage it deals every
+   second. Every source of bleed (bullets, Sancho's sweep/dash, thrall
+   blows) reads these helpers, so a tuning pass here lands everywhere.
+   ========================================================= */
+const BLEED_TIME_BASE = 2.2;          // seconds a 1-stack wound keeps bleeding
+const BLEED_TIME_PER_STACK = 0.55;    // extra seconds per additional stack
+const BLEED_DPS_PER_STACK = 6;        // damage per second per stack (1 s ticks)
+function bleedTime(stacks) { return BLEED_TIME_BASE + BLEED_TIME_PER_STACK * stacks; }
+function bleedDps(stacks) { return BLEED_DPS_PER_STACK * stacks; }
+
 const PRICKLE_TICK = 0.4;             // seconds between thorn bites per enemy
 const PRICKLE_BASE_DMG = 2;           // per tick, before stacks
 const PRICKLE_STACK_DMG = 1;          // per effective PRICKLE stack, per tick
@@ -277,7 +290,7 @@ const RUNES = {
     desc: "You leave a slick of caustic slime in your wake that lingers, then fades. Anything that wades through it festers with damage over time. Stacks thicken and widen the trail.",
     mod: (m, n) => { m.slime += stackCurve(n); } },
   bleed: { name: "BLEED", glyph: "ᛊ", color: "#ff4d5e",
-    desc: "Hits inflict bleeding damage over time. Stacks make the wound longer and more painful.",
+    desc: "Hits open a wound that keeps bleeding — 6 damage per second per stack, and every stack also draws the cut out longer. Stacks make the wound longer and more painful.",
     mod: (m, n) => { m.bleed += n; } },
   vampire: { name: "VAMPIRE", glyph: "ᛔ", color: "#ff4d5e",
     desc: "Hits against bleeding enemies deal +30% damage and heal 0.25 vitality per stack. Excess healing can grow max vitality. Only appears while you hold BLEED.",
@@ -712,7 +725,7 @@ function runeStatLines(p, id) {
   if (full.timeField !== w.timeField) L.push("TIME-SLOW AURA, RADIUS " + Math.round(full.timeR));
   if (full.prickle !== w.prickle) L.push("THORN AURA, RADIUS " + Math.round(full.prickleR));
   if (full.slime !== w.slime) L.push("CAUSTIC SLIME TRAIL " + Math.round(2 + full.slime) + " DMG / TICK");
-  if (full.bleed !== w.bleed) L.push("BLEED " + Math.round(3 * full.bleed) + " DMG / TICK FOR " + (1 + 0.5 * full.bleed).toFixed(1) + "s");
+  if (full.bleed !== w.bleed) L.push("BLEED " + Math.round(bleedDps(full.bleed)) + " DMG / TICK FOR " + bleedTime(full.bleed).toFixed(1) + "s");
   if (full.vampire !== w.vampire) L.push("HEAL " + (0.25 * full.vampire).toFixed(2) + " + 30% DAMAGE VS BLEEDING FOES");
   if (full.wardStacks !== w.wardStacks)
     L.push("WAVES & AMBUSHES −" + Math.round(wardCut(full.wardStacks) * 100) + "% ENEMIES");

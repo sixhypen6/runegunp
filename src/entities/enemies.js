@@ -53,8 +53,8 @@ function thrallRuneOnHit(target, owner, b) {
   const venom = b ? (b.venom != null ? b.venom : m.venom * share) : m.venom;
   if (ember) { target.burnT = Math.max(target.burnT || 0, 2 + ember); target.burnDps = Math.max(target.burnDps || 0, 2 + 2 * ember); target.burnBy = owner; }
   if (bleed) {
-    target.bleedT = Math.max(target.bleedT || 0, 1 + 0.5 * bleed);
-    target.bleedDps = Math.max(target.bleedDps || 0, 3 * bleed);
+    target.bleedT = Math.max(target.bleedT || 0, bleedTime(bleed));
+    target.bleedDps = Math.max(target.bleedDps || 0, bleedDps(bleed));
     target.bleedBy = owner;
   }
   if (frost) target.slowT = Math.max(target.slowT || 0, 1 + 0.7 * frost);

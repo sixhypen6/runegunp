@@ -876,8 +876,8 @@ function update(dt) {
         if (b.fear && !e.boss && Math.random() < b.fear) e.fearT = Math.max(e.fearT || 0, b.fearDur);
         if (b.ember) { e.burnT = 2 + b.ember; e.burnDps = 2 + 2 * b.ember; e.burnBy = b.owner; }
         if (b.bleed && !e.dead) {
-          e.bleedT = Math.max(e.bleedT || 0, 1 + 0.5 * b.bleed);
-          e.bleedDps = Math.max(e.bleedDps || 0, 3 * b.bleed);
+          e.bleedT = Math.max(e.bleedT || 0, bleedTime(b.bleed));
+          e.bleedDps = Math.max(e.bleedDps || 0, bleedDps(b.bleed));
           e.bleedBy = b.owner;
         }
         if (b.frost) { e.slowT = 1 + 0.7 * b.frost; floatText(e.x, e.y - e.r - 12, "❄", "#5ee6ff"); }

@@ -97,8 +97,8 @@ function sanchoDashHit(p) {
       owner: p, x: p.x, y: p.y, knock: SANCHO_DASH_KNOCK[stage] || 0, melee: true, critHit: crit,
     });
     if (!e.dead && m.bleed > 0) {
-      e.bleedT = Math.max(e.bleedT || 0, 1 + 0.5 * m.bleed);
-      e.bleedDps = Math.max(e.bleedDps || 0, 3 * m.bleed);
+      e.bleedT = Math.max(e.bleedT || 0, bleedTime(m.bleed));
+      e.bleedDps = Math.max(e.bleedDps || 0, bleedDps(m.bleed));
       e.bleedBy = p;
     }
     /* the pass leaves a short red tear behind it */
@@ -137,8 +137,8 @@ function sanchoSwing(p, x, y, aim) {
       owner: p, x, y, knock: m.knock, melee: true, critHit: crit,
     });
     if (!e.dead && m.bleed > 0) {
-      e.bleedT = Math.max(e.bleedT || 0, 1 + 0.5 * m.bleed);
-      e.bleedDps = Math.max(e.bleedDps || 0, 3 * m.bleed);
+      e.bleedT = Math.max(e.bleedT || 0, bleedTime(m.bleed));
+      e.bleedDps = Math.max(e.bleedDps || 0, bleedDps(m.bleed));
       e.bleedBy = p;
     }
   }
