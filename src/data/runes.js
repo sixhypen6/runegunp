@@ -499,6 +499,8 @@ function runePool(p) {
   if (!hiddenAllowed) ids = ids.filter(id => !HIDDEN_RUNE_IDS.includes(id));
   /* RUNEGUN is JOHN RUNEGUN exclusive */
   if (p.char !== "john") ids = ids.filter(id => id !== "runegun");
+  /* the SNIPER's whole kit is the single patient shot — the fan would undo it */
+  if (p.char === "sniper") ids = ids.filter(id => id !== "scatter");
   if (!(p.runes && p.runes.bleed > 0)) ids = ids.filter(id => id !== "vampire");
   return ids;
 }
@@ -598,10 +600,14 @@ function buildWeaponModsFrom(runes, p) {
     prey: 1, crit: 0, critMul: 2.2, wrath: 0, dr: 0, thorns: 0,
     regen: 0, regenDelay: 3, vortex: 0, fear: 0, fearDur: 0,
     timeField: 0, timeR: 0, timeMul: 0, prickle: 0, prickleR: 0, slime: 0,
-    bleed: 0, vampire: 0, scatterSplit: 1, sawDmg: 0, reprieveStacks: 0, wardStacks: 0 };
+    bleed: 0, vampire: 0, scatterSplit: 1, sawDmg: 0, reprieveStacks: 0, wardStacks: 0,
+    rangeDmg: 0, rangeStep: 100, rangeCap: 0 };
   /* a character may reshape the bare gun before any rune speaks (JUGGERNAUT's massive slow slug) */
   const wb = CHARS[p.char] && CHARS[p.char].weaponBase;
   if (wb) Object.assign(m, wb);
+  /* SNIPER's distance bite: every direct bullet grows with the ground it covers */
+  const cb = CHARS[p.char];
+  if (cb && cb.rangeDmg) { m.rangeDmg = cb.rangeDmg; m.rangeStep = cb.rangeStep || 100; m.rangeCap = cb.rangeCap || 0; }
   if (p.char === "sancho") {
     const blood = p.hardblood || 1, stage = p.hbStage || (blood >= 20 ? 3 : blood >= 10 ? 2 : 1);
     if (p.weaponMode === "ranged") {

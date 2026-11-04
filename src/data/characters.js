@@ -5,6 +5,13 @@
 "use strict";
 
 
+/* SNIPER — the range rider's tuning. Damage climbs with the distance the shot
+   has travelled, then stops at the cap. Tune the whole warden from here. */
+const SNIPER_RANGE_DMG = 0.15;    // +15% damage per range step
+const SNIPER_RANGE_STEP = 100;    // px per step
+const SNIPER_RANGE_CAP = 0.9;     // never more than +90% (600 px)
+
+
 /* ---------- characters & skins (vault unlockables) ---------- */
 const CHARS = {
   gunsmith:  { name: "GUNSMITH",  glyph: "ᚠ", color: "#e8e2d0", cost: 0,
@@ -32,6 +39,11 @@ const CHARS = {
     desc: "85 vitality. Slain horrors have a 40% chance to rise as ghost thralls. Thralls carry a share of your gun and your on-hit runes, and fight for you; their deaths feed your soul. The pack's cap grows every 2 floors, and the healthiest half follows you through each gate — the rest are spent for healing. Every 24s the pack is recalled to your side — or press recall. Below 35% vitality, a surplus of thralls is tithed for doubled healing.",
     hp: 85, speed: 257.5, dashCd: 1.0, startRunes: 0, rerolls: 4,
     weaponBase: { dmg: 16, rate: 2.6, size: 4 } },
+  sniper: { name: "SNIPER", glyph: "ᚿ", color: "#c8e6a0", cost: 60000,
+    desc: "90 vitality. A patient marksman: the farther a shot travels, the harder it bites — +15% damage per 100px, up to +90% at 600px. Base rounds hit +60% and fly +50% faster, but the rifle cycles 35% slower. SCATTER never answers the rifle.",
+    hp: 90, speed: 235, dashCd: 1.25, startRunes: 0, rerolls: 3,
+    rangeDmg: SNIPER_RANGE_DMG, rangeStep: SNIPER_RANGE_STEP, rangeCap: SNIPER_RANGE_CAP,
+    weaponBase: { dmg: 16, rate: 2.925, size: 4, speed: 810, spread: 0.02, knock: 70 } },
   theUnknown: { name: "THE UNKNOWN", glyph: "?", color: "#e8e2d0", cost: 999999,
     desc: "225 vitality. Fires a spread of rune bolts; dashing cuts everything in its path. Every death carves one more rune into its gun.",
     hp: 225, speed: 225, dashCd: 0.75, startRunes: 0, rerolls: 30,

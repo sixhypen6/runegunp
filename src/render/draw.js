@@ -1872,8 +1872,35 @@ function drawWarden(P) {
           cx.beginPath(); cx.arc(0, 0, radius, -half, half); cx.stroke();
           cx.restore();
         }
+      } else if (P.char === "sniper") {
+        /* SNIPER — a hooded marksman and a long scoped rifle. The scope glint
+           breathes while the shot waits; the muzzle carries the ruling rune. */
+        cx.save(); cx.translate(px, py);
+        cx.fillStyle = col;
+        if (cx.roundRect) { cx.beginPath(); cx.roundRect(-9, -15, 18, 30, 6); cx.fill(); }
+        else cx.fillRect(-9, -15, 18, 30);
+        cx.fillStyle = "#1a2418";
+        cx.beginPath(); cx.arc(0, -12, 8, Math.PI, TAU); cx.fill();
+        cx.fillStyle = "#e8ffb0";
+        cx.globalAlpha = 0.55 + 0.45 * Math.sin(Game.time * 7);
+        cx.beginPath(); cx.arc(0, -12, 2, 0, TAU); cx.fill();
+        cx.globalAlpha = 1;
+        cx.save(); cx.rotate(aim);
+        cx.fillStyle = col;
+        cx.beginPath(); cx.arc(7, 0, 4.5, 0, TAU); cx.fill();
+        /* the rifle: a long barrel, a dark receiver and a scope riding the rail */
+        cx.strokeStyle = "#5e5a4a"; cx.lineWidth = 3;
+        cx.beginPath(); cx.moveTo(4, 0); cx.lineTo(34, 0); cx.stroke();
+        cx.strokeStyle = "#2c2a22"; cx.lineWidth = 6;
+        cx.beginPath(); cx.moveTo(10, 0); cx.lineTo(20, 0); cx.stroke();
+        cx.strokeStyle = tint; cx.lineWidth = 1.5;
+        cx.beginPath(); cx.moveTo(16, -5); cx.lineTo(16, -2); cx.stroke();
+        cx.fillStyle = tint;
+        cx.beginPath(); cx.arc(35, 0, 1.8, 0, TAU); cx.fill();
+        cx.restore();
+        drawCracks(cx, hpFrac, 10);
+        cx.restore();
       } else {
-        /* Alchemist: triangular flask body + orbiting rune + forked barrel */
         cx.save(); cx.translate(px, py); cx.rotate(aim + Math.PI / 2);
         cx.beginPath(); cx.moveTo(0,-13); cx.lineTo(12,11); cx.lineTo(-12,11); cx.closePath(); cx.fill();
         cx.fillStyle = "#0b0b14"; cx.fillRect(-3, -18, 6, 7);

@@ -238,6 +238,9 @@ function spawnShot(p, x, y, baseAim, skip) {
         execute: m.execute, knock: m.knock,
         crit: m.crit, critMul: m.critMul, fear: m.fear, fearDur: m.fearDur,
         owner: p,
+        /* the muzzle's mark: SNIPER measures the ground a shot covers from here */
+        x0: x + Math.cos(a) * (sanchoMelee ? 32 : 18) + ox,
+        y0: y + Math.sin(a) * (sanchoMelee ? 32 : 18) + oy,
         /* allocated lazily on first hit (update.js): at RAPID+TWIN fire rates this
            spawn path runs 100+ times/sec, and most bullets die on a wall having
            never needed the Set. `skip` bullets need theirs immediately — pre-seeded. */
@@ -561,6 +564,12 @@ function damageEnemy(e, dmg, src) {
   dmg = deepDamage(e, dmg);
   /* QUARRY: the gun savors the afflicted — burning, chilled or bleeding foes take more */
   if (om && om.prey > 1 && (e.burnT > 0 || e.slowT > 0 || e.bleedT > 0)) dmg *= om.prey;
+  /* SNIPER: the farther the shot has travelled from the muzzle, the harder it
+     lands. Direct bullets only — bleed ticks, novas and waves carry no x0. */
+  if (om && om.rangeDmg > 0 && src && src.x0 !== undefined) {
+    const travel = Math.hypot(e.x - src.x0, e.y - src.y0);
+    dmg *= 1 + Math.min(om.rangeCap, (travel / om.rangeStep) * om.rangeDmg);
+  }
   /* VAMPIRE: feeding only triggers on a weapon hit, never on the bleed's own tick.
      SANCHO is the exception: her heal rides a shot cadence in fireWeapon (so
      TWIN/SCATTER hits cannot multiply it), but the +30% damage still applies. */
