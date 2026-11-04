@@ -989,9 +989,12 @@ function applyAimMode() {
   const auto = Meta.aimMode === "auto";
   document.body.classList.toggle("autoaim", auto);
   const label = "CONTROLS: " + (auto ? "AUTO-AIM" : "TWIN-STICK");
-  const note = auto
-    ? "one thumb — left moves, gun aims & fires itself"
-    : "two thumbs — left moves, right aims & fires";
+  const sniper = typeof localPlayer === "function" && localPlayer() && localPlayer().char === "sniper";
+  const note = sniper
+    ? "SNIPER always keeps the right aim stick — she never fires by herself"
+    : auto
+      ? "one thumb — left moves, gun aims & fires itself"
+      : "two thumbs — left moves, right aims & fires";
   { const el = $("btnAimModeSettings"); if (el) el.textContent = label; }
   { const el = $("aimModeNoteSettings"); if (el) el.textContent = note; }
   if (auto) { Input.aiming = false; }      // drop any stale right-stick fire
@@ -1015,7 +1018,11 @@ const DESK_ORDER = ["hold", "cursor", "auto"];
 function applyDeskMode() {
   const m = DESK_MODES[Meta.deskMode] || DESK_MODES.hold;
   const btn = $("btnDeskMode"); if (btn) btn.textContent = m.label;
-  const note = $("deskModeNote"); if (note) note.textContent = m.note;
+  const note = $("deskModeNote");
+  const sniper = typeof localPlayer === "function" && localPlayer() && localPlayer().char === "sniper";
+  if (note) note.textContent = sniper
+    ? "SNIPER ignores auto-fire — aim with the cursor and hold to shoot"
+    : m.note;
 }
 function cycleDeskMode() {
   const i = DESK_ORDER.indexOf(Meta.deskMode);

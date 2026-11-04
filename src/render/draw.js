@@ -1873,30 +1873,41 @@ function drawWarden(P) {
           cx.restore();
         }
       } else if (P.char === "sniper") {
-        /* SNIPER — a hooded marksman and a long scoped rifle. The scope glint
-           breathes while the shot waits; the muzzle carries the ruling rune. */
+        /* SNIPER — a heptagon chassis: flat side at the back for the stock,
+           a single prow pointing down the shot. A dark hood insets the body,
+           a pale visor slit marks the face, and the long scoped rifle rides
+           the point. The scope glint breathes while the shot waits. */
         cx.save(); cx.translate(px, py);
-        cx.fillStyle = col;
-        if (cx.roundRect) { cx.beginPath(); cx.roundRect(-9, -15, 18, 30, 6); cx.fill(); }
-        else cx.fillRect(-9, -15, 18, 30);
-        cx.fillStyle = "#1a2418";
-        cx.beginPath(); cx.arc(0, -12, 8, Math.PI, TAU); cx.fill();
+        cx.save(); cx.rotate(aim);
+        const hept = (radius) => {
+          cx.beginPath();
+          for (let i = 0; i < 7; i++) {
+            const a = i / 7 * TAU;                 // vertex 0 = the prow
+            const x = Math.cos(a) * radius, y = Math.sin(a) * radius;
+            if (i === 0) cx.moveTo(x, y); else cx.lineTo(x, y);
+          }
+          cx.closePath();
+        };
+        cx.fillStyle = col; hept(15); cx.fill();
+        cx.fillStyle = "#1a2418"; hept(10.5); cx.fill();
+        /* face slit, set just behind the prow; it breathes with the scope */
         cx.fillStyle = "#e8ffb0";
         cx.globalAlpha = 0.55 + 0.45 * Math.sin(Game.time * 7);
-        cx.beginPath(); cx.arc(0, -12, 2, 0, TAU); cx.fill();
+        cx.fillRect(4.6, -4.4, 2.4, 8.8);
         cx.globalAlpha = 1;
-        cx.save(); cx.rotate(aim);
-        cx.fillStyle = col;
-        cx.beginPath(); cx.arc(7, 0, 4.5, 0, TAU); cx.fill();
-        /* the rifle: a long barrel, a dark receiver and a scope riding the rail */
-        cx.strokeStyle = "#5e5a4a"; cx.lineWidth = 3;
-        cx.beginPath(); cx.moveTo(4, 0); cx.lineTo(34, 0); cx.stroke();
+        /* the rifle: long barrel, dark receiver, scope riding the rail */
+        cx.strokeStyle = "#5e5a4a"; cx.lineWidth = 3; cx.lineCap = "round";
+        cx.beginPath(); cx.moveTo(4, 0); cx.lineTo(37, 0); cx.stroke();
         cx.strokeStyle = "#2c2a22"; cx.lineWidth = 6;
-        cx.beginPath(); cx.moveTo(10, 0); cx.lineTo(20, 0); cx.stroke();
-        cx.strokeStyle = tint; cx.lineWidth = 1.5;
-        cx.beginPath(); cx.moveTo(16, -5); cx.lineTo(16, -2); cx.stroke();
+        cx.beginPath(); cx.moveTo(11, 0); cx.lineTo(21, 0); cx.stroke();
+        cx.strokeStyle = "#3a4636"; cx.lineWidth = 2;
+        cx.beginPath(); cx.moveTo(11, -5.5); cx.lineTo(22, -5.5); cx.stroke();
         cx.fillStyle = tint;
-        cx.beginPath(); cx.arc(35, 0, 1.8, 0, TAU); cx.fill();
+        cx.globalAlpha = 0.55 + 0.45 * Math.sin(Game.time * 7);
+        cx.beginPath(); cx.arc(23, -5.5, 1.7, 0, TAU); cx.fill();
+        cx.globalAlpha = 1;
+        cx.fillStyle = tint;
+        cx.beginPath(); cx.arc(38, 0, 1.8, 0, TAU); cx.fill();
         cx.restore();
         drawCracks(cx, hpFrac, 10);
         cx.restore();

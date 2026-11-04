@@ -347,8 +347,10 @@ const Coop = {
     const camP = localPlayer();
     /* a few glasses in, the camera won't hold still (scenes/saloon.js) */
     const sway = typeof drunkSway === "function" ? drunkSway() : { x: 0, y: 0 };
-    Game.cam.x = lerp(Game.cam.x, clamp(camP.x - VW / 2 + sway.x, 0, MAP.w - VW), 1 - Math.pow(0.001, dt));
-    Game.cam.y = lerp(Game.cam.y, clamp(camP.y - VH / 2 + sway.y, 0, MAP.h - VH), 1 - Math.pow(0.001, dt));
+    /* the guest's own scope lead, in step with the host's camera rule */
+    const lead = typeof sniperCamLead === "function" ? sniperCamLead(camP) : null;
+    Game.cam.x = lerp(Game.cam.x, clamp(camP.x + (lead ? lead.x : 0) - VW / 2 + sway.x, 0, MAP.w - VW), 1 - Math.pow(0.001, dt));
+    Game.cam.y = lerp(Game.cam.y, clamp(camP.y + (lead ? lead.y : 0) - VH / 2 + sway.y, 0, MAP.h - VH), 1 - Math.pow(0.001, dt));
     Game.shake = Math.max(0, Game.shake - dt * 30);
     Game.flash = Math.max(0, Game.flash - dt);
     if (Game.flash === 0) Game.flashCol = null;
@@ -482,7 +484,9 @@ const Coop = {
     const self = localPlayer();
     /* fire intent mirrors fireWeapon's own decision inputs */
     let fire = false;
-    if (f.touchMode) fire = f.aimMode === "auto" ? !!self.autoFire : f.aiming;
+    /* SNIPER stays hand-fired on the wire too: the host must not auto-fire her */
+    if (self.char === "sniper") fire = f.touchMode ? !!f.aiming : !!f.mouseDown;
+    else if (f.touchMode) fire = f.aimMode === "auto" ? !!self.autoFire : f.aiming;
     else if (f.deskMode === "auto") fire = !!self.autoFire;
     else if (f.deskMode === "cursor") fire = true;
     else fire = f.mouseDown;
@@ -496,6 +500,13 @@ const Coop = {
       for (const c of chests) if (c.state === "sealed" && dist2(c.x, c.y, self.x, self.y) < 64 * 64) hint = "[ E ] BREAK THE SEAL";
       for (const h of healthBoxes) if (h.state === "sealed" && dist2(h.x, h.y, self.x, self.y) < 64 * 64) hint = "[ E ] TAKE THE VITALITY";
       if (SEAL.state === "ready" && dist2(SEAL.x, SEAL.y, self.x, self.y) < (SEAL.r + 40) ** 2) hint = "[ E ] WAKE WHAT SLEEPS BELOW";
+      /* SNIPER's errand reads the same on a guest's screen; the host executes it */
+      const myPet = (self.char === "sniper" && self.pet) ? petForOwner(self) : null;
+      if (!hint && myPet && !myPet.order) {
+        const maxD = typeof SNIPER_PET_ORDER_RANGE === "number" ? SNIPER_PET_ORDER_RANGE : 1500;
+        if (nearestSealedChestTo(self.x, self.y, maxD))
+          hint = "[ E ] SEND THE " + (PTYPES[self.pet] ? PTYPES[self.pet].name : "COMPANION") + " TO BREAK A SEAL";
+      }
     }
     /* THE SINGULAR: the host owns the state, but this screen still has to show
        its own warden what their [ E ] would do. Blackjack is solo-only. */

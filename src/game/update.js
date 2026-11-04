@@ -303,7 +303,13 @@ function updatePlayer(p, inp, dt) {
   }
   /* aim resolution — mouse math is only meaningful on the local screen (Game.cam) */
   if (!inp.touchMode) {
-    if (inp.deskMode === "auto") {
+    if (p.char === "sniper") {
+      /* the rifle is aimed by hand in every desktop mode — AUTO-AIM and
+         AUTO-FIRE both stay out of a marksman's hands */
+      if (isLocal && inp.mouseX !== undefined)
+        p.aim = Math.atan2((inp.mouseY / ZOOM + Game.cam.y) - p.y, (inp.mouseX / ZOOM + Game.cam.x) - p.x);
+      p.autoFire = false;
+    } else if (inp.deskMode === "auto") {
       const tgt = nearestEnemy(p.x, p.y);
       if (tgt) { p.aim = angTo(p.x, p.y, tgt.x, tgt.y); p.autoFire = true; }
       else {
@@ -314,6 +320,11 @@ function updatePlayer(p, inp, dt) {
     } else if (isLocal && inp.mouseX !== undefined) {
       p.aim = Math.atan2((inp.mouseY / ZOOM + Game.cam.y) - p.y, (inp.mouseX / ZOOM + Game.cam.x) - p.x);
     }
+  } else if (p.char === "sniper") {
+    /* touch: the right thumb is the only trigger. With the stick down it aims;
+       with the thumb lifted the last line is held. No target assist. */
+    if (inp.aiming) p.aim = Math.atan2(inp.aimY, inp.aimX);
+    p.autoFire = false;
   } else if (inp.aimMode === "auto") {
     const tgt = nearestEnemy(p.x, p.y);
     if (tgt) { p.aim = angTo(p.x, p.y, tgt.x, tgt.y); p.autoFire = true; }
@@ -321,6 +332,24 @@ function updatePlayer(p, inp, dt) {
   }
   updateShredderSaw(p, dt);
   fireWeapon(p, inp, dt);
+}
+
+/* SNIPER's scope-lead: the camera drifts toward the aim, up to SNIPER_CAM_LEAD
+   world px, without moving the warden. Desktop scales with the crosshair's
+   distance from the screen's heart; touch leans only while a thumb is aiming,
+   so lifting it recenters the view for movement. */
+function sniperCamLead(p) {
+  if (!p || p.char !== "sniper") return null;
+  if (Game.inSaloon || Game.inUnknown || Game.inRift) return null;
+  const max = typeof SNIPER_CAM_LEAD === "number" ? SNIPER_CAM_LEAD : 240;
+  let k;
+  if (Input.touchMode) k = Input.aiming ? clamp(Math.hypot(Input.aimX, Input.aimY), 0, 1) : 0;
+  else {
+    const dx = Input.mouseX - W / 2, dy = Input.mouseY - H / 2;
+    k = clamp(Math.hypot(dx, dy) / (Math.min(W, H) * 0.32), 0, 1);
+  }
+  if (k <= 0.001) return null;
+  return { x: Math.cos(p.aim) * max * k, y: Math.sin(p.aim) * max * k };
 }
 
 /* =========================================================
@@ -487,6 +516,17 @@ function update(dt) {
     }
     if (SEAL.state === "ready" && dist2(SEAL.x, SEAL.y, p.x, p.y) < (SEAL.r + 40) ** 2 && !Game.ambush) {
       pHint = "[ E ] WAKE WHAT SLEEPS BELOW"; pAct = () => spawnBoss();
+    }
+    /* SNIPER: no box in arm's reach? send the companion down the long sight-line */
+    const pet = (p.char === "sniper" && p.pet) ? petForOwner(p) : null;
+    if (!pHint && pet && !pet.order && !Game.ambush) {
+      const maxD = typeof SNIPER_PET_ORDER_RANGE === "number" ? SNIPER_PET_ORDER_RANGE : 1500;
+      const c = nearestSealedChestTo(p.x, p.y, maxD);
+      if (c) {
+        const petName = PTYPES[p.pet] ? PTYPES[p.pet].name : "COMPANION";
+        pHint = "[ E ] SEND THE " + petName + " TO BREAK A SEAL";
+        pAct = () => orderPetToSeal(p);
+      }
     }
     /* the saloon is shared: its prompts and actions are per-warden, so a guest's
        [ E ] does exactly what the host's would */
@@ -1058,8 +1098,10 @@ function update(dt) {
   const camF = Game.inUnknown ? unkCamFocus(camP) : camP;
   /* a few rounds in, the camera won't hold still (scenes/saloon.js); culling and aim follow it */
   const sway = drunkSway();
-  Game.cam.x = lerp(Game.cam.x, clamp(camF.x - VW / 2 + sway.x, 0, MAP.w - VW), 1 - Math.pow(0.001, dt));
-  Game.cam.y = lerp(Game.cam.y, clamp(camF.y - VH / 2 + sway.y, 0, MAP.h - VH), 1 - Math.pow(0.001, dt));
+  /* SNIPER's scope leans the view toward the shot without moving her feet */
+  const lead = sniperCamLead(camP);
+  Game.cam.x = lerp(Game.cam.x, clamp(camF.x + (lead ? lead.x : 0) - VW / 2 + sway.x, 0, MAP.w - VW), 1 - Math.pow(0.001, dt));
+  Game.cam.y = lerp(Game.cam.y, clamp(camF.y + (lead ? lead.y : 0) - VH / 2 + sway.y, 0, MAP.h - VH), 1 - Math.pow(0.001, dt));
   if (MAP.w < VW) Game.cam.x = (MAP.w - VW) / 2;
   if (MAP.h < VH) Game.cam.y = (MAP.h - VH) / 2;
   /* --- ambient floor life: a few drifting motes keyed to the floor's palette --- */

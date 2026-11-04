@@ -261,13 +261,19 @@ function fireWeapon(p, inp, dt) {
   const m = p.mods;
   p.fireT -= dt;
   let firing = false, aim = p.aim;
+  /* SNIPER pulls her own trigger, always: no mode hands her a shot */
+  const manualOnly = p.char === "sniper";
   if (inp.touchMode) {
-    if (inp.aimMode === "auto") {
+    if (manualOnly) {
+      if (inp.aiming) { aim = Math.atan2(inp.aimY, inp.aimX); p.aim = aim; firing = true; }
+    } else if (inp.aimMode === "auto") {
       // aim is set each frame in updatePlayer(); just fire while a target exists
       if (p.autoFire) firing = true;
     } else if (inp.aiming) {
       aim = Math.atan2(inp.aimY, inp.aimX); p.aim = aim; firing = true;
     }
+  } else if (manualOnly) {
+    if (inp.mouseDown) firing = true;
   } else if (inp.deskMode === "auto") {
     if (p.autoFire) firing = true;
   } else if (inp.deskMode === "cursor") {

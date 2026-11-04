@@ -138,6 +138,10 @@
   /* auto-aim: one stick only — hide the right (aim) stick, widen the movement zone */
   body.touch.autoaim #stickR{display:none}
   body.touch.autoaim #stickL{width:100%}
+  /* SNIPER never fires by itself, so the aim trigger stays in her hands even in
+     AUTO-AIM: the right stick comes back and the left gives it room again. */
+  body.touch.autoaim.sniper #stickL{width:46%}
+  body.touch.autoaim.sniper #stickR{display:block}
   #stickL{left:0} #stickR{right:0}
   .stick .base,.stick .nub{position:absolute;border-radius:50%;pointer-events:none;opacity:0;transition:opacity .15s}
   .stick .base{width:96px;height:96px;border:1px solid var(--line);background:rgba(20,18,38,.45)}

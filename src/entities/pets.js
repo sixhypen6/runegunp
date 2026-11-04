@@ -48,7 +48,7 @@ function spawnPet(type, owner) {
   const p = { type, owner, x: owner.x, y: owner.y, r: T.r, dmg: T.dmg,
     orbA: rnd(0, TAU), hitT: 0, fireT: 0,
     orbR: T.orbR, orbSpeed: T.orbSpeed, speed: T.speed, range: T.range, rate: T.rate,
-    block: false, lifesteal: 0, inherit: false };
+    block: false, lifesteal: 0, inherit: false, order: null };
   if (type === "orbiter") {
     p.orbSpeed = T.orbSpeed + 0.8 * petLvl(type, "speed");
     p.dmg = T.dmg + 4 * petLvl(type, "dmg");
@@ -127,9 +127,68 @@ function petBlock(pet) {
   }
 }
 
+/* =========================================================
+   SNIPER'S ERRAND — a companion sent to undo a distant seal.
+   The warden keeps the rifle; the pet walks the long way, and the
+   ambush springs around the box instead of around the marksman.
+   ========================================================= */
+function petForOwner(ow) { return pets.find(pt => pt.owner === ow) || null; }
+function nearestSealedChestTo(x, y, maxD) {
+  let best = null, bd = maxD * maxD;
+  for (const c of chests) {
+    if (c.state !== "sealed") continue;
+    const d = dist2(c.x, c.y, x, y);
+    if (d < bd) { bd = d; best = c; }
+  }
+  return best;
+}
+function orderPetToSeal(p) {
+  const pet = petForOwner(p);
+  if (!pet) { if (p === localPlayer()) toast("NO COMPANION ANSWERS"); return false; }
+  if (pet.order) { if (p === localPlayer()) toast("YOUR COMPANION IS ALREADY SEEKING"); return false; }
+  if (Game.ambush) { if (p === localPlayer()) toast("A SEAL ALREADY BREAKS"); return false; }
+  const maxD = typeof SNIPER_PET_ORDER_RANGE === "number" ? SNIPER_PET_ORDER_RANGE : 1500;
+  const chest = nearestSealedChestTo(p.x, p.y, maxD);
+  if (!chest) { if (p === localPlayer()) toast("NO SEALED BOX IN REACH"); return false; }
+  pet.order = { chest, phase: "go" };
+  if (p === localPlayer()) {
+    floatText(pet.x, pet.y - 20, "SEEK THE SEAL", PTYPES[pet.type].color, 11);
+    AudioFX.pickup();
+  }
+  return true;
+}
+
 function updatePet(pet, dt) {
   const T = PTYPES[pet.type];
   const ow = pet.owner;
+  if (pet.order) {
+    const ord = pet.order;
+    if (ord.phase === "go" && (!ord.chest || ord.chest.state !== "sealed")) ord.phase = "return";
+    const go = ord.phase === "go";
+    const tx = go ? ord.chest.x : ow.x, ty = go ? ord.chest.y : ow.y;
+    const speed = typeof SNIPER_PET_ORDER_SPEED === "number" ? SNIPER_PET_ORDER_SPEED : 430;
+    const reach = typeof SNIPER_PET_ORDER_REACH === "number" ? SNIPER_PET_ORDER_REACH : 34;
+    const d = Math.sqrt(dist2(pet.x, pet.y, tx, ty));
+    if (d > 0.01) {
+      const a = angTo(pet.x, pet.y, tx, ty);
+      const step = Math.min(speed * dt, d);
+      pet.x += Math.cos(a) * step;
+      pet.y += Math.sin(a) * step;
+    }
+    if (Math.random() < dt * 14 && particles.length < 500)
+      particles.push({ x: pet.x, y: pet.y, vx: rnd(-18, 18), vy: rnd(-18, 18),
+        t: 0, life: 0.28, r: rnd(1.5, 2.5), color: T.color });
+    if (go && d <= reach + speed * dt) {
+      ord.phase = "return";
+      if (!Game.ambush && ord.chest && ord.chest.state === "sealed") {
+        triggerAmbush(ord.chest);
+        floatText(ord.chest.x, ord.chest.y - 30, "THE COMPANION BREAKS THE SEAL", T.color, 12);
+      }
+    } else if (!go && d <= 46) {
+      pet.order = null;
+    }
+    return;
+  }
   if (pet.type === "orbiter") {
     pet.orbA += dt * pet.orbSpeed;
     pet.x = ow.x + Math.cos(pet.orbA) * pet.orbR;

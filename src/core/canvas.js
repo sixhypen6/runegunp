@@ -10,6 +10,30 @@ const cv = document.getElementById("game");
 const cx = cv.getContext("2d");
 let W = 0, H = 0, DPR = 1;
 let ZOOM = 1, VW = 0, VH = 0;   // ZOOM = world->screen scale · VW/VH = arena slice visible (world units)
+let BASE_ZOOM = 1;              // the device's neutral zoom; the warden may widen it (SNIPER's scope)
+/* SNIPER sees more of the floor: widen the view without touching the base scale,
+   so every device still gets its own sensible slice and a normal warden snaps back. */
+function applyViewZoom() {
+  const sniper = _viewInRun && _viewChar === "sniper" && typeof SNIPER_ZOOM === "number";
+  ZOOM = BASE_ZOOM * (sniper ? SNIPER_ZOOM : 1);
+  VW = W / ZOOM; VH = H / ZOOM;
+  if (typeof applyControlLayout === "function") applyControlLayout();
+  if (typeof markHudDirty === "function") markHudDirty();
+}
+/* Track the local warden once per frame. Changing ZOOM/VW/VH reflows the DOM and
+   invalidates cached screen positions, so only do it when the warden really changes. */
+let _viewChar = null, _viewInRun = false;
+function syncWardenView() {
+  const p = (typeof localPlayer === "function") ? localPlayer() : null;
+  const c = p ? p.char : null;
+  const inRun = !!p && Game.state !== "menu" && Game.state !== "vault" && Game.state !== "glossary" &&
+                Game.state !== "leaderboard" && Game.state !== "lobby";
+  const sniper = inRun && c === "sniper";
+  if (c === _viewChar && inRun === _viewInRun && sniper === document.body.classList.contains("sniper")) return;
+  _viewChar = c; _viewInRun = inRun;
+  document.body.classList.toggle("sniper", sniper);
+  applyViewZoom();
+}
 function resize() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   /* Android fires resize events that change nothing — IME show/hide, system-bar
@@ -26,14 +50,8 @@ function resize() {
   /* keep a roughly constant chunk of the arena on screen no matter the device:
      phones (small min-dimension) zoom OUT so the action isn't in your face,
      big monitors zoom IN a touch so you're not lost in empty floor. */
-  ZOOM = Math.max(0.68, Math.min(1.65, Math.min(W, H) / 690));
-  VW = W / ZOOM; VH = H / ZOOM;
-  /* keep any custom on-screen button layout pinned as the viewport changes
-     (guarded: input.js defines this after canvas.js evaluates) */
-  if (typeof applyControlLayout === "function") applyControlLayout();
-  /* the souls counter just moved — soul motes cache its screen position (same guard:
-     juice.js defines this after canvas.js evaluates) */
-  if (typeof markHudDirty === "function") markHudDirty();
+  BASE_ZOOM = Math.max(0.68, Math.min(1.65, Math.min(W, H) / 690));
+  applyViewZoom();
 }
 window.addEventListener("resize", resize); resize();
 

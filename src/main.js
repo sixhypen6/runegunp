@@ -41,6 +41,9 @@ function frame(now) {
     /* the run clock freezes itself whenever the descent isn't live; it takes the
        unclamped frame time (capped so a hidden tab can't fast-forward the clock) */
     if (typeof RunTimer !== "undefined") RunTimer.tick(Math.min(rawDt, 0.1));
+    /* the local warden may have changed (run start, co-op seat, console edit):
+       re-scale the viewport before this frame's aim/camera math reads ZOOM */
+    if (typeof syncWardenView === "function") syncWardenView();
     /* the Gamepad API has no button events — controllers are read here, once a frame
        (systems/controls.js). Fenced: a controller fault must never cost the frame. */
     try { Pad.poll(dt); } catch (e) { noteCrash("pad", e); }
