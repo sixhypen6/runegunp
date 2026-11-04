@@ -184,50 +184,28 @@
   /* ---------- main menu — the Void shows through ---------- */
   #menu{background:linear-gradient(180deg,rgba(6,4,16,0) 0%,rgba(6,4,16,.05) 34%,rgba(6,4,16,.55) 62%,rgba(6,4,16,.92) 100%);
     justify-content:flex-end;padding-bottom:max(26px,env(safe-area-inset-bottom))}
-  .menu-spacer {
-  flex: 1 1 auto;
-  min-height: clamp(20px, 15vh, 540px); /* Reduced minimum height from 150px to 20px */
-}   /* room for what waits above */
-#menu {
-  background: linear-gradient(180deg, rgba(6,4,16,0) 0%, rgba(6,4,16,.05) 34%, rgba(6,4,16,.55) 62%, rgba(6,4,16,.92) 100%);
-  justify-content: center;
-  align-items: center;
-  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
-  overflow-y: auto;
-}
+  .menu-spacer{flex:1 1 auto;min-height:clamp(150px,39vh,540px)}   /* room for what waits above */
+  #menu .title{background:linear-gradient(180deg,#f3efe2 14%,#c9b8ff 52%,#4d3590);
+    -webkit-background-clip:text;background-clip:text;
+    filter:drop-shadow(0 0 22px rgba(157,107,255,.55)) drop-shadow(0 2px 14px rgba(0,0,0,.9));
+    animation:titleFlicker 7s infinite}
+  @keyframes titleFlicker{0%,90%,100%{opacity:1}91%{opacity:.7}92%{opacity:1}95%{opacity:.84}96%{opacity:1}}
+  .omen{margin-top:10px;font-size:calc(clamp(8px,1.6vw,11px) * var(--text-scale, 1));letter-spacing:.5em;text-indent:.5em;text-align:center;
+    color:var(--blood);text-shadow:0 0 14px rgba(255,77,94,.7),0 1px 6px rgba(0,0,0,.95);animation:omenPulse 3.4s ease-in-out infinite}
+  @keyframes omenPulse{0%,100%{opacity:.4}50%{opacity:1}}
+  #menu .rule{margin:14px 0}
 
-.menu-spacer {
-  display: none;
-}
-
-#menu .title {
-  font-size: clamp(28px, 6vw, 56px);
-  margin-top: 4px;
-}
-
-#menu .subtitle {
-  font-size: clamp(10px, 2vw, 16px);
-  margin-top: 8px;
-  margin-bottom: 8px;
-  letter-spacing: .4em;
-  text-align: center;
-}
-
-.omen {
-  margin-top: 12px;
-  font-size: clamp(8px, 1.2vw, 11px);
-  letter-spacing: .4em;
-  text-indent: .4em;
-  text-align: center;
-  color: var(--blood);
-  text-shadow: 0 0 14px rgba(255,77,94,.7), 0 1px 6px rgba(0,0,0,.95);
-  animation: omenPulse 3.4s ease-in-out infinite;
-}
-
-#menu .rule {
-  margin: 10px 0;
-  width: min(360px, 60vw);
-}
+  /* phones: centre the menu and drop the reserved logo gap. Desktop keeps the
+     bottom-anchored layout above (the wormhole owns the space it leaves). */
+  @media (max-width:700px), (pointer:coarse) {
+    #menu{justify-content:center;align-items:center;
+      padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+    .menu-spacer{display:none}
+    #menu .title{font-size:clamp(28px,6vw,56px);margin-top:4px}
+    #menu .subtitle{font-size:clamp(10px,2vw,16px);margin-top:8px;margin-bottom:8px;letter-spacing:.4em}
+    .omen{font-size:clamp(8px,1.2vw,11px);letter-spacing:.4em;text-indent:.4em;margin-top:12px}
+    #menu .rule{width:min(360px,60vw);margin:10px 0}
+  }
   /* inside a panel the divider never outgrows it: 420px vs settings' 360 scrolled sideways on desktop */
   .panel .rule{max-width:100%}
   #btnStart{position:relative;border-color:var(--arcane);color:#fff;
