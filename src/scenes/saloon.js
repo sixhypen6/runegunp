@@ -24,7 +24,7 @@ const DRUNK_SOBER = 0.2;
 /* past the tenth glass the room can't spin any harder — another round buys TIME
    instead of a level: each one adds this many seconds to the hold before sobriety
    starts eroding the stack. */
-const DRUNK_HOLD_EXTEND = 8;
+const DRUNK_HOLD_EXTEND = 12;
 /* tier names for the HUD readout (index 0 = sober) */
 const DRUNK_NAMES = ["", "COURAGE", "BLURRED AIM", "STAGGER STEP", "DAREDEVIL", "BLOODTHIRST",
   "IRON LIVER", "HOLLOW VESSEL", "RECKLESS", "BLACKOUT", "THE SINGULAR"];
@@ -233,9 +233,14 @@ const SAL_REGULARS = [
     "Half vitality, all loyalty. A fair trade.",
     "The dead make better company. They don't talk back.",
     "Four thralls. That's the cap. I've counted."] },
+  { id: "sniper", char: "sniper", skin: "bone", x: 1240, y: 646, aim: Math.PI / 4, lines: [
+    "One shot. One soul. One less thing in my way.",
+    "I've counted every bullet I've ever fired.",
+    "The further down you go, the bigger the targets.",
+    "Sit tight. I prefer them from a distance."]}
 ];
 /* each body murmurs at its own pitch when it speaks */
-const SAL_VOICE = { gunsmith: 200, wraith: 270, juggernaut: 120, demolitionist: 170, alchemist: 235, necromancer: 180 };
+const SAL_VOICE = { gunsmith: 200, wraith: 270, juggernaut: 120, demolitionist: 170, alchemist: 235, necromancer: 180, sniper: 210 };
 /* the piano player's one song, a little wrong: [Hz, seconds] — 0 is a rest */
 const SAL_TUNE = [[392, 0.28], [440, 0.28], [523, 0.28], [659, 0.56], [587, 0.28], [523, 0.28], [440, 0.56],
   [392, 0.28], [523, 0.28], [659, 0.28], [784, 0.56], [698, 0.28], [659, 0.28], [587, 0.84], [0, 0.9]];
