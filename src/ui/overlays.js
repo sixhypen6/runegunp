@@ -1369,6 +1369,9 @@ $("btnReplayCutscene").addEventListener("click", () => {     // replay the full 
   startCutscene("menu");    // on finish, endCutscene returns to the menu instead of starting a run
 });
 $("btnLeaderboard").addEventListener("click", openLeaderboard);
+$("btnConsole").addEventListener("click", () => {
+  if (typeof RunegunConsole !== "undefined") RunegunConsole.toggle();
+});
 
 /* ---------- menu / death ---------- */
 function refreshMenu() {
