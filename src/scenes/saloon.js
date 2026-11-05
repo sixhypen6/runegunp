@@ -3,15 +3,15 @@
    The saloon past the Event Horizon. Inside the void there is only you: a
    multiverse of yous, every one of them fighting to climb back out. One of
    them quit long enough to build a bar from the wreckage and pour for the
-   next. You walk in after the Horizon falls, take the first round on the
-   house (+10 vitality — healing only, the max never moves), buy more at ten
-   souls a glass if you like (no healing, just the room tilting), talk to
-   yourselves, and leave by the portal at the right end of the bar.
+   next. You walk in after the Horizon falls and the house pours until you
+   are whole again (healing only — the max never moves). Buy more at ten
+   souls a glass if you like (no further healing, just the room tilting), talk
+   to yourselves, and leave by the portal at the right end of the bar.
    Solo only, like the rift and the void ending: co-op rolls straight on.
    ========================================================= */
 "use strict";
 
-const SALOON_HEAL = 10;            // the first round, on the house — current vitality, capped at max
+const SALOON_HEAL_FRAC = 1;        // the first round, on the house — fraction of max vitality restored (1 = full rest)
 const SALOON_ROUND = 10;           // souls for every round after it
 const SAL_ROUND_GAP = 0.9;         // seconds between rounds: a held key mustn't drain the souls in a blink
 const SAL_LINE_T = 2.6;            // seconds each of the barkeep's answer lines holds
@@ -445,13 +445,14 @@ function saloonHolster(p) {
   if (S.scoldT <= 0 && !S.talk && S.greet === 2) { S.scoldT = 9; salSay(S.keep, "Not in my saloon.", 2.4); }
 }
 
-/* the first round, on the house: +10 to whatever vitality you have, never past your max */
+/* the first round, on the house: the saloon is a rest stop, so it pours until
+   the warden is whole again (SALOON_HEAL_FRAC = 1; lower it to ration the rest) */
 function salPour() {
   const S = Game.saloon, me = localPlayer();
-  salSay(S.keep, me.hp >= me.maxHp ? "You look fine. First round's on me anyway." : "First round's on me.", 2.8);
+  salSay(S.keep, me.hp >= me.maxHp ? "You look fine. First round's on me anyway." : "You look like hell. First round's on me.", 2.8);
   for (const p of alivePlayers()) {
     const before = p.hp;
-    p.hp = Math.min(p.maxHp, p.hp + SALOON_HEAL);
+    p.hp = Math.min(p.maxHp, p.hp + p.maxHp * SALOON_HEAL_FRAC);
     const got = Math.round(p.hp - before);
     floatText(p.x, p.y - 30, got > 0 ? "+" + got + " VITALITY" : "FULL", "#7dff5e", 16, { life: 1.6, vy: 26, outline: "#0b0b14" });
     if (got > 0) healFlare(p.x, p.y);

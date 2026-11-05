@@ -481,27 +481,33 @@ async function submit(id, amount, tag) {
 
   /* Pure — no DOM, no fetch. Classifies how the local best relates to one
      fetched window of normalized rows (all math on .raw, never the formatted
-     .score string). Returns:
+     .score string). `lowerBetter` flips the comparison for CLEAR TIMES, where
+     the smallest raw (milliseconds) owns rank 1. Returns:
        kind "none"     — nothing to simulate (no local best)
-       kind "caughtUp" — server already shows >= local best; render as-is
+       kind "caughtUp" — server already shows a best at least as good; render as-is
        kind "insert"   — splice a pending row into `rest` at `index`, rank ≈`rank`
        kind "beyond"   — best falls off a full page; true rank unknowable here
      `rest` is the window with my own (stale) row filtered out, so an insert
      never produces a duplicate YOU. Server rows keep their server ranks —
      renumbering strangers would trade one honest gap for many fabricated ones. */
-  function computeProjection(entries, best) {
+  function computeProjection(entries, best, lowerBetter) {
     const none = { kind: "none", rest: entries, index: 0, rank: 0, orBetter: false, myServerRank: 0 };
     if (!(best > 0)) return none;   // mirrors submit()'s amount > 0 guard
     const mine = entries.filter(isMine);
     const myServerRank = mine.length ? (Number(mine[0].rank) || 0) : 0;
     const staleRaw = mine.length ? Math.max(...mine.map(m => m.raw)) : -1;
-    if (staleRaw >= best)   // >= also covers a higher score submitted from another device
+    /* the best stale row under this board's own direction (min for clear times) */
+    const staleBest = mine.length ? (lowerBetter ? Math.min(...mine.map(m => m.raw)) : staleRaw) : -1;
+    /* caught up when the server already holds a score >= best, or a time <= best */
+    if (lowerBetter ? (staleBest >= 0 && staleBest <= best) : (staleRaw >= best))
       return { kind: "caughtUp", rest: entries, index: 0, rank: 0, orBetter: false, myServerRank };
     const rest = mine.length ? entries.filter(e => !isMine(e)) : entries;
     const pageFull = entries.length >= 25;   // PGS page cap — both call sites request 25
-    const i = rest.findIndex(e => e.raw <= best);
+    const beaten = e => lowerBetter ? e.raw >= best : e.raw <= best;
+    const strictlyBetter = e => lowerBetter ? e.raw < best : e.raw > best;
+    const i = rest.findIndex(beaten);
     if (i < 0) {   // beats nobody visible
-      if (mine.length && myServerRank > 0)   // passed no one → rank unchanged, score pending
+      if (mine.length && myServerRank > 0)   // passed no one → rank unchanged, record pending
         return { kind: "insert", rest, index: rest.length, rank: myServerRank, orBetter: false, myServerRank };
       if (pageFull) return { kind: "beyond", rest, index: 0, rank: 0, orBetter: false, myServerRank };
       // whole board visible (top window / empty board) → competition ranking by count
@@ -515,10 +521,11 @@ async function submit(id, amount, tag) {
     } else {
       // strictly beaten — take the displaced row's server rank, minus one when my
       // stale row sat above it (its rank counted me; I'm not above myself)
-      rank = (Number(rest[i].rank) || 0) - (staleRaw > rest[i].raw ? 1 : 0);
+      const countedMe = lowerBetter ? (staleBest >= 0 && staleBest < rest[i].raw) : (staleRaw > rest[i].raw);
+      rank = (Number(rest[i].rank) || 0) - (countedMe ? 1 : 0);
       index = i;
     }
-    if (!(rank > 0)) rank = 1 + rest.slice(0, i).filter(e => e.raw > best).length;   // plugin rank drift → count-based
+    if (!(rank > 0)) rank = 1 + rest.slice(0, i).filter(strictlyBetter).length;   // plugin rank drift → count-based
     // beat the whole visible window and it doesn't start at #1 → never overclaim
     const orBetter = i === 0 && (Number(rest[0].rank) || 0) > 1;
     return { kind: "insert", rest, index, rank, orBetter, myServerRank };
@@ -556,9 +563,41 @@ async function submit(id, amount, tag) {
     return null;
   }
 
+  /* Run-end clear-time place. Same shape as getProjectedRank, but the board is
+     ordered fastest-first: the local best clear (Meta.bests*.speedSec, already
+     written by RunTimer.finish before the run-end screen) is the target, and
+     `lowerBetter` makes every comparison read correctly. A run that never
+     reached THE UNKNOWN has no clear time, so this simply resolves null. */
+  async function getProjectedClearRank(opts = {}) {
+    const mode = modeOf(opts);
+    if (!available() || !modeSupported(mode)) return null;
+    const b = bestsFor(mode);
+    const best = b && b.speedSec > 0 ? Math.round(b.speedSec * 1000) : 0;
+    if (!(best > 0)) return null;
+    const top = await getTopClearTimes({ maxResults: 25, mode });
+    if (top.ok) {
+      const p = computeProjection(top.entries, best, true);
+      if (p.kind === "insert")
+        return { rank: p.rank, orBetter: p.orBetter, settled: false, beyond25: false };
+      if (p.kind === "caughtUp" && p.myServerRank > 0)
+        return { rank: p.myServerRank, orBetter: false, settled: true, beyond25: false };
+    }
+    // off the top page → the centered window carries my row and still places me
+    const near = await getNearbyClearTimes({ maxResults: 25, mode });
+    if (near.ok && near.entries.length) {
+      const p = computeProjection(near.entries, best, true);
+      if (p.kind === "insert")
+        return { rank: p.rank, orBetter: p.orBetter, settled: false, beyond25: false };
+      if (p.kind === "caughtUp" && p.myServerRank > 0)
+        return { rank: p.myServerRank, orBetter: false, settled: true, beyond25: false };
+    }
+    if (top.ok || near.ok) return { rank: 0, orBetter: false, settled: false, beyond25: true };
+    return null;
+  }
+
   return { available, init, submitRun, submitClearTime, show, syncMenuButton, syncAchievements,
            getTopScores, getNearbyScores, getTopClearTimes, getNearbyClearTimes, myPlayerId, myName,
-           localBest, tagFor, isMine, computeProjection, getProjectedRank,
+           localBest, tagFor, isMine, computeProjection, getProjectedRank, getProjectedClearRank,
            getMyServerScore, isLikelyHidden, modeSupported,
            nativeUI, submissionPlace, backend: () => BOARD_BACKEND };
 })();

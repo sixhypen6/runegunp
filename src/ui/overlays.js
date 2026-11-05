@@ -956,12 +956,15 @@ $("lbMetricClear").addEventListener("click", () => lbShowMetric("clear"));
 $("lbNativeView").addEventListener("click", () => Leaderboard.show({ mode: lbMode }));
 $("leaderboardClose").addEventListener("click", closeLeaderboard);
 
-/* Run-end projected-rank line (death + ascend screens; ending.js calls this at
+/* Run-end projected place line (death + ascend screens; ending.js calls this at
    runtime like it already calls bankSouls). Fire-and-forget right after
    submitRun — the screen never waits on it: the line pops in on success and
-   stays hidden on any failure. The monotonic token guards retry loops, where a
-   slow response could land while Game.state is "dead" again for a NEW run
-   (possibly in the other mode) — the state check alone can't catch that. */
+   stays hidden on any failure. Both boards are asked at once: the SOULS place
+   and, when this save owns a completed descent, the CLEAR TIME place, so the
+   line reads "#6 SOULS · #1 CLEAR TIME". The monotonic token guards retry
+   loops, where a slow response could land while Game.state is "dead" again for
+   a NEW run (possibly in the other mode) — the state check alone can't catch
+   that. */
 let runEndRankReq = 0;
 async function fillRunRankLine(elId, wantState) {
   const el = $(elId);
@@ -973,14 +976,26 @@ async function fillRunRankLine(elId, wantState) {
   /* pinned before the await — state may move on. CHAOS keeps its mode here
      too: it now owns a board of its own on the shared online board. */
   const mode = Game.chaosMode ? "chaos" : Game.hardMode ? "hard" : "normal";
-  const r = await Leaderboard.getProjectedRank({ mode });
-  if (req !== runEndRankReq || Game.state !== wantState || !r) return;
+  const [r, c] = await Promise.all([
+    Leaderboard.getProjectedRank({ mode }),
+    typeof Leaderboard.getProjectedClearRank === "function"
+      ? Leaderboard.getProjectedClearRank({ mode })
+      : Promise.resolve(null),
+  ]);
+  if (req !== runEndRankReq || Game.state !== wantState) return;
   const prefix = mode === "hard" ? "HARD · " : mode === "chaos" ? "CHAOS · " : "";
-  el.textContent =
-    r.hidden ? prefix + "SCORE RECORDED — HIDDEN BY YOUR PLAY GAMES PRIVACY"   // full how-to lives in THE RECKONING
-      : r.beyond25 ? prefix + "THE VOID STILL TALLIES YOUR RANK"
-        : r.settled ? prefix + "GLOBAL RANK #" + r.rank            // exact — it's the server's own row
-          : prefix + "GLOBAL RANK ≈ #" + r.rank + (r.orBetter ? " OR BETTER" : "");
+  const parts = [];
+  if (r) {
+    if (r.hidden) parts.push("SCORE RECORDED — HIDDEN BY YOUR PLAY GAMES PRIVACY");   // full how-to lives in THE RECKONING
+    else if (r.beyond25) parts.push("THE VOID STILL TALLIES YOUR SOULS RANK");
+    else parts.push((r.settled ? "#" : "≈ #") + r.rank + " SOULS" + (r.orBetter ? " OR BETTER" : ""));
+  }
+  if (c) {
+    if (c.beyond25) parts.push("THE VOID STILL TALLIES YOUR CLEAR RANK");
+    else parts.push((c.settled ? "#" : "≈ #") + c.rank + " CLEAR TIME" + (c.orBetter ? " OR BETTER" : ""));
+  }
+  if (!parts.length) return;
+  el.textContent = prefix + parts.join(" · ");
   el.style.display = "";
 }
 
