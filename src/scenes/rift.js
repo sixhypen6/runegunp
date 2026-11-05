@@ -14,7 +14,7 @@ const RIFT_PICK_R = 30;
 const RIFT_PICK_SLOTS = 2;          // the real unknown's absence pays better than its rite
 /* SPEEDRUN compresses the creature's rite — every beat still plays, just on a
    faster clock. 1 = normal pace; 2 = half the wait. Tweak freely. */
-const RIFT_SPEEDRUN_RATE = 2;
+const RIFT_SPEEDRUN_RATE = 2.5; //2.5 bc i felt 2 was slow.
 function riftClockRate() {
   return (typeof Meta !== "undefined" && Meta.speedrun) ? RIFT_SPEEDRUN_RATE : 1;
 }
