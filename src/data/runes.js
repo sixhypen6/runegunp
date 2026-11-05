@@ -165,6 +165,15 @@ function partyWardCut() {
 /* =========================================================
    RUNES — every rune stacks: mod(m, n) where n = stacks held
    ========================================================= */
+/* PUNCTURE finds the gap. The SNIPER's patient eye turns the same five stacks
+   into a guaranteed puncture, and the round that finds it strikes harder. */
+function punctureMod(m, n, p) {
+  const sniper = p && p.char === "sniper";
+  const step = sniper && typeof SNIPER_CRIT_STEP === "number" ? SNIPER_CRIT_STEP : 0.12;
+  const cap = sniper && typeof SNIPER_CRIT_CAP === "number" ? SNIPER_CRIT_CAP : 0.6;
+  m.crit = Math.min(cap, m.crit + step * n);
+  if (sniper && typeof SNIPER_CRIT_MUL === "number") m.critMul = Math.max(m.critMul, SNIPER_CRIT_MUL);
+}
 const RUNES = {
   scatter: { name: "SCATTER", glyph: "ᛋ", color: "#ffd23d",
     desc: "+2 bullets per stack in a widening fan. Each bullet hits a little softer.",
@@ -255,7 +264,7 @@ const RUNES = {
     mod: (m, n) => { m.prey *= stackMul(1.2, n); } },
   puncture: { name: "PUNCTURE", glyph: "ᛈ", color: "#ffd23d",
     desc: "Every shot can find the gap in the armor — a chance to strike for more than double. Each stack raises the odds, up to 60%. Bosses bleed too.",
-    mod: (m, n) => { m.crit = Math.min(0.6, m.crit + 0.12 * n); } },
+    mod: punctureMod },
   wrath: { name: "WRATH", glyph: "ᚨ", color: "#ff3d2e",
     desc: "The closer to death, the deadlier the gun — up to +50% damage per stack, scaling from nothing at full vitality to its peak near death. Zero risk while healthy.",
     mod: (m, n) => { m.wrath += 0.5 * stackCurve(n); } },
@@ -403,7 +412,7 @@ const UNK_PLAYER_RUNES = {
     mod: (m, n) => { m.prey *= stackMul(1.2, n); } },
   puncture: { name: "THE NEEDLE", glyph: "ᛈ", color: "#ffd23d",
     desc: "Every shot can find the gap in the armor — a chance to strike for more than double. Each stack raises the odds, up to 60%. Bosses bleed too.",
-    mod: (m, n) => { m.crit = Math.min(0.6, m.crit + 0.12 * n); } },
+    mod: punctureMod },
   wrath: { name: "THE TEMPER", glyph: "ᚨ", color: "#ff3d2e",
     desc: "The closer to death, the deadlier the gun — up to +50% damage per stack, scaling from nothing at full vitality to its peak near death. Zero risk while healthy.",
     mod: (m, n) => { m.wrath += 0.5 * stackCurve(n); } },
@@ -475,12 +484,19 @@ const UNK_PLAYER_RUNE_IDS = Object.keys(UNK_PLAYER_RUNES);
 const SAW_VENOM_RUNE = Object.assign({}, RUNES.venom, {
   desc: "The blade itself is poisoned. Every third bite on the same horror leaves a standing pool behind it.",
 });
+/* PUNCTURE as the SNIPER reads it: the patient eye takes the same five stacks
+   past everyone else's 60% ceiling — all the way to a guaranteed puncture. */
+const SNIPER_PUNCTURE_RUNE = Object.assign({}, RUNES.puncture, {
+  desc: "The patient eye finds the gap every time. Each stack adds 20% — five stacks make every shot puncture, and the round that finds the gap strikes for ×2.5. Bosses bleed too.",
+});
 function runeDefFor(p, id) {
   if (p.char === "sancho" && id === "phase")
     return Object.assign({}, RUNES.phase, { color: PHASE_SANCHO_COLOR });
   /* the SHREDDER has no trigger to fire venom through, so its card has to
      describe what the blade does instead (see SAW_VENOM_RUNE) */
   if (p.char === "shredder" && id === "venom") return SAW_VENOM_RUNE;
+  /* PUNCTURE's ceiling is higher for the rifle (see punctureMod) */
+  if (p.char === "sniper" && id === "puncture") return SNIPER_PUNCTURE_RUNE;
   return (p.char === "theUnknown" && UNK_PLAYER_RUNES[id]) ? UNK_PLAYER_RUNES[id]
     : (HIDDEN_RUNES[id] ? HIDDEN_RUNES[id] : RUNES[id]);
 }
@@ -619,7 +635,7 @@ function buildWeaponModsFrom(runes, p) {
   }
   for (const id in runes) {
     const n = runes[id];
-    if (n > 0) { const rd = runeDefFor(p, id); if (rd) rd.mod(m, n); }
+    if (n > 0) { const rd = runeDefFor(p, id); if (rd) rd.mod(m, n, p); }
   }
   if (p.char === "sancho") {
     const hardbloodPower = Math.floor((p.hardblood || 0) / 6);

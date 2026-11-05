@@ -11,6 +11,12 @@ const SNIPER_RANGE_DMG = 0.15;    // +15% damage per range step
 const SNIPER_RANGE_STEP = 100;    // px per step
 const SNIPER_RANGE_CAP = 0.9;     // never more than +90% (600 px)
 const SNIPER_PIERCE = 2;          // extra bodies a rifle round passes through
+/* PUNCTURE answers the rifle at full strength: the same five stacks that stop
+   at 60% for everyone else find a gap every single shot, and the round that
+   finds it bites harder. */
+const SNIPER_CRIT_STEP = 0.20;    // PUNCTURE chance per stack (others: 12%)
+const SNIPER_CRIT_CAP = 1;        // five stacks = every shot punctures
+const SNIPER_CRIT_MUL = 2.5;      // the gap the rifle finds strikes for ×2.5
 /* The scope's reach: SNIPER sees more of the arena, and the camera leans a
    long way toward the aim so the shot can be lined up from outside the pack. */
 const SNIPER_ZOOM = 0.82;         // multiplier on the device's base zoom
@@ -48,7 +54,7 @@ const CHARS = {
     hp: 85, speed: 257.5, dashCd: 1.0, startRunes: 0, rerolls: 4,
     weaponBase: { dmg: 16, rate: 2.6, size: 4 } },
   sniper: { name: "SNIPER", glyph: "ᚿ", color: "#c8e6a0", cost: 60000,
-    desc: "90 vitality. A patient marksman: the farther a shot travels, the harder it bites — +15% damage per 100px, up to +90% at 600px. Base rounds hit +60%, fly +50% faster and punch through 2 bodies, but the rifle cycles 35% slower and NEVER fires itself — hold the trigger. The scope sees farther than anyone. With a companion at your side, [E] sends it to break a distant seal. SCATTER never answers the rifle.",
+    desc: "90 vitality. A patient marksman: the farther a shot travels, the harder it bites — +15% damage per 100px, up to +90% at 600px. Base rounds hit +60%, fly +50% faster and punch through 2 bodies, but the rifle cycles 35% slower and NEVER fires itself — hold the trigger. The scope sees farther than anyone. PUNCTURE answers the rifle at full strength: five stacks guarantee the gap for ×2.5. With a companion at your side, [E] sends it to break a distant seal. SCATTER never answers the rifle.",
     hp: 90, speed: 235, dashCd: 1.25, startRunes: 0, rerolls: 3,
     rangeDmg: SNIPER_RANGE_DMG, rangeStep: SNIPER_RANGE_STEP, rangeCap: SNIPER_RANGE_CAP,
     weaponBase: { dmg: 16, rate: 2.925, size: 4, speed: 810, spread: 0.02, knock: 70, pierce: SNIPER_PIERCE } },
