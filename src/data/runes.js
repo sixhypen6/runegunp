@@ -548,6 +548,13 @@ function genThreeRunes(p) {
       if (avail[i] === "vampire") weights[i] *= 2;
     }
   }
+  /* the auth-code secret: REPRIEVE answers three times as often, EXTERMINATE twice as often */
+  if (typeof Meta !== "undefined" && Meta.cheatSecret) {
+    for (let i = 0; i < avail.length; i++) {
+      if (avail[i] === "reprieve") weights[i] *= 3;
+      if (avail[i] === "exterminate") weights[i] *= 2;
+    }
+  }
   const ids = [];
   for (let i = 0; i < 3 && avail.length > 0; i++) {
     const idx = weightedPick(avail, weights);

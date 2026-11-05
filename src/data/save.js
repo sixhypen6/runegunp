@@ -38,6 +38,7 @@ const Meta = {
   showRuneDescriptions: true, // hide rune-choice prose for a compact, stable card layout
   runePause: true,    // freeze the run while a rune is picked (off: the fight keeps moving)
   showHiddenRunes: false,     // easter-egg runes only appear for hidden wardens unless toggled on
+  cheatSecret: false,         // the auth-code secret: secret runes always on, reprieve ×3, exterminate ×2, shredder + every pet unlocked
   glow: "full",       // neon halo budget: "full" (default — the intended look) · "half" · "off".
                       // Trades the glow for GPU raster load; see the glow lever in canvas.js.
   juice: "full",      // kill-streak feedback: "full" · "lite" (no whole-screen effects) · "off".
@@ -164,6 +165,8 @@ function metaLoad() {
       Meta.juiceSet = !!d.juiceSet;
       /* hidden runes toggle — defaults off for returning saves */
       Meta.showHiddenRunes = d.showHiddenRunes === true;
+      /* the auth-code secret — defaults off, toggled by the cheat command */
+      Meta.cheatSecret = d.cheatSecret === true;
       /* speedrun clock — on for returning saves unless they explicitly hid it */
       Meta.runTimer = d.runTimer !== false;
       /* SPEEDRUN mode is opt-in: saves from before it existed start with it off */

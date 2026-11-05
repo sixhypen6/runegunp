@@ -588,6 +588,7 @@ const RunegunConsole = {
       "  cast <rune>                   force THE UNKNOWN to cast one now",
       "  vault                         show the vault bank",
       "  vault <n> · +n · -n           set / add to / take from the bank",
+      "  cheat                         toggle the secret code (secret runes on, reprieve ×3, exterminate ×2, shredder + every pet unlocked)",
       "  unlock <key>                  unlock one vault entry (stackables to max)",
       "  unlock hard | chaos           open a descent without felling its warden",
       "  unlock all                    unlock every vault entry and both descents",
@@ -718,6 +719,21 @@ const RunegunConsole = {
           Meta.bank = hit[1] === "+" ? before + n : hit[1] === "-" ? Math.max(0, before - n) : n;
           this.metaKeep();
           this.log("VAULT BANK · " + before.toLocaleString() + " → " + Meta.bank.toLocaleString() + " souls.");
+        }
+      } else if (command === "cheat") {
+        /* the auth-code secret: secret runes always on, reprieve ×3, exterminate ×2,
+           shredder + every pet unlocked. Input it again to toggle off. */
+        const on = !Meta.cheatSecret;
+        Meta.cheatSecret = on;
+        Meta.showHiddenRunes = on;
+        if (on) {
+          Meta.unlocked["char:shredder"] = true;
+          for (const k in PTYPES) Meta.unlocked["pet:" + k] = true;
+          this.metaKeep();
+          this.log("SECRET CODE ACTIVE · secret runes always on · REPRIEVE answers ×3 · EXTERMINATE ×2 · SHREDDER and every pet unlocked.");
+        } else {
+          this.metaKeep();
+          this.log("SECRET CODE SEALED · secret runes back to normal.");
         }
       } else if (command === "unlock") {
         const what = args[0];
