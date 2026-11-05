@@ -108,9 +108,8 @@ function riftTakePick(q) {
   let col = "#ffd23d";
 
   if (Game.challenge === "runeless") {
-    runelessBoon(p);
+    runelessRiftBoon(p);
     col = "#7ad7ff";
-    toast("THE HUSH GIVES WHAT IT CAN — VITALITY AND HASTE");
   } else if (Game.challenge === "onerune") {
     /* the pick is the warden's one rune; the hush pays it twice and no slots */
     const id = (p.lockedRunes && p.lockedRunes[0]) || q.id;
@@ -155,8 +154,7 @@ function riftRitual() {
    Under a challenge it pays that challenge's price instead. */
 function riftChaosGift(p) {
   if (Game.challenge === "runeless") {
-    runelessBoon(p);
-    toast("THE RIFT POURS IN — VITALITY AND HASTE");
+    runelessRiftBoon(p);
     return;
   }
   if (Game.challenge === "onerune") {
@@ -207,7 +205,7 @@ function updateRift(dt) {
       }
       if (best && me) {
         hint = Game.challenge === "runeless"
-          ? "A WARMTH IN THE HUSH — [ E ] TAKE IT"
+          ? "A LASTING WARMTH IN THE HUSH — [ E ] TAKE IT"
           : runeDefFor(me, best.id).name + " — [ E ] TAKE THE RUNE";
         act = () => riftTakePick(best);
       }

@@ -25,6 +25,8 @@ function makePlayer(cfg, idx) {
     vampireExcess: 0, vampireMaxBonus: 0,
     rerolls: c.rerolls + (cfg.rerollBuff || 0),
     maxHpMul: 1, bonusRuneSlots: 0,
+    /* RUNELESS: the rift's lasting gifts — extra max vitality and stride */
+    boonMaxHp: 0, boonMove: 0,
     /* downed / revive (co-op): crawling, waiting on a partner's hands */
     downed: false, reviveT: 0,
     /* REPRIEVE: the save's cooldown and the horde-hold it leaves behind */

@@ -24,7 +24,7 @@ const CHALLENGE_DEFS = [
   },
   {
     id: "runeless", name: "RUNELESS", glyph: "⊘", color: "#7ad7ff", mul: 1.5,
-    desc: "Found runes will not answer; rune boxes mend and hasten instead. Signature loadouts remain.",
+    desc: "Found runes will not answer; rune boxes mend and hasten instead, and the rift pays in lasting vitality and stride. Signature loadouts remain.",
   },
   {
     id: "onerune", name: "ONE RUNE", glyph: "ᚱ", color: "#ffd23d", mul: 1.25,
@@ -36,6 +36,11 @@ const CHALLENGE_DEFS = [
 const RUNELESS_HEAL = 25;
 const RUNELESS_HASTE_T = 8;
 const RUNELESS_HASTE_MUL = 1.35;
+/* The rift cannot hand a rune to a runeless warden, so it pays in lasting
+   flesh instead: the vitality toll is returned, the warden is mended whole,
+   and the hush's stride stays for the rest of the descent. Tune the gift here. */
+const RUNELESS_RIFT_MAXHP = 25;   // permanent max vitality per rift boon
+const RUNELESS_RIFT_MOVE = 0.15;  // permanent move speed per rift boon
 
 function challengeDef(id) {
   if (!id) return null;
@@ -85,5 +90,27 @@ function runelessBoon(p) {
     toast(healed > 0 ? "THE BOX OPENS — VITALITY AND HASTE" : "THE BOX OPENS — HASTE");
     updateHp();
     if (typeof AudioFX !== "undefined") AudioFX.pickup();
+  }
+}
+
+/* RUNELESS: the rift's own gift. No rune can answer, so the hush returns the
+   vitality toll it charged at the door and leaves a permanent mark instead of
+   another blink of haste. */
+function runelessRiftBoon(p) {
+  if (!p) return;
+  const toll = (p.maxHpMul || 1) < 1;
+  p.maxHpMul = 1;                                   // give the half-vitality toll back
+  p.boonMaxHp = (p.boonMaxHp || 0) + RUNELESS_RIFT_MAXHP;
+  p.boonMove = (p.boonMove || 0) + RUNELESS_RIFT_MOVE;
+  recalc(p);
+  p.hp = p.maxHp;                                   // and step out of the hush whole
+  if (p === (typeof localPlayer === "function" ? localPlayer() : null)) {
+    if (typeof healFlare === "function") healFlare(p.x, p.y);
+    floatText(p.x, p.y - 34, "+" + RUNELESS_RIFT_MAXHP + " MAX VITALITY", "#7dff5e", 16);
+    floatText(p.x, p.y - 56, "+" + Math.round(RUNELESS_RIFT_MOVE * 100) + "% STRIDE", "#7ad7ff", 15);
+    toast(toll ? "THE HUSH RETURNS THE TOLL — VITALITY AND STRIDE"
+      : "THE HUSH GIVES LASTING STRENGTH — VITALITY AND STRIDE");
+    updateHp();
+    if (typeof AudioFX !== "undefined") AudioFX.chest();
   }
 }

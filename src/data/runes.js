@@ -642,6 +642,8 @@ function buildWeaponModsFrom(runes, p) {
     m.dmg *= 1 + hardbloodPower * 0.1;
     m.dr = Math.min(0.9, m.dr + hardbloodPower * 0.1);
   }
+  /* RUNELESS: the rift's lasting stride rides on top of whatever the gun knows */
+  if (p && p.boonMove) m.moveMul *= 1 + p.boonMove;
   /* fire rate past the ceiling isn't wasted — the surplus folds into damage,
      capped at what the rune-less gun would earn so it can never become a net gain */
   const foldRate = rateFold(m, runes);
@@ -777,7 +779,7 @@ function recalc(p) {
      so a rune carved while drunk doesn't silently pour the buffs away */
   if (typeof Game !== "undefined" && Game.drunk > 0 && typeof applyDrunkBuffs === "function") applyDrunkBuffs(p);
   const c = CHARS[p.char];
-  p.maxHp = Math.round((c.hp + p.mods.hpBonus + (p.vampireMaxBonus || 0)) * (p.maxHpMul || 1));
+  p.maxHp = Math.round((c.hp + p.mods.hpBonus + (p.vampireMaxBonus || 0) + (p.boonMaxHp || 0)) * (p.maxHpMul || 1));
   if (p.maxHp > wasMax) p.hp += p.maxHp - wasMax; // heal what extra max grants
   p.hp = Math.min(p.hp, p.maxHp);
   p.speed = c.speed * p.mods.moveMul;
