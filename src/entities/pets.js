@@ -2,7 +2,7 @@
    RUNEGUN · Pets
    Vault-bought companions that fight beside you. One equipped pet
    (Meta.pet) is spawned per floor in setupFloor and driven each frame
-   by updatePet / drawn by drawPet. All three reuse the core combat
+   by updatePet / drawn by drawPet. The combat pets reuse the core combat
    helpers (damageEnemy, nearestEnemy) and the shared bullets array.
 
    Each pet also has purchasable UPGRADES (Vault → PETS, shown under a
@@ -11,6 +11,14 @@
    "petbuff:<type>:<key>" and are baked onto the pet in spawnPet.
    ========================================================= */
 "use strict";
+
+/* SEEKER — the compass companion's tuning. It is a navigator first: its needle
+   finds sealed rune chests, and it can be sent to break one from across the
+   floor. Tune its reach, its errand and its marks here. */
+const SEEKER_FIND_RANGE = 3200;     // how far the needle can find a sealed rune chest
+const SEEKER_VITAL_RANGE = 3200;    // how far LIFE LODE can find a sealed vitality box
+const SEEKER_SEAL_CD = 2;           // seconds the locator goes dark after a seal breaks
+const SEEKER_ORBIT_R = 38;          // how far the compass floats from its warden
 
 const PTYPES = {
   orbiter: {
@@ -38,6 +46,16 @@ const PTYPES = {
     upgrades: {
       rate:  { name: "HAIL OF LEAD",     glyph: "»", cost: 4000, max: 5, desc: "Fires ~20% faster per level." },
       runes: { name: "RUNE-ETCHED SHOT", glyph: "ᛟ", cost: 12000, once: true, desc: "The imp's bullets inherit supported weapon effects — burn, chill, poison, chain lightning, pierce, and more." },
+    } },
+  seeker: {
+    name: "SEEKER", glyph: "✦", color: "#9fe8ff", cost: 20000,
+    desc: "A needle-bound compass spirit that circles your shoulder. Its needle always finds the nearest sealed rune chest — [ E ] sends it across the floor to break that seal, or marks the way when the box is too far. Each seal it breaks leaves the needle dark for a breath.",
+    r: 9,
+    upgrades: {
+      ambush: { name: "TRAP SIGHT", glyph: "◉", cost: 12000, once: true,
+        desc: "The first mark key (1) toggles a red sigil over every foe a rune chest's ambush sends at you." },
+      vital:  { name: "LIFE LODE",  glyph: "❤", cost: 12000, once: true,
+        desc: "The second mark key (2) turns the needle and an edge-arrow toward the nearest sealed vitality box." },
     } },
 };
 
@@ -128,9 +146,10 @@ function petBlock(pet) {
 }
 
 /* =========================================================
-   SNIPER'S ERRAND — a companion sent to undo a distant seal.
-   The warden keeps the rifle; the pet walks the long way, and the
-   ambush springs around the box instead of around the marksman.
+   THE SEAL ERRAND — a companion sent to undo a distant seal.
+   SNIPER keeps the rifle; the SEEKER lives for this. Either way
+   the pet walks the long way, and the ambush springs around the
+   box instead of around the warden.
    ========================================================= */
 function petForOwner(ow) { return pets.find(pt => pt.owner === ow) || null; }
 function nearestSealedChestTo(x, y, maxD) {
@@ -142,20 +161,99 @@ function nearestSealedChestTo(x, y, maxD) {
   }
   return best;
 }
+function nearestSealedHealthTo(x, y, maxD) {
+  let best = null, bd = maxD * maxD;
+  for (const h of healthBoxes) {
+    if (h.state !== "sealed") continue;
+    const d = dist2(h.x, h.y, x, y);
+    if (d < bd) { bd = d; best = h; }
+  }
+  return best;
+}
+/* Which companions answer the seal errand? SNIPER's kit sends any bound pet;
+   the SEEKER exists for nothing else. */
+function petSealSeeker(p) {
+  return !!(p && p.pet && (p.char === "sniper" || p.pet === "seeker"));
+}
+/* the needle's target, in priority order: the seal it was sent to, the seal it
+   was asked to mark, the nearest sealed chest, then a vitality box under LIFE LODE */
+function seekerNeedleTarget(pet) {
+  if (pet.order && pet.order.chest) return pet.order.chest;
+  const ow = pet.owner;
+  if (!ow) return null;
+  if (ow.seekerMarkX != null && ow.seekerMarkY != null) return { x: ow.seekerMarkX, y: ow.seekerMarkY };
+  const c = nearestSealedChestTo(pet.x, pet.y, SEEKER_FIND_RANGE);
+  if (c) return c;
+  if (ow.seekerVital && petLvl("seeker", "vital") > 0)
+    return nearestSealedHealthTo(pet.x, pet.y, SEEKER_VITAL_RANGE);
+  return null;
+}
 function orderPetToSeal(p) {
   const pet = petForOwner(p);
   if (!pet) { if (p === localPlayer()) toast("NO COMPANION ANSWERS"); return false; }
+  if ((p.seekerCd || 0) > 0) { if (p === localPlayer()) toast("THE NEEDLE IS DARK — " + p.seekerCd.toFixed(1) + "s"); return false; }
   if (pet.order) { if (p === localPlayer()) toast("YOUR COMPANION IS ALREADY SEEKING"); return false; }
   if (Game.ambush) { if (p === localPlayer()) toast("A SEAL ALREADY BREAKS"); return false; }
   const maxD = typeof SNIPER_PET_ORDER_RANGE === "number" ? SNIPER_PET_ORDER_RANGE : 1500;
   const chest = nearestSealedChestTo(p.x, p.y, maxD);
   if (!chest) { if (p === localPlayer()) toast("NO SEALED BOX IN REACH"); return false; }
+  if (p.pet === "seeker") { p.seekerMarkX = chest.x; p.seekerMarkY = chest.y; }
   pet.order = { chest, phase: "go" };
   if (p === localPlayer()) {
     floatText(pet.x, pet.y - 20, "SEEK THE SEAL", PTYPES[pet.type].color, 11);
     AudioFX.pickup();
   }
   return true;
+}
+/* SEEKER's [ E ]: always mark the nearest seal, and send the companion if the
+   box is close enough. The mark is a local waypoint; the errand is host-run. */
+function seekerSealErrand(p) {
+  const pet = petForOwner(p);
+  if (!pet) { if (p === localPlayer()) toast("NO COMPANION ANSWERS"); return false; }
+  if ((p.seekerCd || 0) > 0) { if (p === localPlayer()) toast("THE NEEDLE IS DARK — " + p.seekerCd.toFixed(1) + "s"); return false; }
+  const c = nearestSealedChestTo(p.x, p.y, SEEKER_FIND_RANGE);
+  if (!c) { if (p === localPlayer()) toast("THE NEEDLE FINDS NO SEALED BOX"); return false; }
+  p.seekerMarkX = c.x; p.seekerMarkY = c.y;
+  const maxD = typeof SNIPER_PET_ORDER_RANGE === "number" ? SNIPER_PET_ORDER_RANGE : 1500;
+  if (!Game.ambush && !pet.order && dist2(c.x, c.y, p.x, p.y) <= maxD * maxD) return orderPetToSeal(p);
+  if (p === localPlayer()) {
+    floatText(pet.x, pet.y - 20, "SEAL MARKED", PTYPES.seeker.color, 11);
+    toast(Game.ambush ? "THE NEEDLE HOLDS THE MARK"
+      : pet.order ? "YOUR COMPANION IS ALREADY SEEKING"
+      : "TOO FAR TO SEND — THE NEEDLE POINTS THE WAY");
+    AudioFX.pickup();
+  }
+  return true;
+}
+/* press-1 toggle: every foe an ambush sends wears a sigil */
+function toggleSeekerAmbushMark(p) {
+  if (petLvl("seeker", "ambush") <= 0) {
+    if (p === localPlayer()) toast("TRAP SIGHT LIES UNBOUGHT IN THE VAULT");
+    return false;
+  }
+  p.seekerAmbush = !p.seekerAmbush;
+  if (p === localPlayer()) {
+    toast(p.seekerAmbush ? "TRAP SIGHT — EVERY AMBUSH FOE MARKED" : "TRAP SIGHT — THE MARKS FADE");
+    AudioFX.pickup();
+  }
+  return p.seekerAmbush;
+}
+/* press-2 toggle: the needle points at the nearest sealed vitality box */
+function toggleSeekerVitalMark(p) {
+  if (petLvl("seeker", "vital") <= 0) {
+    if (p === localPlayer()) toast("LIFE LODE LIES UNBOUGHT IN THE VAULT");
+    return false;
+  }
+  if (!p.seekerVital && !nearestSealedHealthTo(p.x, p.y, SEEKER_VITAL_RANGE)) {
+    if (p === localPlayer()) toast("NO SEALED VITALITY BOX ANSWERS");
+    return false;
+  }
+  p.seekerVital = !p.seekerVital;
+  if (p === localPlayer()) {
+    toast(p.seekerVital ? "LIFE LODE — THE NEEDLE SEEKS VITALITY" : "LIFE LODE — THE NEEDLE RESTS");
+    AudioFX.pickup();
+  }
+  return p.seekerVital;
 }
 
 function updatePet(pet, dt) {
@@ -182,6 +280,8 @@ function updatePet(pet, dt) {
       ord.phase = "return";
       if (!Game.ambush && ord.chest && ord.chest.state === "sealed") {
         triggerAmbush(ord.chest);
+        /* the needle goes dark for a breath after it cuts a seal */
+        ow.seekerCd = Math.max(ow.seekerCd || 0, SEEKER_SEAL_CD);
         floatText(ord.chest.x, ord.chest.y - 30, "THE COMPANION BREAKS THE SEAL", T.color, 12);
       }
     } else if (!go && d <= 46) {
@@ -222,6 +322,13 @@ function updatePet(pet, dt) {
     const step = Math.min(pet.speed * dt, Math.sqrt(dist2(pet.x, pet.y, tx, ty)));
     pet.x += Math.cos(a) * step; pet.y += Math.sin(a) * step;
     petContactDamage(pet, dt);
+  } else if (pet.type === "seeker") {
+    /* it circles at your shoulder, needle lifted toward whatever it has found */
+    pet.orbA += dt * 1.1;
+    const tx = ow.x + Math.cos(pet.orbA) * SEEKER_ORBIT_R;
+    const ty = ow.y + Math.sin(pet.orbA) * SEEKER_ORBIT_R - 4;
+    const k = 1 - Math.pow(0.0015, dt);
+    pet.x = lerp(pet.x, tx, k); pet.y = lerp(pet.y, ty, k);
   } else if (pet.type === "gunner") {
     const tx = ow.x - 26, ty = ow.y - 26;   // hover at your shoulder
     const k = 1 - Math.pow(0.0015, dt);
@@ -261,6 +368,7 @@ function updatePet(pet, dt) {
 
 function drawPet(cx, pet) {
   const T = PTYPES[pet.type];
+  if (pet.type === "seeker") { drawSeekerPet(cx, pet); return; }
   cx.save();
   /* ORB WARD hums a faint ring around the sentinel */
   if (pet.block) {
@@ -276,5 +384,46 @@ function drawPet(cx, pet) {
   cx.font = "bold " + (pet.r + 3) + "px monospace";
   cx.textAlign = "center"; cx.textBaseline = "middle";
   cx.fillText(T.glyph, pet.x, pet.y + 1);
+  cx.restore();
+}
+
+/* the SEEKER's compass: a ticked ring, a needle that leans toward what it has
+   found, and a counterweight tail. Purely a reading — the needle is the pet. */
+function drawSeekerPet(cx, pet) {
+  const T = PTYPES.seeker, col = T.color, t = Game.time;
+  const tgt = seekerNeedleTarget(pet);
+  const aim = tgt ? angTo(pet.x, pet.y, tgt.x, tgt.y) : t * 0.7;
+  cx.save();
+  cx.translate(pet.x, pet.y);
+  /* dark face */
+  cx.shadowColor = col; cx.shadowBlur = 9;
+  cx.fillStyle = "#0b0b14"; cx.globalAlpha = 0.9;
+  cx.beginPath(); cx.arc(0, 0, pet.r + 1, 0, TAU); cx.fill();
+  /* ticked bezel */
+  cx.globalAlpha = 0.9; cx.strokeStyle = col; cx.lineWidth = 1.6;
+  cx.beginPath(); cx.arc(0, 0, pet.r + 3, 0, TAU); cx.stroke();
+  cx.shadowBlur = 0; cx.globalAlpha = 0.6; cx.lineWidth = 1;
+  for (let i = 0; i < 8; i++) {
+    const a = i * TAU / 8 + t * 0.12;
+    const r1 = pet.r + 3, r2 = pet.r + (i % 2 ? 4.5 : 6.5);
+    cx.beginPath();
+    cx.moveTo(Math.cos(a) * r1, Math.sin(a) * r1);
+    cx.lineTo(Math.cos(a) * r2, Math.sin(a) * r2);
+    cx.stroke();
+  }
+  /* needle */
+  cx.rotate(aim);
+  cx.globalAlpha = 1; cx.fillStyle = col; cx.shadowColor = col; cx.shadowBlur = 8;
+  cx.beginPath();
+  cx.moveTo(pet.r - 1, 0); cx.lineTo(-2, -3.4); cx.lineTo(-5, 0); cx.lineTo(-2, 3.4);
+  cx.closePath(); cx.fill();
+  /* counterweight */
+  cx.globalAlpha = 0.5; cx.shadowBlur = 0;
+  cx.beginPath();
+  cx.moveTo(-pet.r + 2, 0); cx.lineTo(0, -2.2); cx.lineTo(0, 2.2);
+  cx.closePath(); cx.fill();
+  /* the needle's pivot */
+  cx.rotate(-aim); cx.globalAlpha = 0.95;
+  cx.beginPath(); cx.arc(0, 0, 1.6, 0, TAU); cx.fill();
   cx.restore();
 }

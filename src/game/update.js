@@ -47,13 +47,16 @@ function localInputFrame() {
   const f = { mx, my, aimX: Input.aimX, aimY: Input.aimY, aiming: Input.aiming,
     mouseX: Input.mouseX, mouseY: Input.mouseY, mouseDown: Input.touchMode ? Input.mouseDown : fireHeld(),
     touchMode: Input.touchMode, aimMode: Meta.aimMode, deskMode: Meta.deskMode,
-    dashTap: Input.dashTap, useTap: Input.useTap, recallTap: Input.recallTap, surgeTap: Input.surgeTap };
+    dashTap: Input.dashTap, useTap: Input.useTap, recallTap: Input.recallTap, surgeTap: Input.surgeTap,
+    mark1Tap: Input.mark1Tap, mark2Tap: Input.mark2Tap };
   Input.dashTap = false; Input.useTap = false; Input.recallTap = false; Input.surgeTap = false;
+  Input.mark1Tap = false; Input.mark2Tap = false;
   return f;
 }
 function zeroFrame() {
   return { mx: 0, my: 0, aimX: 0, aimY: 0, aiming: false, mouseX: undefined, mouseY: undefined,
-    mouseDown: false, touchMode: true, aimMode: "auto", deskMode: "auto", dashTap: false, useTap: false, recallTap: false, surgeTap: false };
+    mouseDown: false, touchMode: true, aimMode: "auto", deskMode: "auto", dashTap: false, useTap: false, recallTap: false, surgeTap: false,
+    mark1Tap: false, mark2Tap: false };
 }
 function inputFrameFor(p) {
   if (p === localPlayer()) return localInputFrame();
@@ -160,6 +163,7 @@ function updatePlayer(p, inp, dt) {
   p.reprieveCd = Math.max(0, (p.reprieveCd || 0) - dt);
   p.reprieveFreezeT = Math.max(0, (p.reprieveFreezeT || 0) - dt);
   p.hasteT = Math.max(0, (p.hasteT || 0) - dt);
+  p.seekerCd = Math.max(0, (p.seekerCd || 0) - dt);
   p.kickT = Math.max(0, (p.kickT || 0) - dt);
   p.sanchoSlashT = Math.max(0, (p.sanchoSlashT || 0) - dt);
   if (p.char === "sancho" && !p.downed) {
@@ -193,6 +197,12 @@ function updatePlayer(p, inp, dt) {
     if (p.char === "sancho" && inp.recallTap) sanchoManualRefine(p);
     if (p.char === "sancho" && inp.surgeTap) sanchoManualSurge(p);
     reanimatorTick(p, dt);
+  }
+  /* SEEKER — local navigation marks. They are never world state: a guest marks
+     their own screen, and the host never has to agree with it. */
+  if (isLocal && p.pet === "seeker") {
+    if (inp.mark1Tap) toggleSeekerAmbushMark(p);
+    if (inp.mark2Tap) toggleSeekerVitalMark(p);
   }
   if (inp.dashTap && p.dashCd <= 0) {
     p.dashT = p.dashDur; p.dashCd = p.dashCdBase;
@@ -517,17 +527,24 @@ function update(dt) {
     if (SEAL.state === "ready" && dist2(SEAL.x, SEAL.y, p.x, p.y) < (SEAL.r + 40) ** 2 && !Game.ambush) {
       pHint = "[ E ] WAKE WHAT SLEEPS BELOW"; pAct = () => spawnBoss();
     }
-    /* SNIPER: no box in arm's reach? send the companion down the long sight-line */
-    const pet = (p.char === "sniper" && p.pet) ? petForOwner(p) : null;
-    if (!pHint && pet && !pet.order && !Game.ambush) {
-      const maxD = typeof SNIPER_PET_ORDER_RANGE === "number" ? SNIPER_PET_ORDER_RANGE : 1500;
-      const c = nearestSealedChestTo(p.x, p.y, maxD);
+    /* the companion errand: SNIPER sends any bound pet; the SEEKER marks first
+       and sends only when the seal lies within its reach */
+    const pet = petSealSeeker(p) ? petForOwner(p) : null;
+    const maxD = typeof SNIPER_PET_ORDER_RANGE === "number" ? SNIPER_PET_ORDER_RANGE : 1500;
+    if (!pHint && pet && !pet.order && (p.seekerCd || 0) <= 0 && (p.pet === "seeker" || !Game.ambush)) {
+      const isSeeker = p.pet === "seeker";
+      const c = nearestSealedChestTo(p.x, p.y, isSeeker ? SEEKER_FIND_RANGE : maxD);
       if (c) {
-        const petName = PTYPES[p.pet] ? PTYPES[p.pet].name : "COMPANION";
-        pHint = "[ E ] SEND THE " + petName + " TO BREAK A SEAL";
-        pAct = () => orderPetToSeal(p);
+        const inSend = !Game.ambush && dist2(c.x, c.y, p.x, p.y) <= maxD * maxD;
+        pHint = isSeeker
+          ? (inSend ? "[ E ] SEND THE SEEKER TO BREAK A SEAL" : "[ E ] MARK THE NEAREST SEAL")
+          : "[ E ] SEND THE " + (PTYPES[p.pet] ? PTYPES[p.pet].name : "COMPANION") + " TO BREAK A SEAL";
+        pAct = () => (isSeeker ? seekerSealErrand(p) : orderPetToSeal(p));
       }
     }
+    /* the needle's brief dark reads even when there is no action to take */
+    if (!pHint && pet && p.pet === "seeker" && (p.seekerCd || 0) > 0)
+      pHint = "THE NEEDLE IS DARK — " + p.seekerCd.toFixed(1) + "s";
     /* the saloon is shared: its prompts and actions are per-warden, so a guest's
        [ E ] does exactly what the host's would */
     const sp = sh[p.idx];

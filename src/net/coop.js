@@ -500,12 +500,20 @@ const Coop = {
       for (const c of chests) if (c.state === "sealed" && dist2(c.x, c.y, self.x, self.y) < 64 * 64) hint = "[ E ] BREAK THE SEAL";
       for (const h of healthBoxes) if (h.state === "sealed" && dist2(h.x, h.y, self.x, self.y) < 64 * 64) hint = "[ E ] TAKE THE VITALITY";
       if (SEAL.state === "ready" && dist2(SEAL.x, SEAL.y, self.x, self.y) < (SEAL.r + 40) ** 2) hint = "[ E ] WAKE WHAT SLEEPS BELOW";
-      /* SNIPER's errand reads the same on a guest's screen; the host executes it */
-      const myPet = (self.char === "sniper" && self.pet) ? petForOwner(self) : null;
-      if (!hint && myPet && !myPet.order) {
-        const maxD = typeof SNIPER_PET_ORDER_RANGE === "number" ? SNIPER_PET_ORDER_RANGE : 1500;
-        if (nearestSealedChestTo(self.x, self.y, maxD))
-          hint = "[ E ] SEND THE " + (PTYPES[self.pet] ? PTYPES[self.pet].name : "COMPANION") + " TO BREAK A SEAL";
+      /* the companion errand reads the same on a guest's screen; the host executes it */
+      const myPet = petSealSeeker(self) ? petForOwner(self) : null;
+      const maxD = typeof SNIPER_PET_ORDER_RANGE === "number" ? SNIPER_PET_ORDER_RANGE : 1500;
+      if (!hint && myPet && !myPet.order && (self.seekerCd || 0) <= 0) {
+        const isSeeker = self.pet === "seeker";
+        const c = nearestSealedChestTo(self.x, self.y, isSeeker ? SEEKER_FIND_RANGE : maxD);
+        if (c) {
+          const inSend = dist2(c.x, c.y, self.x, self.y) <= maxD * maxD;
+          hint = isSeeker
+            ? (inSend ? "[ E ] SEND THE SEEKER TO BREAK A SEAL" : "[ E ] MARK THE NEAREST SEAL")
+            : "[ E ] SEND THE " + (PTYPES[self.pet] ? PTYPES[self.pet].name : "COMPANION") + " TO BREAK A SEAL";
+        }
+      } else if (!hint && myPet && self.pet === "seeker" && (self.seekerCd || 0) > 0) {
+        hint = "THE NEEDLE IS DARK — " + self.seekerCd.toFixed(1) + "s";
       }
     }
     /* THE SINGULAR: the host owns the state, but this screen still has to show

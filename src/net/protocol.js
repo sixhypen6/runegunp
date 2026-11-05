@@ -71,7 +71,8 @@ const BOSS_SKIP = new Set(["airDst", "convergePos"]);
 const PLAYER_FIELDS = ["x", "y", "vx", "vy", "hp", "maxHp", "shield", "shieldMax", "aim", "autoFire",
   "fireT", "dashT", "dashAng", "dashCd", "dashCdBase", "veilT", "veilCdBase", "kickT", "iframes",
   "downed", "gone", "reviveT", "puddleTick", "thrallRecallT", "reprieveCd",
-  "hardblood", "hbTimer", "hbStage", "weaponMode", "vampireExcess", "vampireMaxBonus"];
+  "hardblood", "hbTimer", "hbStage", "weaponMode", "vampireExcess", "vampireMaxBonus",
+  "seekerCd", "seekerMarkX", "seekerMarkY"];
 
 const NUM3 = v => typeof v === "number" ? Math.round(v * 100) / 100 : v;
 const QI = v => Math.round(v) || 0;                       // whole pixels
@@ -308,7 +309,8 @@ const Protocol = {
         if (err > 48) { p.x = o.x; p.y = o.y; }
         else if (err > 4) { p.x = lerp(p.x, o.x, 0.08); p.y = lerp(p.y, o.y, 0.08); }
         for (const f of ["hp", "maxHp", "shield", "shieldMax", "iframes", "downed", "gone", "reviveT",
-          "hardblood", "hbTimer", "hbStage", "weaponMode", "vampireExcess", "vampireMaxBonus"])
+          "hardblood", "hbTimer", "hbStage", "weaponMode", "vampireExcess", "vampireMaxBonus",
+          "seekerCd", "seekerMarkX", "seekerMarkY"])
           if (o[f] !== undefined) p[f] = o[f];
       }
       p.curses = o.curses || {};

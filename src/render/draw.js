@@ -2135,6 +2135,9 @@ function drawAfterWardens() {
   /* objective arrows ride above the vignette (they live at the darkened edges)
      but under the floor-change fade */
   drawGuideArrows();
+  /* the SEEKER's own marks ride with the guide arrows, but they are NOT muted
+     during an ambush — the ambush is exactly when TRAP SIGHT matters */
+  drawSeekerMarks();
   /* floor transition: the dark swallows the old floor, then releases the new one */
   if (Game.floorFade > 0) { cx.fillStyle = `rgba(4,3,10,${Math.min(1, Game.floorFade * 1.4)})`; cx.fillRect(0, 0, W, H); }
 
@@ -2228,5 +2231,104 @@ function drawGuideArrows() {
     cx.restore();
   }
   cx.globalAlpha = 1;
+}
+
+/* =========================================================
+   SEEKER MARKS — the compass companion's local vision.
+     · its errand / [ E ] mark: a ring on the sealed rune chest
+     · TRAP SIGHT (upgrade, key 1): a red sigil on every ambush foe
+     · LIFE LODE  (upgrade, key 2): a green ring / edge-arrow to the nearest
+       sealed vitality box
+   None of this is world state. The host never sees a guest's marks and never
+   needs to: every check below is read from what is already on this screen.
+   Unlike drawGuideArrows this stays on during an ambush — that is its moment.
+   ========================================================= */
+function seekerEdgeArrow(x, y, color, shape) {
+  const M = 46;
+  const tx = (x - Game.cam.x) * ZOOM, ty = (y - Game.cam.y) * ZOOM;
+  if (tx > 24 && tx < W - 24 && ty > 24 && ty < H - 24) return false;
+  const dx = tx - W / 2, dy = ty - H / 2;
+  const s = Math.min((W / 2 - M) / Math.abs(dx || 0.0001), (H / 2 - M) / Math.abs(dy || 0.0001));
+  const ax = W / 2 + dx * s, ay = H / 2 + dy * s, ang = Math.atan2(dy, dx);
+  const pulse = 0.6 + 0.25 * Math.sin(Game.time * 5);
+  const slide = 3 * Math.sin(Game.time * 5);
+  cx.save();
+  cx.translate(ax, ay); cx.rotate(ang);
+  cx.globalAlpha = pulse;
+  cx.fillStyle = color; cx.shadowColor = color; cx.shadowBlur = 10;
+  cx.beginPath();
+  cx.moveTo(14 + slide, 0); cx.lineTo(-2 + slide, -9); cx.lineTo(2 + slide, 0); cx.lineTo(-2 + slide, 9);
+  cx.closePath(); cx.fill();
+  cx.shadowBlur = 0;
+  cx.translate(-12 + slide, 0); cx.rotate(-ang);
+  if (shape === "heart") {
+    cx.lineWidth = 2; cx.strokeStyle = color;
+    cx.beginPath(); cx.moveTo(0, 4); cx.lineTo(-4, 0); cx.lineTo(-2, -2.5);
+    cx.lineTo(0, -1); cx.lineTo(2, -2.5); cx.lineTo(4, 0); cx.closePath(); cx.stroke();
+  } else if (shape === "diamond") {
+    cx.rotate(Math.PI / 4); cx.fillRect(-4, -4, 8, 8);
+  } else {
+    cx.lineWidth = 2.5; cx.strokeStyle = color;
+    cx.beginPath(); cx.arc(0, 0, 5, 0, TAU); cx.stroke();
+  }
+  cx.restore(); cx.globalAlpha = 1;
+  return true;
+}
+function seekerReticle(x, y, color, kind, lift) {
+  const sx = (x - Game.cam.x) * ZOOM;
+  const sy = (y - Game.cam.y) * ZOOM - (lift || 0) * ZOOM - (kind === "foe" ? 10 : 0);
+  if (sx < -40 || sx > W + 40 || sy < -40 || sy > H + 40) return;
+  const pulse = 0.7 + 0.3 * Math.sin(Game.time * 5);
+  cx.save();
+  cx.translate(sx, sy);
+  cx.globalAlpha = pulse; cx.strokeStyle = color; cx.lineWidth = 2;
+  cx.shadowColor = color; cx.shadowBlur = 10;
+  if (kind === "seal") {
+    const r = 30 + 4 * Math.sin(Game.time * 4);
+    cx.beginPath(); cx.arc(0, 0, r, 0, TAU); cx.stroke();
+    for (let i = 0; i < 4; i++) {
+      const a = i * Math.PI / 2;
+      cx.beginPath();
+      cx.moveTo(Math.cos(a) * (r - 7), Math.sin(a) * (r - 7));
+      cx.lineTo(Math.cos(a) * (r + 8), Math.sin(a) * (r + 8));
+      cx.stroke();
+    }
+  } else if (kind === "vital") {
+    const r = 26 + 3 * Math.sin(Game.time * 4);
+    cx.beginPath(); cx.arc(0, 0, r, 0, TAU); cx.stroke();
+    cx.lineWidth = 2.5;
+    cx.beginPath(); cx.moveTo(0, -7); cx.lineTo(0, 7); cx.moveTo(-7, 0); cx.lineTo(7, 0); cx.stroke();
+  } else {
+    cx.rotate(Math.PI / 4); cx.strokeRect(-6, -6, 12, 12); cx.rotate(-Math.PI / 4);
+    cx.beginPath(); cx.arc(0, 0, 11, 0, TAU); cx.stroke();
+  }
+  cx.restore(); cx.globalAlpha = 1;
+}
+function drawSeekerMarks() {
+  if (Game.state !== "play" || Game.inSaloon || Game.inRift || Game.inUnknown || Game.ceremonyT) return;
+  const p = localPlayer();
+  if (!p || p.pet !== "seeker") return;
+  const col = PTYPES.seeker.color;
+  /* the seal the companion was sent to, or asked to point at */
+  if (p.seekerMarkX != null && p.seekerMarkY != null) {
+    let live = null;
+    for (const c of chests)
+      if (c.state === "sealed" && dist2(c.x, c.y, p.seekerMarkX, p.seekerMarkY) < 90 * 90) { live = c; break; }
+    if (!live) { p.seekerMarkX = null; p.seekerMarkY = null; }
+    else if (!seekerEdgeArrow(live.x, live.y, col, "ring")) seekerReticle(live.x, live.y, col, "seal");
+  }
+  /* TRAP SIGHT — every foe an ambush sent wears a sigil, wherever it runs */
+  if (p.seekerAmbush && petLvl("seeker", "ambush") > 0) {
+    for (const e of enemies) {
+      if (e.dead || !e.ambush) continue;
+      seekerReticle(e.x, e.y, "#ff4d5e", "foe", e.r);
+    }
+  }
+  /* LIFE LODE — the nearest unopened vitality box */
+  if (p.seekerVital && petLvl("seeker", "vital") > 0) {
+    const h = nearestSealedHealthTo(p.x, p.y, SEEKER_VITAL_RANGE);
+    if (h && !seekerEdgeArrow(h.x, h.y, "#7dff5e", "heart"))
+      seekerReticle(h.x, h.y, "#7dff5e", "vital");
+  }
 }
 

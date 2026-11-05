@@ -27,6 +27,8 @@ function makePlayer(cfg, idx) {
     maxHpMul: 1, bonusRuneSlots: 0,
     /* RUNELESS: the rift's lasting gifts — extra max vitality and stride */
     boonMaxHp: 0, boonMove: 0,
+    /* SEEKER: the locator's marks and the dark after it cuts a seal */
+    seekerCd: 0, seekerMarkX: null, seekerMarkY: null, seekerAmbush: false, seekerVital: false,
     /* downed / revive (co-op): crawling, waiting on a partner's hands */
     downed: false, reviveT: 0,
     /* REPRIEVE: the save's cooldown and the horde-hold it leaves behind */
@@ -118,6 +120,8 @@ function setupFloor(first) {
   soulMotes = [];
   portal = null; rift = null;
   pets = [];
+  /* the SEEKER's old marks belong to the floor that just ended */
+  for (const p of players) { p.seekerMarkX = null; p.seekerMarkY = null; p.seekerCd = 0; }
   for (const p of players) if (p.pet && PTYPES[p.pet]) pets.push(assignId(spawnPet(p.pet, p)));
   Game.ambush = null; Game.boss = null; Game.shake = 0;
   /* a floor change drops the streak silently — no cash-out sting for walking through a door */

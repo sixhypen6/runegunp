@@ -12,6 +12,7 @@ const Input = {
   aimX: 0, aimY: 0, aiming: false,
   touchMode: false,
   dashTap: false, useTap: false, recallTap: false, surgeTap: false,
+  mark1Tap: false, mark2Tap: false,
 };
 
 /* ---------- key bindings (desktop) ----------
@@ -27,13 +28,14 @@ const Input = {
    Q is the surge key — at max hardblood it unleashes the Hardblood Surge.
    The action ids stay "recall" and "surge" so saves and co-op counters work;
    CONTROLS labels them accordingly. */
-const KEY_ACTIONS = ["up", "down", "left", "right", "fire", "dash", "use", "recall", "surge", "runes"];
+const KEY_ACTIONS = ["up", "down", "left", "right", "fire", "dash", "use", "recall", "surge", "mark1", "mark2", "runes"];
 const KEY_DEFAULTS = {
   up: ["KeyW", "ArrowUp"], down: ["KeyS", "ArrowDown"], left: ["KeyA", "ArrowLeft"], right: ["KeyD", "ArrowRight"],
-  fire: ["Mouse0", null], dash: ["Space", null], use: ["KeyE", null], recall: ["KeyR", null], surge: ["KeyQ", null], runes: ["Tab", "KeyI"],
+  fire: ["Mouse0", null], dash: ["Space", null], use: ["KeyE", null], recall: ["KeyR", null], surge: ["KeyQ", null],
+  mark1: ["Digit1", null], mark2: ["Digit2", null], runes: ["Tab", "KeyI"],
 };
-const PAD_ACTIONS = ["fire", "dash", "use", "recall", "surge", "runes"];
-const PAD_DEFAULTS = { fire: 7, dash: 6, use: 0, recall: 3, surge: 2, runes: 8 };   // RT · LT · A · Y · X · VIEW
+const PAD_ACTIONS = ["fire", "dash", "use", "recall", "surge", "mark1", "mark2", "runes"];
+const PAD_DEFAULTS = { fire: 7, dash: 6, use: 0, recall: 3, surge: 2, mark1: null, mark2: null, runes: 8 };   // RT · LT · A · Y · X · VIEW
 function keyBinds(act) { return (Meta.keyBinds && Meta.keyBinds[act]) || KEY_DEFAULTS[act]; }
 function padBind(act) {
   const v = Meta.padBinds ? Meta.padBinds[act] : undefined;
@@ -53,6 +55,8 @@ function pressBound(code, e) {
   if (keyBound("use", code) && Game.state === "play") Input.useTap = true;
   if (keyBound("recall", code) && Game.state === "play" && !(e && e.repeat)) Input.recallTap = true;
   if (keyBound("surge", code) && Game.state === "play" && !(e && e.repeat)) Input.surgeTap = true;
+  if (keyBound("mark1", code) && Game.state === "play" && !(e && e.repeat)) Input.mark1Tap = true;
+  if (keyBound("mark2", code) && Game.state === "play" && !(e && e.repeat)) Input.mark2Tap = true;
   if (keyBound("runes", code)) { if (e) e.preventDefault(); toggleRunesHeld(); }
 }
 
