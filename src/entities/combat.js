@@ -292,6 +292,51 @@ function fireWeapon(p, inp, dt) {
       return;
     }
   }
+  /* FORTRESS — three forward-facing guns: main cannon slower, two side guns faster */
+  if (p.char === "fortress" && firing) {
+    const sideOffset = 9;
+    const perpX = Math.cos(aim + Math.PI / 2), perpY = Math.sin(aim + Math.PI / 2);
+    /* side guns: faster rate, shoot straight from side mounts */
+    p.sideFireT = (p.sideFireT || 0) - dt;
+    if (p.sideFireT <= 0) {
+      const sideRate = m.rate * 1.6;
+      p.sideFireT = 1 / (sideRate * jamMul);
+      for (const s of [-1, 1]) {
+        const mk = (ox, oy) => bullets.push({
+          x: p.x + Math.cos(aim) * 14 + ox + perpX * sideOffset * s,
+          y: p.y + Math.sin(aim) * 14 + oy + perpY * sideOffset * s,
+          vx: Math.cos(aim) * m.speed, vy: Math.sin(aim) * m.speed,
+          r: m.size, dmg: 9, t: 0, life: 1.5,
+          pierce: m.pierce, bounce: m.bounce, homing: m.homing,
+          venom: m.venom, ember: m.ember, frost: m.frost, storm: m.storm,
+          bleed: m.bleed,
+          execute: m.execute, knock: m.knock * 0.7,
+          crit: m.crit, critMul: m.critMul, fear: m.fear, fearDur: m.fearDur,
+          owner: p,
+          x0: p.x + Math.cos(aim) * 14 + perpX * sideOffset * s,
+          y0: p.y + Math.sin(aim) * 14 + perpY * sideOffset * s,
+          hitSet: null,
+        });
+        mk(0, 0);
+      }
+      p.kickT = 0.05;
+      Game.shake = Math.max(Game.shake, 1);
+      AudioFX.shoot();
+    }
+    /* main gun: slower base rate */
+    if (p.fireT <= 0) {
+      p.fireT = 1 / (m.rate * jamMul);
+      spawnShot(p, p.x, p.y, aim);
+      p.kickT = 0.09;
+      Game.shake = Math.max(Game.shake, 2);
+      AudioFX.shoot();
+      for (let i = 0; i < 3; i++) particles.push({
+        x: p.x + Math.cos(aim) * 20, y: p.y + Math.sin(aim) * 20,
+        vx: Math.cos(aim + rnd(-0.5, 0.5)) * rnd(60, 180), vy: Math.sin(aim + rnd(-0.5, 0.5)) * rnd(60, 180),
+        t: 0, life: 0.15, r: rnd(2, 4), color: "#ffd23d" });
+    }
+    return;
+  }
   if (!firing || p.fireT > 0) return;
   const jamMul = curseActive(p, "jam") ? 0.5 : 1;
   /* The Shredder's trigger throws rune-etched debris off the saw's rim at whatever
@@ -346,28 +391,6 @@ function fireWeapon(p, inp, dt) {
     return;
   }
   p.fireT = 1 / (m.rate * jamMul);
-  /* FORTRESS — three guns: main cannon (paired 12-dmg rounds, fired below via
-     spawnShot) plus two side guns at 9 dmg each, angled slightly outward. */
-  if (p.char === "fortress") {
-    const sideAimL = aim - 0.3;
-    const sideAimR = aim + 0.3;
-    for (const sa of [sideAimL, sideAimR]) {
-      const mk = (ox, oy) => bullets.push({
-        x: p.x + Math.cos(sa) * 18 + ox, y: p.y + Math.sin(sa) * 18 + oy,
-        vx: Math.cos(sa) * m.speed, vy: Math.sin(sa) * m.speed,
-        r: m.size, dmg: 9, t: 0, life: 1.5,
-        pierce: m.pierce, bounce: m.bounce, homing: m.homing,
-        venom: m.venom, ember: m.ember, frost: m.frost, storm: m.storm,
-        bleed: m.bleed,
-        execute: m.execute, knock: m.knock,
-        crit: m.crit, critMul: m.critMul, fear: m.fear, fearDur: m.fearDur,
-        owner: p,
-        x0: p.x + Math.cos(sa) * 18, y0: p.y + Math.sin(sa) * 18,
-        hitSet: null,
-      });
-      mk(0, 0);
-    }
-  }
   if (p.char === "sancho" && reanimatorAuthority()) {
     p.sanchoAttackCount = (p.sanchoAttackCount || 0) + 1;
     if (p.sanchoAttackCount >= SANCHO_REFINE_ATTACKS) {

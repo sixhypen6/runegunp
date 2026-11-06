@@ -1654,6 +1654,29 @@ function drawWarden(P) {
         drawCracks(cx, hpFrac, 12);
         cx.restore();
 
+      } else if (P.char === "fortress") {
+        /* FORTRESS: octagon war-machine with three forward-facing gun barrels */
+        cx.save(); cx.translate(px, py); cx.rotate(aim);
+        cx.beginPath();
+        for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; i === 0 ? cx.moveTo(Math.cos(a)*17, Math.sin(a)*17) : cx.lineTo(Math.cos(a)*17, Math.sin(a)*17); }
+        cx.closePath(); cx.fill();
+        cx.fillStyle = "#0b0b14"; cx.beginPath(); cx.arc(0, 0, 7, 0, TAU); cx.fill();   // central hub
+        cx.fillStyle = tint; cx.font = "bold 11px monospace"; cx.textAlign = "center"; cx.textBaseline = "middle";
+        cx.fillText("ᛝ", 0, 1);
+        drawCracks(cx, hpFrac, 14);
+        cx.restore();
+        /* three barrels: center + two side-mounted, all pointing forward */
+        cx.strokeStyle = tint; cx.lineWidth = 7; cx.lineCap = "square";
+        const barrelLen = 26;
+        const sideOffset = 10;
+        cx.beginPath(); cx.moveTo(px+Math.cos(aim)*13, py+Math.sin(aim)*13); cx.lineTo(px+Math.cos(aim)*barrelLen, py+Math.sin(aim)*barrelLen); cx.stroke();
+        for (const s of [-1, 1]) {
+          cx.beginPath();
+          cx.moveTo(px+Math.cos(aim)*13 + perpX*sideOffset*s, py+Math.sin(aim)*13 + perpY*sideOffset*s);
+          cx.lineTo(px+Math.cos(aim)*barrelLen + perpX*sideOffset*s, py+Math.sin(aim)*barrelLen + perpY*sideOffset*s);
+          cx.stroke();
+        }
+
       } else if (P.char === "necromancer") {
         /* Reanimator: a ragged robe, floating skull, soul core and runic staff. */
         cx.save(); cx.translate(px, py);
