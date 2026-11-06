@@ -327,12 +327,16 @@ function fireWeapon(p, inp, dt) {
     /* main gun: slower base rate */
     if (p.fireT <= 0) {
       p.fireT = 1 / (m.rate * jamMul);
-      spawnShot(p, p.x, p.y, aim);
+      const first = bullets.length;
+      spawnShot(p, p.x + Math.cos(aim) * 8, p.y + Math.sin(aim) * 8, aim);
+      /* the cannon's rounds burn gold so its volley reads apart from the side guns
+         (and SCATTER's extra pellets are visible at a glance) */
+      for (let i = first; i < bullets.length; i++) bullets[i].cannon = true;
       p.kickT = 0.09;
       Game.shake = Math.max(Game.shake, 2);
       AudioFX.shoot();
-      for (let i = 0; i < 3; i++) particles.push({
-        x: p.x + Math.cos(aim) * 20, y: p.y + Math.sin(aim) * 20,
+      for (let i = 0; i < 5; i++) particles.push({
+        x: p.x + Math.cos(aim) * 28, y: p.y + Math.sin(aim) * 28,
         vx: Math.cos(aim + rnd(-0.5, 0.5)) * rnd(60, 180), vy: Math.sin(aim + rnd(-0.5, 0.5)) * rnd(60, 180),
         t: 0, life: 0.15, r: rnd(2, 4), color: "#ffd23d" });
     }
