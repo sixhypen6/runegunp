@@ -292,6 +292,7 @@ function fireWeapon(p, inp, dt) {
       return;
     }
   }
+  const jamMul = curseActive(p, "jam") ? 0.5 : 1;
   /* FORTRESS — three forward-facing guns: main cannon slower, two side guns faster */
   if (p.char === "fortress" && firing) {
     const sideOffset = 9;
@@ -338,7 +339,6 @@ function fireWeapon(p, inp, dt) {
     return;
   }
   if (!firing || p.fireT > 0) return;
-  const jamMul = curseActive(p, "jam") ? 0.5 : 1;
   /* The Shredder's trigger throws rune-etched debris off the saw's rim at whatever
      the blade is grinding. It used to spawn ON the victim and fly along your aim
      with that victim skipped — which read as the enemy firing somewhere random,
