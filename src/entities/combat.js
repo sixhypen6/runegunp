@@ -346,6 +346,28 @@ function fireWeapon(p, inp, dt) {
     return;
   }
   p.fireT = 1 / (m.rate * jamMul);
+  /* FORTRESS — three guns: main cannon (paired 12-dmg rounds, fired below via
+     spawnShot) plus two side guns at 9 dmg each, angled slightly outward. */
+  if (p.char === "fortress") {
+    const sideAimL = aim - 0.3;
+    const sideAimR = aim + 0.3;
+    for (const sa of [sideAimL, sideAimR]) {
+      const mk = (ox, oy) => bullets.push({
+        x: p.x + Math.cos(sa) * 18 + ox, y: p.y + Math.sin(sa) * 18 + oy,
+        vx: Math.cos(sa) * m.speed, vy: Math.sin(sa) * m.speed,
+        r: m.size, dmg: 9, t: 0, life: 1.5,
+        pierce: m.pierce, bounce: m.bounce, homing: m.homing,
+        venom: m.venom, ember: m.ember, frost: m.frost, storm: m.storm,
+        bleed: m.bleed,
+        execute: m.execute, knock: m.knock,
+        crit: m.crit, critMul: m.critMul, fear: m.fear, fearDur: m.fearDur,
+        owner: p,
+        x0: p.x + Math.cos(sa) * 18, y0: p.y + Math.sin(sa) * 18,
+        hitSet: null,
+      });
+      mk(0, 0);
+    }
+  }
   if (p.char === "sancho" && reanimatorAuthority()) {
     p.sanchoAttackCount = (p.sanchoAttackCount || 0) + 1;
     if (p.sanchoAttackCount >= SANCHO_REFINE_ATTACKS) {

@@ -262,6 +262,23 @@ function updatePlayer(p, inp, dt) {
     /* RUNELESS: a rune box's short stride */
     const hasteMul = (p.hasteT || 0) > 0 ? RUNELESS_HASTE_MUL : 1;
     let mvx = mx * p.speed * weightMul * wadeMul * dm * hasteMul, mvy = my * p.speed * weightMul * wadeMul * dm * hasteMul;
+    /* FORTRESS boost: holding SHIFT engages thrusters — velocity builds with
+       inertia and carries you after you let go. Turning doesn't snap instantly. */
+    if (p.char === "fortress") {
+      const boosting = !p.downed && Input.keys["KeyShift"];
+      if (boosting) {
+        const k = 1 - Math.exp(-5 * dt);
+        p.fvx = (p.fvx || 0) + (mvx - (p.fvx || 0)) * k;
+        p.fvy = (p.fvy || 0) + (mvy - (p.fvy || 0)) * k;
+        mvx = p.fvx; mvy = p.fvy;
+      } else if ((p.fvx || 0) !== 0 || (p.fvy || 0) !== 0) {
+        const k = 1 - Math.exp(-4 * dt);
+        p.fvx = (p.fvx || 0) * (1 - k);
+        p.fvy = (p.fvy || 0) * (1 - k);
+        mvx = p.fvx; mvy = p.fvy;
+        if (Math.abs(p.fvx) < 0.5 && Math.abs(p.fvy) < 0.5) { p.fvx = 0; p.fvy = 0; }
+      }
+    }
     if (onIce(p.x, p.y)) {
       const k = 1 - Math.exp(-2.4 * dt);
       p.ivx = (p.ivx || 0) + (mvx - (p.ivx || 0)) * k; p.ivy = (p.ivy || 0) + (mvy - (p.ivy || 0)) * k;

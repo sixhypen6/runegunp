@@ -52,6 +52,8 @@ const PTYPES = {
     desc: "A needle-bound compass spirit that circles your shoulder. Its needle always finds the nearest sealed rune chest — [ E ] sends it across the floor to break that seal, or marks the way when the box is too far. Each seal it breaks leaves the needle dark for a breath.",
     r: 9,
     upgrades: {
+      speed:  { name: "SWIFT NEEDLE", glyph: "»", cost: 4000, max: 5,
+        desc: "+90 travel speed per level when sent to break a sealed rune chest." },
       ambush: { name: "TRAP SIGHT", glyph: "◉", cost: 12000, once: true,
         desc: "The first mark key (1) toggles a red sigil over every foe a rune chest's ambush sends at you." },
       vital:  { name: "LIFE LODE",  glyph: "❤", cost: 12000, once: true,
@@ -61,12 +63,36 @@ const PTYPES = {
 
 const petLvl = (type, key) => Meta.unlocked["petbuff:" + type + ":" + key] || 0;
 
+/* wispling targeting: always prefer rune-chest ambush foes (pick the one farthest
+   from the warden, so the pet clears distant threats for shredder/wraith), else
+   prefer the lowest-health foe in reach; fall back to nearest to the pet. */
+function wisplingTarget(pet) {
+  const ow = pet.owner, range2 = pet.range * pet.range;
+  let ambush = null, ambushD = -1, low = null, lowHp = Infinity, near = null, nearD = Infinity;
+  for (const e of enemies) {
+    if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p" || e.untargetable) continue;
+    if (dist2(ow.x, ow.y, e.x, e.y) >= range2) continue;
+    if (e.ambush) {
+      const d = dist2(ow.x, ow.y, e.x, e.y);
+      if (d > ambushD) { ambushD = d; ambush = e; }
+    } else {
+      const hp = e.hp != null ? e.hp : Infinity;
+      if (hp < lowHp || (hp === lowHp && dist2(pet.x, pet.y, e.x, e.y) < (low ? dist2(pet.x, pet.y, low.x, low.y) : Infinity))) {
+        lowHp = hp; low = e;
+      }
+      const d = dist2(pet.x, pet.y, e.x, e.y);
+      if (d < nearD) { nearD = d; near = e; }
+    }
+  }
+  return ambush || low || near;
+}
+
 function spawnPet(type, owner) {
   const T = PTYPES[type];
   const p = { type, owner, x: owner.x, y: owner.y, r: T.r, dmg: T.dmg,
     orbA: rnd(0, TAU), hitT: 0, fireT: 0,
     orbR: T.orbR, orbSpeed: T.orbSpeed, speed: T.speed, range: T.range, rate: T.rate,
-    block: false, lifesteal: 0, inherit: false, order: null };
+    block: false, lifesteal: 0, inherit: false, order: null, orderSpeed: 0 };
   if (type === "orbiter") {
     p.orbSpeed = T.orbSpeed + 0.8 * petLvl(type, "speed");
     p.dmg = T.dmg + 4 * petLvl(type, "dmg");
@@ -78,6 +104,8 @@ function spawnPet(type, owner) {
   } else if (type === "gunner") {
     p.rate = T.rate * Math.pow(0.8, petLvl(type, "rate"));
     p.inherit = petLvl(type, "runes") > 0;
+  } else if (type === "seeker") {
+    p.orderSpeed = 90 * petLvl(type, "speed");            // SWIFT NEEDLE: faster seal errand travel
   }
   /* bind-poof: the companion arrives, it doesn't just blink into existence */
   for (let k = 0; k < 12; k++) particles.push({ x: p.x, y: p.y,
@@ -173,7 +201,7 @@ function nearestSealedHealthTo(x, y, maxD) {
 /* Which companions answer the seal errand? SNIPER's kit sends any bound pet;
    the SEEKER exists for nothing else. */
 function petSealSeeker(p) {
-  return !!(p && p.pet && (p.char === "sniper" || p.pet === "seeker"));
+  return !!(p && p.pet && (p.char === "sniper" || p.char === "fortress" || p.pet === "seeker"));
 }
 /* the needle's target, in priority order: the seal it was sent to, the seal it
    was asked to mark, the nearest sealed chest, then a vitality box under LIFE LODE */
@@ -264,7 +292,7 @@ function updatePet(pet, dt) {
     if (ord.phase === "go" && (!ord.chest || ord.chest.state !== "sealed")) ord.phase = "return";
     const go = ord.phase === "go";
     const tx = go ? ord.chest.x : ow.x, ty = go ? ord.chest.y : ow.y;
-    const speed = typeof SNIPER_PET_ORDER_SPEED === "number" ? SNIPER_PET_ORDER_SPEED : 430;
+    const speed = (typeof SNIPER_PET_ORDER_SPEED === "number" ? SNIPER_PET_ORDER_SPEED : 430) + (pet.orderSpeed || 0);
     const reach = typeof SNIPER_PET_ORDER_REACH === "number" ? SNIPER_PET_ORDER_REACH : 34;
     const d = Math.sqrt(dist2(pet.x, pet.y, tx, ty));
     if (d > 0.01) {
@@ -306,10 +334,10 @@ function updatePet(pet, dt) {
     petContactDamage(pet, dt);
     if (pet.block) petBlock(pet);
   } else if (pet.type === "hunter") {
-    const tgt = nearestEnemy(pet.x, pet.y);
+    const tgt = wisplingTarget(pet);
     let tx, ty;
     if (tgt && dist2(ow.x, ow.y, tgt.x, tgt.y) < pet.range * pet.range) {
-      tx = tgt.x; ty = tgt.y;                  // hunt the nearest horror in reach
+      tx = tgt.x; ty = tgt.y;                  // hunt: ambush foes (farthest from warden) first, else lowest HP
       /* a violet smear marks the dart, so its signature lunge reads */
       if (Math.random() < 0.7) particles.push({ x: pet.x, y: pet.y, vx: 0, vy: 0,
         t: 0, life: 0.18, r: rnd(2, 3.5), color: PTYPES.hunter.color });

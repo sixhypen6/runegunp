@@ -79,6 +79,10 @@ const CHARS = {
     desc: "The absolute legend. Every stack of RUNEGUN doubles his damage (up to ×4096). Starts with 10 re-rolls and his signature rune.\nUNLOCK: 100,000 souls in the Keeper's vault. Turn on HIDDEN WARDENS in SETTINGS first so he appears on its shelves.",
     hp: 125, speed: 325, dashCd: 0.95, startRunes: 0, rerolls: 10,
     startLoadout: ["runegun"] },
+  fortress: { name: "FORTRESS", glyph: "ᛝ", color: "#bcd0ff", cost: 65000,
+    desc: "300 vitality of immovable steel. Slow on foot — hold SHIFT to engage the thrusters, building momentum that carries you after you let go. Bristles with three guns: a main cannon firing paired 12-damage rounds, and two side guns at 9 damage each. With a companion at your side, [E] sends it to break a distant seal.",
+    hp: 300, speed: 170, dashCd: 1.4, startRunes: 0, rerolls: 3,
+    weaponBase: { dmg: 12, rate: 2.5, size: 6, count: 2, spread: 0.08, knock: 100, pierce: 1 } },
     // whats startRunes? 0 is the default for all characters, but the Unknown has a special rule: it starts with 0 runes, but every time you die, it gains one more rune slot. So if you die 3 times, it will have 3 rune slots on your next run.
     //how is startRunes used in the code? It is used in the character selection screen to determine how many rune slots the character has at the start of the run. It is also used in the game logic to determine how many rune slots the character has when they die and respawn.
 };
