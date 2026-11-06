@@ -67,6 +67,14 @@ const Meta = {
     runes: "",              // comma-separated rune ids, acquisition order
     challenge: "",          // CHAOS modifier id behind the record ("" = standard / not chaos)
     tag: false,             // true once this record's own run was captured
+    /* the loadout behind the fastest CLEAR — its own record, captured in
+       systems/speedrun.js when the time improves, so a clear row never borrows
+       the warden from the souls record above */
+    clearChar: "gunsmith",  // CHARS key
+    clearRunes: "",         // comma-separated rune ids, acquisition order
+    clearPet: "",           // PTYPES key
+    clearChallenge: "",     // CHAOS modifier id behind the clear ("" = standard)
+    clearTag: false,        // true once that clear's loadout was captured
   },
   bestsHard: {        // personal records on HARD descents (lifetime void stats stay in bests above)
     score: 0,               // max Game.score on hard runs
@@ -78,6 +86,11 @@ const Meta = {
     runes: "",
     challenge: "",
     tag: false,
+    clearChar: "gunsmith",
+    clearRunes: "",
+    clearPet: "",
+    clearChallenge: "",
+    clearTag: false,
   },
   bestsClassic: {     // personal records on CLASSIC descents — the run ends at THE EVENT HORIZON
     score: 0,
@@ -89,6 +102,11 @@ const Meta = {
     runes: "",
     challenge: "",
     tag: false,
+    clearChar: "gunsmith",
+    clearRunes: "",
+    clearPet: "",
+    clearChallenge: "",
+    clearTag: false,
   },
   bestsChaos: {       // personal records on CHAOS descents — local only, no Play Games board
     score: 0,
@@ -100,6 +118,11 @@ const Meta = {
     runes: "",
     challenge: "",
     tag: false,
+    clearChar: "gunsmith",
+    clearRunes: "",
+    clearPet: "",
+    clearChallenge: "",
+    clearTag: false,
   },
 };
 const SAVE_KEY = "runegun.meta.v2";
@@ -215,6 +238,20 @@ function metaLoad() {
       loadTag(d.bestsHard, Meta.bestsHard);
       loadTag(d.bestsClassic, Meta.bestsClassic);
       loadTag(d.bestsChaos, Meta.bestsChaos);
+      /* clear-time loadouts are their own fields, restored separately so a
+         pre-update save's score tag can never masquerade as the clear tag */
+      const loadClearTag = (src, dst) => {
+        if (!src || typeof src !== "object") return;
+        if (typeof src.clearChar === "string" && typeof CHARS !== "undefined" && CHARS[src.clearChar]) dst.clearChar = src.clearChar;
+        if (typeof src.clearRunes === "string") dst.clearRunes = src.clearRunes.slice(0, 96);
+        if (typeof src.clearPet === "string") dst.clearPet = src.clearPet.slice(0, 24);
+        if (typeof src.clearChallenge === "string") dst.clearChallenge = src.clearChallenge.slice(0, 24);
+        if (src.clearTag === true) dst.clearTag = true;
+      };
+      loadClearTag(d.bests, Meta.bests);
+      loadClearTag(d.bestsHard, Meta.bestsHard);
+      loadClearTag(d.bestsClassic, Meta.bestsClassic);
+      loadClearTag(d.bestsChaos, Meta.bestsChaos);
       /* v3 migration: THE DROWNED NAVE was wedged in before the void, pushing the
          Event Horizon from kind/floor-index 3 to 4 — carry the old void records over.
          Old depth = loop*4 + idx decomposes exactly, old idx 3 (the void) is now 4. */

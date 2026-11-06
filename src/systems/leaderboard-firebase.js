@@ -17,6 +17,10 @@
        normal: { char, runes },               // the loadout behind that best
        hard:   { char, runes },
        chaos:  { char, runes },
+       normalClear: { char, runes },          // the loadout behind that fastest clear
+       hardClear:   { char, runes },
+       classicClear:{ char, runes },
+       chaosClear:  { char, runes },
      }
 
    The mode objects are cosmetic tags: WHICH warden and which runes the run
@@ -24,6 +28,10 @@
    itself improves, so a tag never describes a different run than the number
    beside it, and they are written in a SECOND request — an older rules tree
    without those fields must never cost a player their score.
+
+    The score tag (`normal`, ...) and the clear-time tag (`normalClear`, ...)
+    are separate records: a fast SHREDDER clear must not be labelled with the
+    GUNSMITH loadout that happens to hold the souls record, and vice versa.
 
    `name` is a generated WARDEN-XXXX callsign stored in Meta.boardName.
    `display` is an optional manual display handle to override the callsign.
@@ -65,6 +73,13 @@ const FirebaseBoard = (() => {
   const CLEAR_FIELDS = {
     normal: "normalClearMs", hard: "hardClearMs",
     classic: "classicClearMs", chaos: "chaosClearMs",
+  };
+  /* the loadout behind each fastest clear — deliberately separate from the
+     score tags above, because the run that set the time is not necessarily the
+     run that set the souls record */
+  const CLEAR_TAG_FIELDS = {
+    normal: "normalClear", hard: "hardClear",
+    classic: "classicClear", chaos: "chaosClear",
   };
   const slotOf = id => (FIELDS[id] ? id : "normal");
 
@@ -190,7 +205,9 @@ const FirebaseBoard = (() => {
   function cleanTag(tag) {
     const char = (tag && typeof tag.char === "string") ? tag.char.slice(0, 24) : "";
     const runes = (tag && typeof tag.runes === "string") ? tag.runes.slice(0, 96) : "";
+    const pet = (tag && typeof tag.pet === "string") ? tag.pet.slice(0, 24) : "";
     const out = { char: char || "gunsmith", runes };
+    if (pet) out.pet = pet;
     const challenge = (tag && typeof tag.challenge === "string") ? tag.challenge.slice(0, 24) : "";
     if (challenge) out.challenge = challenge;
     return out;
@@ -273,7 +290,7 @@ const FirebaseBoard = (() => {
     }
   }
 
-  async function submitClearTime(mode, timeMs, place) {
+  async function submitClearTime(mode, timeMs, place, platform, tag) {
     if (!signedIn || !uid || !CLEAR_FIELDS[mode]) return;
     const amount = Math.round(Number(timeMs) || 0);
     if (!(amount > 0) || amount > 86400000) return;
@@ -283,18 +300,41 @@ const FirebaseBoard = (() => {
       const snap = await guard(rowRef().child(key).get(), "clear-best");
       cur = Number(snap && snap.val && snap.val()) || 0;
     } catch (e) {}
-    if (cur > 0 && amount >= cur) return;
-    const updatePayload = { [key]: amount, updatedAt: stamp() };
-    if (typeof place === "string" && place) updatePayload.place = place.slice(0, 80);
-    await guard(rowRef().update(updatePayload), "clear-submit");
-    cache[mode + ":clear"] = null;
-    cache.allRows = null;
+    const better = !(cur > 0) || amount < cur;
+    /* A tie is not a new record, but it IS the one chance an older mis-tagged
+       row gets to be relabelled — so accept a supplied tag on an exact tie. */
+    if (!better && !(cur > 0 && amount === cur && tag)) return;
+    const updatePayload = {};
+    if (better) {
+      updatePayload[key] = amount;
+      updatePayload.updatedAt = stamp();
+      if (typeof place === "string" && place) updatePayload.place = place.slice(0, 80);
+      if (typeof platform === "string" && platform) updatePayload.platform = platform.slice(0, 40);
+    }
+    if (Object.keys(updatePayload).length) {
+      await guard(rowRef().update(updatePayload), "clear-submit");
+      cache[mode + ":clear"] = null;
+      cache.allRows = null;
+    }
+    if (tag) {
+      try {
+        await guard(rowRef().child(CLEAR_TAG_FIELDS[mode]).set(cleanTag(tag)), "clear-tag");
+        cache[mode + ":clear"] = null;
+        cache.allRows = null;
+      } catch (e) {
+        if (typeof console !== "undefined" && console.warn)
+          console.warn("[runegun] clear-time loadout tag was rejected; verify the deployed Firebase rules allow /scores/" + CLEAR_TAG_FIELDS[mode], (e && e.message) || e);
+      }
+    }
   }
 
   /* ---- reads ---- */
 function toEntry(id, row, key, slot, isClearTime) {
     const raw = Math.max(0, Math.floor(Number(row && row[key]) || 0));
-    const tag = (row && row[slot]) || null;
+    /* clear-time rows carry their OWN loadout; older rows fall back to the
+       score tag only because that is all the database used to hold */
+    const tag = (isClearTime && row && row[CLEAR_TAG_FIELDS[slot]])
+      || (row && row[slot]) || null;
     
     // Check manual display, then database name, then callsign, fallback to WARDEN
     const preferredName = (row && typeof row.display === "string" && row.display) || 
@@ -310,6 +350,7 @@ function toEntry(id, row, key, slot, isClearTime) {
       playerId: id,
       place: (row && typeof row.place === "string") ? row.place : "unknown",
       char: (tag && typeof tag.char === "string") ? tag.char : "",
+      pet: (tag && typeof tag.pet === "string") ? tag.pet : "",
       runes: (tag && typeof tag.runes === "string") ? tag.runes : "",
       challenge: (tag && typeof tag.challenge === "string") ? tag.challenge : "",
     };

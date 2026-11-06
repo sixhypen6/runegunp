@@ -162,11 +162,11 @@ async function submit(id, amount, tag) {
     } catch (e) {}
   }
 
-  function submitClearTime(mode, seconds) {
+  function submitClearTime(mode, seconds, tag) {
     const provider = fb();
     const timeMs = Math.round(Number(seconds) * 1000);
     if (!provider || board() !== provider || !signedIn || !modeSupported(mode) || !(timeMs > 0)) return;
-    provider.submitClearTime(modeOf(mode), timeMs, submissionPlace()).catch(() => {});
+    provider.submitClearTime(modeOf(mode), timeMs, submissionPlace(), null, tag || null).catch(() => {});
   }
   
   /* Re-post the stored bests the moment sign-in succeeds. A best earned while
@@ -179,7 +179,7 @@ async function submit(id, amount, tag) {
     ["normal", "hard", "classic", "chaos"].forEach(mode => {
       const b = bestsFor(mode);
       if (b && b.score > 0) submit(boardId(mode), b.score, tagFor(mode));
-      if (b && b.speedSec > 0) submitClearTime(mode, b.speedSec);
+      if (b && b.speedSec > 0) submitClearTime(mode, b.speedSec, clearTagFor(mode));
     });
   }
 
@@ -471,6 +471,30 @@ async function submit(id, amount, tag) {
     const char = (typeof CHARS !== "undefined" && CHARS[b.char]) ? b.char : (Meta && Meta.char) || "gunsmith";
     return { char, runes: (b.runes || "").slice(0, 96), challenge: (b.challenge || "").slice(0, 24) };
   }
+  /* The loadout behind the fastest clear — a different record from the souls
+     best, and captured in its own fields so the two can never borrow each
+     other's warden. Null when that clear predates this capture. */
+  function clearTagFor(mode) {
+    const b = bestsFor(mode);
+    if (!b || !b.clearTag) return null;
+    const char = (typeof CHARS !== "undefined" && CHARS[b.clearChar]) ? b.clearChar : (Meta && Meta.char) || "gunsmith";
+    const pet = (typeof PTYPES !== "undefined" && PTYPES[b.clearPet]) ? b.clearPet : "";
+    return { char, pet, runes: (b.clearRunes || "").slice(0, 96), challenge: (b.clearChallenge || "").slice(0, 24) };
+  }
+  /* The live loadout, read at the instant a descent is completed. Submitted with
+     the time so the clear row names the warden that actually set it. */
+  function liveTag() {
+    const p = (typeof localPlayer === "function") ? localPlayer() : null;
+    const char = (p && typeof CHARS !== "undefined" && CHARS[p.char]) ? p.char
+      : (typeof CHARS !== "undefined" && Meta && CHARS[Meta.char]) ? Meta.char : "";
+    if (!char) return null;
+    return {
+      char,
+      pet: (p && p.pet) || "",
+      runes: (p && typeof heldRuneString === "function") ? heldRuneString(p) : "",
+      challenge: (typeof Game !== "undefined" && Game.challenge) || "",
+    };
+  }
 
   /* The one definition of "this row is me" — id match, display-name fallback
      when sign-in returned no id. Highlight, dedup, and the self-heal check all
@@ -597,7 +621,7 @@ async function submit(id, amount, tag) {
 
   return { available, init, submitRun, submitClearTime, show, syncMenuButton, syncAchievements,
            getTopScores, getNearbyScores, getTopClearTimes, getNearbyClearTimes, myPlayerId, myName,
-           localBest, tagFor, isMine, computeProjection, getProjectedRank, getProjectedClearRank,
+           localBest, tagFor, clearTagFor, liveTag, isMine, computeProjection, getProjectedRank, getProjectedClearRank,
            getMyServerScore, isLikelyHidden, modeSupported,
            nativeUI, submissionPlace, backend: () => BOARD_BACKEND };
 })();

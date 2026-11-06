@@ -67,16 +67,27 @@ const RunTimer = {
     let prev = 0, newBest = false;
     if (!Game.devRun && !(typeof Net !== "undefined" && Net.active)) {
       const mode = modeBests();
+      const clearTag = (typeof Leaderboard !== "undefined" && typeof Leaderboard.liveTag === "function")
+        ? Leaderboard.liveTag() : null;
       prev = mode.speedSec || 0;
       if (!prev || stamp < prev) { mode.speedSec = stamp; newBest = true; }
+      /* the clear-time loadout is its own record — a tie also claims the label
+         when an older (or pre-update) best has no clear tag yet */
+      if (clearTag && (!prev || stamp <= prev)) {
+        mode.clearChar = clearTag.char;
+        mode.clearRunes = clearTag.runes;
+        mode.clearPet = clearTag.pet || "";
+        mode.clearChallenge = clearTag.challenge || "";
+        mode.clearTag = true;
+      }
       if (!Meta.speedBests) Meta.speedBests = {};
       const key = runSpeedKey(Meta.char);
       const per = Meta.speedBests[key] || 0;
       if (!per || stamp < per) { Meta.speedBests[key] = stamp; newBest = true; }
       metaSave();
       if (typeof Leaderboard !== "undefined" && typeof Leaderboard.submitClearTime === "function") {
-        const mode = Game.chaosMode ? "chaos" : Game.classicMode ? "classic" : Game.hardMode ? "hard" : "normal";
-        Leaderboard.submitClearTime(mode, stamp);
+        const boardMode = Game.chaosMode ? "chaos" : Game.classicMode ? "classic" : Game.hardMode ? "hard" : "normal";
+        Leaderboard.submitClearTime(boardMode, stamp, clearTag);
       }
     }
     this.paint(true);
