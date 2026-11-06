@@ -228,6 +228,7 @@ const Coop = {
     if (m && !stale) {
       f.mx = m.mx; f.my = m.my;
       f.aiming = !!m.fire;
+      f.boost = !!m.boost;
       f.aimX = Math.cos(m.aim); f.aimY = Math.sin(m.aim);
       f.aimMode = "manual";
       if (m.dashN > taps.dash) { f.dashTap = true; taps.dash = m.dashN; }
@@ -490,7 +491,7 @@ const Coop = {
     else if (f.deskMode === "auto") fire = !!self.autoFire;
     else if (f.deskMode === "cursor") fire = true;
     else fire = f.mouseDown;
-    Net.sendU({ t: "i", mx: f.mx, my: f.my, aim: self.aim, fire, dashN: this._dashN, useN: this._useN, recallN: this._recallN, surgeN: this._surgeN });
+    Net.sendU({ t: "i", mx: f.mx, my: f.my, aim: self.aim, fire, boost: !!f.boost, dashN: this._dashN, useN: this._useN, recallN: this._recallN, surgeN: this._surgeN });
   },
 
   /* interaction hints (display only — the host executes on our useTap) */

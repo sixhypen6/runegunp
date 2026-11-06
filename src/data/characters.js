@@ -24,6 +24,13 @@ const SNIPER_CAM_LEAD = 240;      // world px the camera may drift toward the ai
 const SNIPER_PET_ORDER_RANGE = 1500;   // how far a sealed box may be and still be sent for
 const SNIPER_PET_ORDER_SPEED = 430;    // companion's travel speed on the errand
 const SNIPER_PET_ORDER_REACH = 34;     // px from the box that counts as "there"
+/* FORTRESS — the war-machine's thrusters. Holding SHIFT drives the hull toward
+   its boosted top speed through a soft acceleration curve, so it leans into a
+   turn instead of snapping; releasing SHIFT lets it coast down on its own. */
+const FORTRESS_BOOST_MUL = 2.4;        // multiplier on base speed while thrusting
+const FORTRESS_BOOST_ACCEL = 6;        // how fast velocity chases the thrust (1/s)
+const FORTRESS_BOOST_DRAG = 1.6;       // how slowly momentum bleeds off after release
+const FORTRESS_BOOST_STOP = 2;         // px/s below which the hull is considered still
 
 
 /* ---------- characters & skins (vault unlockables) ---------- */

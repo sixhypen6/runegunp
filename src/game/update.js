@@ -47,6 +47,7 @@ function localInputFrame() {
   const f = { mx, my, aimX: Input.aimX, aimY: Input.aimY, aiming: Input.aiming,
     mouseX: Input.mouseX, mouseY: Input.mouseY, mouseDown: Input.touchMode ? Input.mouseDown : fireHeld(),
     touchMode: Input.touchMode, aimMode: Meta.aimMode, deskMode: Meta.deskMode,
+    boost: !!(Input.keys["ShiftLeft"] || Input.keys["ShiftRight"] || (typeof Pad !== "undefined" && Pad.boost)),
     dashTap: Input.dashTap, useTap: Input.useTap, recallTap: Input.recallTap, surgeTap: Input.surgeTap,
     mark1Tap: Input.mark1Tap, mark2Tap: Input.mark2Tap };
   Input.dashTap = false; Input.useTap = false; Input.recallTap = false; Input.surgeTap = false;
@@ -55,7 +56,8 @@ function localInputFrame() {
 }
 function zeroFrame() {
   return { mx: 0, my: 0, aimX: 0, aimY: 0, aiming: false, mouseX: undefined, mouseY: undefined,
-    mouseDown: false, touchMode: true, aimMode: "auto", deskMode: "auto", dashTap: false, useTap: false, recallTap: false, surgeTap: false,
+    mouseDown: false, touchMode: true, aimMode: "auto", deskMode: "auto", boost: false,
+    dashTap: false, useTap: false, recallTap: false, surgeTap: false,
     mark1Tap: false, mark2Tap: false };
 }
 function inputFrameFor(p) {
@@ -262,21 +264,26 @@ function updatePlayer(p, inp, dt) {
     /* RUNELESS: a rune box's short stride */
     const hasteMul = (p.hasteT || 0) > 0 ? RUNELESS_HASTE_MUL : 1;
     let mvx = mx * p.speed * weightMul * wadeMul * dm * hasteMul, mvy = my * p.speed * weightMul * wadeMul * dm * hasteMul;
-    /* FORTRESS boost: holding SHIFT engages thrusters — velocity builds with
-       inertia and carries you after you let go. Turning doesn't snap instantly. */
+    /* FORTRESS boost: holding SHIFT engages thrusters — the hull keeps its normal
+       walk, and the thrusters add a second velocity that builds up slowly and
+       coasts down after release, so a turn curves instead of snapping. inp.boost
+       is wired for co-op guests too. */
     if (p.char === "fortress") {
-      const boosting = !p.downed && Input.keys["KeyShift"];
-      if (boosting) {
-        const k = 1 - Math.exp(-5 * dt);
-        p.fvx = (p.fvx || 0) + (mvx - (p.fvx || 0)) * k;
-        p.fvy = (p.fvy || 0) + (mvy - (p.fvy || 0)) * k;
-        mvx = p.fvx; mvy = p.fvy;
-      } else if ((p.fvx || 0) !== 0 || (p.fvy || 0) !== 0) {
-        const k = 1 - Math.exp(-4 * dt);
-        p.fvx = (p.fvx || 0) * (1 - k);
-        p.fvy = (p.fvy || 0) * (1 - k);
-        mvx = p.fvx; mvy = p.fvy;
-        if (Math.abs(p.fvx) < 0.5 && Math.abs(p.fvy) < 0.5) { p.fvx = 0; p.fvy = 0; }
+      const boosting = !p.downed && !!inp.boost;
+      const extra = FORTRESS_BOOST_MUL - 1;
+      const tx = boosting ? mvx * extra : 0, ty = boosting ? mvy * extra : 0;
+      const rate = boosting ? FORTRESS_BOOST_ACCEL : FORTRESS_BOOST_DRAG;
+      const k = 1 - Math.exp(-rate * dt);
+      p.fvx = (p.fvx || 0) + (tx - (p.fvx || 0)) * k;
+      p.fvy = (p.fvy || 0) + (ty - (p.fvy || 0)) * k;
+      if (Math.abs(p.fvx) < FORTRESS_BOOST_STOP && Math.abs(p.fvy) < FORTRESS_BOOST_STOP) { p.fvx = 0; p.fvy = 0; }
+      mvx += p.fvx; mvy += p.fvy;
+      /* thruster wash: a short trail behind the hull while it is really moving */
+      if (boosting && (mx || my) && particles.length < 460 && Math.random() < dt * 26) {
+        const back = Math.atan2(p.fvy || my, p.fvx || mx) + Math.PI;
+        particles.push({ x: p.x + Math.cos(back) * 14, y: p.y + Math.sin(back) * 14,
+          vx: Math.cos(back) * rnd(70, 140) + rnd(-25, 25), vy: Math.sin(back) * rnd(70, 140) + rnd(-25, 25),
+          t: 0, life: rnd(0.15, 0.3), r: rnd(1.5, 3), color: "#bcd0ff" });
       }
     }
     if (onIce(p.x, p.y)) {
