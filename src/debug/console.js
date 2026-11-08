@@ -199,7 +199,7 @@ const RunegunConsole = {
 
   async copyDigest() {
     if (!this.lastDigest) {
-      this.log("No digest yet — run `auth hash <code> [coop|john|nacho]` first.");
+      this.log("No digest yet — run `auth hash <code> [coop|john|nacho|sigma]` first.");
       return false;
     }
     const copied = await this.copyText(this.lastDigest);
@@ -324,8 +324,8 @@ const RunegunConsole = {
     const code = String(input || "").trim();
     if (!code) {
       this.log("CO-OP CONSOLE · " + (ConsoleGate.granted() ? "OPEN" : "sealed") +
-        "\n  auth <code>        open it (host only — checks coop/john/nacho gates)\n" +
-        "  auth hash <code> [gate]   print the SHA-256 to store at /console/<gate> in Firebase\n" +
+        "\n  auth <code>        open it (host only — checks coop/john/nacho/sigma gates)\n" +
+        "  auth hash <code> [gate]   print the SHA-256 to store at /console/<gate> in Firebase (coop|john|nacho|sigma)\n" +
         "  auth off           seal it again");
       return;
     }
@@ -338,7 +338,7 @@ const RunegunConsole = {
     if (hashArg) {
       const rest = String(hashArg[1] || "").trim();
       /* `auth hash <code> [coop|john|nacho]` — defaults to coop. */
-      const m = /^([\s\S]*?)\s+(coop|john|nacho)$/i.exec(rest);
+      const m = /^([\s\S]*?)\s+(coop|john|nacho|sigma)$/i.exec(rest);
       const target = m ? m[1].trim() : rest;
       const gate = m ? m[2].toLowerCase() : "coop";
       const path = ConsoleGate.GATE_PATHS[gate] || ConsoleGate.GATE_PATHS.coop;
@@ -352,6 +352,17 @@ const RunegunConsole = {
     this.log("CHECKING THE GATE…");
     const r = await ConsoleGate.verifyAny(code);
     if (r.ok) {
+      if (r.gate === "sigma") {
+        /* Fourth code: activate the secret/cheat effects. */
+        Meta.cheatSecret = true;
+        Meta.showHiddenRunes = true;
+        if (typeof PTYPES !== "undefined") for (const k in PTYPES) Meta.unlocked["pet:" + k] = true;
+        Meta.unlocked["char:shredder"] = true;
+        this.metaKeep();
+        if (["play", "pause", "rune", "wait", "held", "choice"].includes(Game.state) && players && players.length) this.afterEdit();
+        this.log("CO-OP CONSOLE OPEN · secret runes always on · REPRIEVE (revive rune) ×3 chance to appear · EXtERMNAITE 2x chance to appear · HSREDDER (op char but melee) and every pet unlocked.");
+        return;
+      }
       const charId = ConsoleGate.GATE_CHAR[r.gate] || "sancho";
       Meta.unlocked["char:" + charId] = true;
       Meta.char = charId;
@@ -378,7 +389,7 @@ const RunegunConsole = {
       return;
     }
     if (r.reason === "mismatch") this.log("ERROR: that code does not open the gate.");
-    else if (r.reason === "unset") this.log("ERROR: no digest is set for any gate yet — use `auth hash <code> [coop|john|nacho]` and paste it into Firebase at /console/<gate>.");
+    else if (r.reason === "unset") this.log("ERROR: no digest is set for any gate yet — use `auth hash <code> [coop|john|nacho|sigma]` and paste it into Firebase at /console/<gate>.");
     else if (r.reason === "malformed") this.log("ERROR: the value at the gate is not a SHA-256 digest (64 hex characters).");
     else if (r.reason === "offline") this.log("ERROR: the gate could not be read — " + (r.error || "the void does not answer") + ".");
     else this.log("ERROR: no code given.");
@@ -594,7 +605,7 @@ const RunegunConsole = {
       "  cast <rune>                   force THE UNKNOWN to cast one now",
       "  vault                         show the vault bank",
       "  vault <n> · +n · -n           set / add to / take from the bank",
-      "  cheat                         toggle the secret code (secret runes on, reprieve ×3, exterminate ×2, shredder + every pet unlocked)",
+      "  cheat                         (legacy) toggle secret effects; same as 4th auth code sigma",
       "  unlock <key>                  unlock one vault entry (stackables to max)",
       "  unlock hard | chaos           open a descent without felling its warden",
       "  unlock all                    unlock every vault entry and both descents",

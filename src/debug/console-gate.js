@@ -23,12 +23,14 @@ const ConsoleGate = {
     coop: "console/coop",
     john: "console/john",
     nacho: "console/nacho",
+    sigma: "console/sigma",
   },
-  /* Which character each gate permanently unlocks. */
+  /* Which character each gate permanently unlocks (sigma activates cheat effects). */
   GATE_CHAR: {
     coop: "sancho",
     john: "john",
     nacho: "sancho",
+    sigma: null,
   },
   CACHE_MS: 30000,
 
@@ -181,7 +183,7 @@ const ConsoleGate = {
   },
 
   /* Check the typed code against every registered gate path. Returns the
-     first match as { ok: true, gate: "coop" | "john" | "nacho" }, or the
+     first match as { ok: true, gate: "coop" | "john" | "nacho" | "sigma" }, or the
      last failure reason when none match. */
   async verifyAny(code) {
     const norm = this.normalize(code);
