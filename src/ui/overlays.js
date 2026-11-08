@@ -195,6 +195,17 @@ function bankSouls() {
   return Game.score;
 }
 
+/* VAULT DESCRIPTIONS: ON/OFF — hides the prose on vault cards (chars, skins,
+   pets, buffs) for a compact shop while keeping the cost/next-level line
+   visible so the shop stays usable. Mirrors RUNE DESCRIPTIONS. */
+function vaultDesc(prose, extra) {
+  const show = Meta.showVaultDescriptions !== false;
+  const parts = [];
+  if (show && prose) parts.push(prose);
+  if (extra) parts.push(extra);
+  return parts.length ? "<div class='ds'>" + parts.join("<br>") + "</div>" : "";
+}
+
 /* ---------- the vault: characters & warpaint ----------
    kind: "char" | "skin" (body warpaint) | "gunskin" (gun warpaint).
    The two warpaint kinds share one unlock key ("skin:<key>") — a colour is bought
@@ -220,7 +231,7 @@ function vaultCard(key, def, kind) {
     "<span class='tag'>" + (selected ? "EQUIPPED" : owned ? "OWNED" : def.cost + " ◆") + "</span>" +
     "<span class='glyph'>" + (def.glyph || (kind === "gunskin" ? "⌖" : "◉")) + "</span>" +
     "<div class='nm'>" + def.name + "</div>" +
-    "<div class='ds'>" + def.desc + (owned || selected ? "" : "<br><b style='color:var(--gold)'>" + def.cost + " SOULS TO UNLOCK</b>") + "</div>" + advancedChar;
+    vaultDesc(def.desc, owned || selected ? "" : "<b style='color:var(--gold)'>" + def.cost + " SOULS TO UNLOCK</b>") + advancedChar;
   d.addEventListener("click", () => {
     if (!owned) {
       if (Meta.bank < def.cost) { keeperRefuse(d); return; }
@@ -255,8 +266,7 @@ function vaultStackCard() {
     "<span class='tag'>" + (maxed ? "MAXED" : "LEVEL " + level + " / " + REROLL_BUFF_MAX) + "</span>" +
     "<span class='glyph'>↺</span>" +
     "<div class='nm'>EXTRA RE-ROLLS</div>" +
-    "<div class='ds'>+1 re-roll each run per level (you have +" + level + ").</div>" +
-    (maxed ? "" : "<div class='ds'><b style='color:var(--gold)'>NEXT: " + REROLL_BUFF_COST + " SOULS</b></div>");
+    vaultDesc("+1 re-roll each run per level (you have +" + level + ").", maxed ? "" : "<b style='color:var(--gold)'>NEXT: " + REROLL_BUFF_COST + " SOULS</b>");
   if (!maxed) d.addEventListener("click", () => {
     if (Meta.bank < REROLL_BUFF_COST) { keeperRefuse(d); return; }
     Meta.bank -= REROLL_BUFF_COST;
@@ -279,7 +289,7 @@ function vaultPetCard(key, def) {
     "<span class='tag'>" + (equipped ? "EQUIPPED" : owned ? "OWNED" : def.cost + " ◆") + "</span>" +
     "<span class='glyph'>" + (def.glyph || "◉") + "</span>" +
     "<div class='nm'>" + def.name + "</div>" +
-    "<div class='ds'>" + def.desc + (owned ? "" : "<br><b style='color:var(--gold)'>" + def.cost + " SOULS TO UNLOCK</b>") + "</div>";
+    vaultDesc(def.desc, owned ? "" : "<b style='color:var(--gold)'>" + def.cost + " SOULS TO UNLOCK</b>");
   d.addEventListener("click", () => {
     if (!owned) {
       if (Meta.bank < def.cost) { keeperRefuse(d); return; }
@@ -311,8 +321,7 @@ function vaultPetUpgradeCard(petType, key, upg) {
     "<span class='tag'>" + tag + "</span>" +
     "<span class='glyph'>" + (upg.glyph || "+") + "</span>" +
     "<div class='nm'>" + upg.name + "</div>" +
-    "<div class='ds'>" + upg.desc + "</div>" +
-    (maxed ? "" : "<div class='ds'><b style='color:var(--gold)'>" + (once ? upg.cost + " SOULS" : "NEXT: " + upg.cost + " SOULS") + "</b></div>");
+    vaultDesc(upg.desc, maxed ? "" : "<b style='color:var(--gold)'>" + (once ? upg.cost + " SOULS" : "NEXT: " + upg.cost + " SOULS") + "</b>");
   if (!maxed) d.addEventListener("click", () => {
     if (Meta.bank < upg.cost) { keeperRefuse(d); return; }
     Meta.bank -= upg.cost;
@@ -1196,6 +1205,22 @@ function toggleRuneDescriptions() {
 }
 $("btnRuneDescriptions").addEventListener("click", toggleRuneDescriptions);
 
+/* VAULT DESCRIPTIONS: ON/OFF — hide vault card prose (chars, skins, pets, buffs)
+   for a compact shop, mirroring RUNE DESCRIPTIONS. */
+function applyVaultDescriptionSettingsUI() {
+  const show = Meta.showVaultDescriptions !== false;
+  const b = $("btnVaultDescriptions");
+  if (b) b.textContent = "VAULT DESCRIPTIONS: " + (show ? "ON" : "OFF");
+}
+function toggleVaultDescriptions() {
+  Meta.showVaultDescriptions = Meta.showVaultDescriptions === false;
+  metaSave();
+  applyVaultDescriptionSettingsUI();
+  if (Game.state === "vault") renderVault();
+  AudioFX.equip();
+}
+$("btnVaultDescriptions").addEventListener("click", toggleVaultDescriptions);
+
 /* ---------- pause for rune picks ----------
    On (default): the run freezes while a warden reads three cards — the original
    feel. Off: the choice rides over live play, so in co-op only the picker is
@@ -1215,6 +1240,7 @@ applyRunePauseUI();
 
 applyAdvancedNumbersUI();
 applyRuneDescriptionSettingsUI();
+applyVaultDescriptionSettingsUI();
 applyTextSizeUI();
 
 /* ---------- glow (neon halo budget — the lever itself lives in canvas.js) ----------
@@ -1509,7 +1535,7 @@ $("ctrlEditReset").addEventListener("click", resetCtrlLayout);
 })();
 
 /* ---------- settings overlay ---------- */
-function openSettings() { if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings opened"); syncVolumeUI(); applyDeskMode(); applyAimMode(); applyBtnSizeUI(); applyCtrlSettingsUI(); applyHapticsUI(); applyShakeUI(); applyAdvancedNumbersUI(); applyRuneDescriptionSettingsUI(); applyTextSizeUI(); applyGlowUI(); applyJuiceUI(); applyHiddenRunesUI(); applyRunTimerUI(); applySpeedrunUI(); syncAutoPickUI(); syncPrivacyOptions(); $("btnReplayCutscene").style.display = (Game.state === "menu") ? "" : "none"; $("settings").classList.add("on"); }
+function openSettings() { if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings opened"); syncVolumeUI(); applyDeskMode(); applyAimMode(); applyBtnSizeUI(); applyCtrlSettingsUI(); applyHapticsUI(); applyShakeUI(); applyAdvancedNumbersUI(); applyRuneDescriptionSettingsUI(); applyVaultDescriptionSettingsUI(); applyTextSizeUI(); applyGlowUI(); applyJuiceUI(); applyHiddenRunesUI(); applyRunTimerUI(); applySpeedrunUI(); syncAutoPickUI(); syncPrivacyOptions(); $("btnReplayCutscene").style.display = (Game.state === "menu") ? "" : "none"; $("settings").classList.add("on"); }
 function closeSettings() { $("settings").classList.remove("on"); if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings closed"); }
 /* Google requires EEA/UK players to have a persistent way back to the consent
    choice. UMP tells us who needs one; everyone else never sees the button. */
