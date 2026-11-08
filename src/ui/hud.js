@@ -236,10 +236,7 @@ function runeEntryFor(idx) {
   return (Game.pendingPickup && Game.pendingPickupBy === idx) ? { pk: Game.pendingPickup } : null;
 }
 
-/* Auto-pick (per character, configured in Settings). Returns the rune id to
-   carve from `ids`, or null. Priority: 3=high,2=mid,1=low,0/off=ignore.
-   Ties keep the hand's left-to-right order (stable). */
-function autoPickRune(chooser, ids) {
+function autoPickBest(chooser, ids) {
   if (!chooser || !ids || !ids.length || typeof Meta === "undefined" || !Meta.autoPick) return null;
   const cfg = Meta.autoPick[chooser.char];
   if (!cfg || !cfg.on || !cfg.pri) return null;
@@ -248,7 +245,15 @@ function autoPickRune(chooser, ids) {
     const p = cfg.pri[ids[i]] | 0;
     if (p > bestP) { bestP = p; best = ids[i]; }
   }
-  return bestP > 0 ? best : null;
+  return bestP > 0 ? { id: best, p: bestP } : null;
+}
+
+/* Auto-pick (per character, configured in Settings). Returns the rune id to
+   carve from `ids`, or null. Priority: 3=high,2=mid,1=low,0/off=ignore.
+   Ties keep the hand's left-to-right order (stable). */
+function autoPickRune(chooser, ids) {
+  const r = autoPickBest(chooser, ids);
+  return r ? r.id : null;
 }
 
 function autoRerollForRune(ch, pk, idx, paused) {
@@ -260,16 +265,31 @@ function autoRerollForRune(ch, pk, idx, paused) {
   /* Host/solo can spend rerolls immediately. Guests cannot mutate host state;
      their hands reroll only via host offers, so we don't loop-spend here. */
   if (typeof Net !== "undefined" && Net.role === "guest") return false;
-  let changed = false;
-  while (ch.rerolls > 0 && !autoPickRune(ch, pk.ids)) {
-    ch.rerolls--;
+  const maxSpend = (typeof cfg.rerollMax === "number" && cfg.rerollMax > 0)
+    ? Math.min(cfg.rerollMax, ch.rerolls) : ch.rerolls;
+  let spent = 0, changed = false, lowSeen = null;
+  const rollHand = () => {
     const pool = runePool(ch);
     const onScreen = new Set(pk.ids);
     let avail = pool.filter(id => !onScreen.has(id));
     if (!avail.length) avail = pool.slice();
-    if (!avail.length) break;
+    if (!avail.length) return false;
     pk.ids = [pick(avail), pick(avail), pick(avail)];
-    changed = true;
+    return true;
+  };
+  while (spent < maxSpend && ch.rerolls > 0) {
+    const best = autoPickBest(ch, pk.ids);
+    if (!best) break;            // nothing prioritized offered
+    if (best.p >= 2) return true; // MID/HIGH found
+    if (!lowSeen) lowSeen = best.id; // remember first LOW encountered
+    ch.rerolls--; spent++; changed = true;
+    if (!rollHand()) break;
+  }
+  /* final check: prefer MID/HIGH; else pick a LOW that appeared (remembered or current) */
+  const finalBest = autoPickBest(ch, pk.ids);
+  if (lowSeen && (!finalBest || finalBest.p < 2)) {
+    if (finalBest && finalBest.p === 1) { /* keep current LOW */ }
+    else if (pk.ids.indexOf(lowSeen) === -1) pk.ids[0] = lowSeen; // restore remembered LOW
   }
   if (changed) {
     if (typeof updateRerolls === "function" && ch === localPlayer()) updateRerolls();

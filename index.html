@@ -1248,7 +1248,12 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
                <select id="autoPickChar" class="menu-btn small" style="border-color:var(--frost);color:var(--frost);background:#120d22;padding:8px;max-width:100%;width:min(100%,260px)"></select>
               <button class="menu-btn small" id="btnAutoReroll" style="border-color:var(--gold);color:var(--gold);padding:8px">AUTO REROLL: OFF</button>
             </div>
-            <div class="aim-mode-note" style="margin-top:6px">tap a rune to cycle priority: OFF · LOW · MID · HIGH. AUTO REROLL spends rerolls until a prioritized rune appears (host/solo; guest hands follow host offers).</div>
+            <div id="autoRerollMaxRow" style="display:none;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;margin-top:6px">
+              <label for="autoRerollMax" style="font-size:calc(9px * var(--text-scale, 1));letter-spacing:.2em;color:var(--dim)">MAX REROLLS / PICK</label>
+              <input id="autoRerollMax" type="number" min="0" max="99" step="1" value="0" style="width:72px;background:#120d22;border:1px solid var(--gold);color:var(--bone);padding:6px 8px;font:inherit;text-align:center">
+              <span class="aim-mode-note" style="margin:0">0 = all rerolls</span>
+            </div>
+            <div class="aim-mode-note" style="margin-top:6px">tap a rune to cycle priority: OFF · LOW · MID · HIGH. AUTO REROLL: if LOW appears, spend up to MAX rerolls to find MID/HIGH; if none appears, keep the LOW.</div>
             <div id="autoPickGrid" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:8px;max-height:220px;overflow:auto;padding:4px"></div>
           </div>
         </div>

@@ -954,12 +954,21 @@ const Coop = {
       if (typeof tryAutoPickRune === "function" && tryAutoPickRune(pickerIdx)) return;
     }
     /* Auto Pick + Auto Reroll (guest): host owns rerolls, so ask for rerolls
-       until a prioritized rune appears or rerolls run out. */
+       until a prioritized rune appears or rerolls run out. LOW seen -> spend up to
+       rerollMax to find MID/HIGH; if none, keep the LOW and stop requesting. */
     try {
       const cfg = (typeof Meta !== "undefined" && Meta.autoPick) ? Meta.autoPick[(localPlayer() || {}).char] : null;
-      if (cfg && cfg.on && cfg.reroll && cfg.pri && !(typeof autoPickRune === "function" && autoPickRune(localPlayer(), pk.ids))) {
-        let hasPri = false; for (const k in cfg.pri) if ((cfg.pri[k] | 0) > 0) { hasPri = true; break; }
-        if (hasPri && (m.rerolls | 0) > 0) Net.sendR({ t: "reroll", slot: 0, pickerIdx });
+      if (cfg && cfg.on && cfg.reroll && cfg.pri && typeof autoPickBest === "function") {
+        const best = autoPickBest(localPlayer(), pk.ids);
+        const maxSpend = (cfg.rerollMax | 0) > 0 ? (cfg.rerollMax | 0) : 99;
+        if (!entry._arrSpent) entry._arrSpent = 0;
+        if (best && best.p === 1 && !entry._arrLow) entry._arrLow = best.id;
+        if (best && best.p >= 2) return; // MID/HIGH found
+        if (best && best.p === 1) {
+          if (entry._arrSpent < maxSpend && (m.rerolls | 0) > 0) { entry._arrSpent++; Net.sendR({ t: "reroll", slot: 0, pickerIdx }); }
+          return; // keep LOW if limit/rerolls exhausted
+        }
+        if (!best && (m.rerolls | 0) > 0) Net.sendR({ t: "reroll", slot: 0, pickerIdx });
       }
     } catch (e) {}
   },

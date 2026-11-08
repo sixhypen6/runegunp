@@ -49,7 +49,7 @@ const Meta = {
   runTimer: true,     // speedrun clock in the HUD — display only; records are kept either way
   speedrun: false,    // SPEEDRUN mode: guarantee WARD then SWIFT in the first two rune choices (independent of the clock)
   speedBests: {},     // fastest COMPLETED descent per warden id and mode, seconds (0/absent = never cleared)
-  autoPick: {},      // per-character: { [charId]: { on: bool, reroll: bool, pri: { [runeId]: 0-3 } } } 0=off,1=low,2=mid,3=high
+  autoPick: {},      // per-character: { [charId]: { on: bool, reroll: bool, rerollMax: number, pri: { [runeId]: 0-3 } } } 0=off,1=low,2=mid,3=high
   bests: {            // personal records (local leaderboard — you vs your own past runs)
     score: 0,               // max Game.score
     survivedSec: 0,         // longest single run, floor(Game.time)
@@ -264,7 +264,8 @@ function metaLoad() {
             const v = c.pri[rid] | 0;
             if (v >= 0 && v <= 3) pri[rid] = v;
           }
-          Meta.autoPick[cid] = { on: !!c.on, reroll: !!c.reroll, pri };
+          const rerollMax = (c.rerollMax | 0) > 0 ? Math.min(c.rerollMax | 0, 99) : 0;
+          Meta.autoPick[cid] = { on: !!c.on, reroll: !!c.reroll, rerollMax, pri };
         }
       }
       /* v3 migration: THE DROWNED NAVE was wedged in before the void, pushing the

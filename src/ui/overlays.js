@@ -1330,10 +1330,11 @@ $("btnSpeedrun").addEventListener("click", cycleSpeedrun);
    automatically; ties keep the hand's order. */
 function autoPickCfg(charId) {
   if (!Meta.autoPick) Meta.autoPick = {};
-  if (!Meta.autoPick[charId]) Meta.autoPick[charId] = { on: false, reroll: false, pri: {} };
+  if (!Meta.autoPick[charId]) Meta.autoPick[charId] = { on: false, reroll: false, rerollMax: 0, pri: {} };
   const c = Meta.autoPick[charId];
   if (!c.pri || typeof c.pri !== "object") c.pri = {};
   if (typeof c.reroll !== "boolean") c.reroll = !!c.reroll;
+  if ((c.rerollMax | 0) < 0) c.rerollMax = 0;
   return c;
 }
 function autoPickCharId() {
@@ -1381,6 +1382,10 @@ function syncAutoPickUI() {
   if (panel) panel.style.display = cfg.on ? "" : "none";
   const rer = $("btnAutoReroll");
   if (rer) rer.textContent = "AUTO REROLL: " + (cfg.reroll ? "ON" : "OFF");
+  const rr = $("autoRerollMaxRow");
+  if (rr) rr.style.display = cfg.on && cfg.reroll ? "flex" : "none";
+  const rmax = $("autoRerollMax");
+  if (rmax && document.activeElement !== rmax) rmax.value = String(cfg.rerollMax | 0);
   const sel = $("autoPickChar");
   if (sel && !sel.options.length && typeof CHARS !== "undefined") {
     for (const id in CHARS) {
@@ -1392,6 +1397,18 @@ function syncAutoPickUI() {
     sel.value = Meta.char && CHARS[Meta.char] ? Meta.char : sel.options[0] && sel.options[0].value;
     sel.addEventListener("change", () => { syncAutoPickUI(); renderAutoPickGrid(); });
   } else if (sel && !sel.value) sel.value = cid;
+  if (rmax && !rmax._bound) {
+    rmax._bound = true;
+    const saveMax = () => {
+      const c = autoPickCfg(autoPickCharId());
+      const v = parseInt(rmax.value, 10);
+      c.rerollMax = isFinite(v) && v > 0 ? Math.min(v, 99) : 0;
+      rmax.value = String(c.rerollMax);
+      metaSave();
+    };
+    rmax.addEventListener("change", saveMax);
+    rmax.addEventListener("blur", saveMax);
+  }
   if (cfg.on) renderAutoPickGrid();
 }
 function toggleAutoPick() {
