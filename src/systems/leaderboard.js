@@ -662,10 +662,50 @@ const Leaderboard = (() => {
     return playerName || "";
   }
 
+  /* ---- progress transfer (Firebase provider only) ----
+     A one-time code carries the save between devices. The provider owns the
+     node; this layer only chooses the backend and keeps the public API shaped
+     like everything else here. */
+  function transferAvailable() {
+    const p = board();
+    return !!(p && typeof p.createTransfer === "function");
+  }
+  async function createTransfer(payload) {
+    const p = board();
+    if (!p || typeof p.createTransfer !== "function") throw new Error("transfer-unavailable");
+    return p.createTransfer(payload);
+  }
+  async function fetchTransfer(code) {
+    const p = board();
+    if (!p || typeof p.fetchTransfer !== "function") throw new Error("transfer-unavailable");
+    return p.fetchTransfer(code);
+  }
+  async function consumeTransfer(code) {
+    const p = board();
+    if (!p || typeof p.consumeTransfer !== "function") throw new Error("transfer-unavailable");
+    return p.consumeTransfer(code);
+  }
+  async function redeemTransfer(code) {
+    const p = board();
+    if (!p || typeof p.redeemTransfer !== "function") throw new Error("transfer-unavailable");
+    return p.redeemTransfer(code);
+  }
+  async function transferStatus(lineage) {
+    const p = board();
+    if (!p || typeof p.transferStatus !== "function") throw new Error("transfer-unavailable");
+    return p.transferStatus(lineage);
+  }
+  async function adoptCallsign(name) {
+    const p = board();
+    if (!p || typeof p.adoptCallsign !== "function") return "";
+    return p.adoptCallsign(name);
+  }
+
   return { available, init, submitRun, submitClearTime, setDisplayName, show, syncMenuButton, syncAchievements,
            getTopScores, getNearbyScores, getTopClearTimes, getNearbyClearTimes, myPlayerId, myName,
            localBest, tagFor, clearTagFor, liveTag, isMine, computeProjection, getProjectedRank, getProjectedClearRank,
            getMyServerScore, isLikelyHidden, modeSupported,
+           transferAvailable, createTransfer, fetchTransfer, consumeTransfer, redeemTransfer, transferStatus, adoptCallsign,
            nativeUI, submissionPlace, submissionPlatform, backend: () => BOARD_BACKEND };
 })();
 

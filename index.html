@@ -587,6 +587,21 @@
   color: var(--gold); text-shadow: 0 0 18px var(--gold);
   margin: 14px 0 6px; user-select: text; -webkit-user-select: text;
 }
+/* progress-transfer code + entry field */
+.transfer-code {
+  font-family: monospace; font-weight: bold; text-align: center;
+  font-size: clamp(22px, 5vw, 36px); letter-spacing: 0.22em;
+  color: var(--gold); text-shadow: 0 0 16px rgba(240, 192, 90, 0.55);
+  margin: 14px 0 4px; user-select: text; -webkit-user-select: text; word-break: break-all;
+}
+.transfer-input {
+  width: min(320px, 100%); display: block; margin: 12px auto 4px;
+  text-align: center; font-family: monospace;
+  font-size: clamp(18px, 4vw, 26px); letter-spacing: 0.22em; text-transform: uppercase;
+  background: rgba(0, 0, 0, 0.45); border: 1px solid var(--line); color: var(--bone);
+  padding: 12px; outline: none;
+}
+.transfer-input:focus { border-color: var(--frost); box-shadow: 0 0 12px rgba(127, 200, 255, 0.25); }
 .coop-pad {
   display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px;
   max-width: 460px; margin: 10px auto 0;
@@ -1328,6 +1343,14 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
           <button class="menu-btn small" id="btnConsole" style="border-color:var(--frost);color:var(--frost);margin-top:8px">OPEN CONSOLE</button>
           <div class="aim-mode-note" id="consoleNote">F9 / backtick on desktop · type cheat, unlock all, pet seeker, soul 100000 and more · type help for the full list</div>
         </div>
+        <div id="transferRow" style="display:flex;flex-direction:column;align-items:center;margin-top:14px">
+          <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">PROGRESS TRANSFER</label>
+          <div class="menu-row" style="margin-top:8px">
+            <button class="menu-btn small" id="btnTransferSend" style="border-color:var(--gold);color:var(--gold)">SEND</button>
+            <button class="menu-btn small" id="btnTransferRecv" style="border-color:var(--frost);color:var(--frost)">RECEIVE</button>
+          </div>
+          <div class="aim-mode-note">cause a descent to cross to another device once — a one-time code, spendable a single time</div>
+        </div>
         <button class="menu-btn small" id="btnPrivacyOptions" style="width:100%;margin-top:14px;display:none">AD PRIVACY OPTIONS</button>
         <button class="menu-btn small" id="btnReplayCutscene" style="width:100%;margin-top:10px">REPLAY OPENING</button>
         <button class="menu-btn small" id="btnOpenSprites" style="width:100%;margin-top:10px;border-color:var(--frost);color:var(--frost);" onclick="window.location.href='sprites.html'">SPRITE STUDIO</button>
@@ -1336,6 +1359,49 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
     </div>
 
     <button class="menu-btn small" id="settingsClose" style="width:100%;margin-top:14px">CLOSE</button>
+  </div>
+</div>
+
+<!-- PROGRESS TRANSFER — one-time code; a descent may cross only once -->
+<div class="overlay" id="transfer" style="z-index:30">
+  <div class="panel" style="width:min(520px,94vw);text-align:center">
+    <h2>PROGRESS TRANSFER</h2>
+    <div class="hint" id="transferHint">a descent crosses once · one use · ten minutes</div>
+
+    <div id="transferSendView">
+      <div id="transferSendIntro">
+        <div class="aim-mode-note" style="max-width:420px;margin:0 auto 12px;line-height:1.8">Forge a one-time code on this device, then enter it on the other device. Only the first redemption succeeds; once this descent crosses, it cannot be sent again.</div>
+        <button class="menu-btn" id="transferSendBtn">FORGE A CODE</button>
+      </div>
+      <div id="transferCodeWrap" style="display:none">
+        <div class="transfer-code" id="transferCode">────────</div>
+        <div class="hint" id="transferExpiry" style="margin-bottom:8px">VALID FOR 10:00</div>
+        <div class="menu-row">
+          <button class="menu-btn small" id="transferCopy" style="border-color:var(--frost);color:var(--frost)">COPY CODE</button>
+          <button class="menu-btn small" id="transferRevoke" style="border-color:var(--blood);color:var(--blood)">REVOKE</button>
+        </div>
+      </div>
+      <div class="hint" id="transferSendStatus" style="margin-top:10px"></div>
+    </div>
+
+    <div id="transferRecvView" style="display:none">
+      <div id="transferRecvIntro">
+        <div class="aim-mode-note" style="max-width:420px;margin:0 auto 4px;line-height:1.8">Enter the code from the other device. This will replace the progress on this device, and the descent will have crossed for good.</div>
+        <input class="transfer-input" id="transferInput" maxlength="9" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX">
+        <button class="menu-btn" id="transferRedeem">TAKE THE PROGRESS</button>
+      </div>
+      <div id="transferConfirmView" style="display:none">
+        <div class="hint" id="transferPreview" style="line-height:1.8"></div>
+        <div class="aim-mode-note" style="max-width:420px;margin:0 auto 10px;line-height:1.8">This replaces souls, unlocks, pets, records, glossary and settings on this device. The online board row stays per-device; these records are re-posted under it.</div>
+        <div class="menu-row">
+          <button class="menu-btn small" id="transferConfirm" style="border-color:var(--blood);color:var(--blood)">CROSS THE DESCENT</button>
+          <button class="menu-btn small" id="transferCancel">CANCEL</button>
+        </div>
+      </div>
+      <div class="hint" id="transferRecvStatus" style="margin-top:10px"></div>
+    </div>
+
+    <button class="menu-btn small" id="transferClose" style="width:100%;margin-top:14px">RETURN</button>
   </div>
 </div>
 
@@ -1419,6 +1485,7 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
 <script src="src/lib/firebase-database-compat.js"></script>
 <script src="src/net/firebase-config.js"></script>
 <script src="src/systems/leaderboard-firebase.js"></script>
+<script src="src/systems/transfer.js"></script>
 <script src="src/net/turn-config.js"></script>
 <script src="src/net/signal.js"></script>
 <script src="src/net/net.js"></script>

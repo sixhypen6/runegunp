@@ -23,6 +23,16 @@
        chaosClear:  { char, runes },
      }
 
+     Progress transfer uses two tiny side trees (see systems/transfer.js):
+
+       /transfers/<CODE> = { v, owner, createdAt, expiresAt, payload }
+         a one-time, ten-minute code holding the sender's save as JSON text
+
+       /progress/<LINEAGE> = { limit: 1, uses: 0 | 1, createdAt }
+         the descent's crossing ledger. The lineage id travels inside the save;
+         the first claim increments `uses`, so even if the same save forges a
+         second code, that code cannot produce a second copy.
+
    The mode objects are cosmetic tags: WHICH warden and which runes the run
    that set the record was holding. They are written only when the score
    itself improves, so a tag never describes a different run than the number
@@ -43,8 +53,9 @@
         LEADERBOARDS button simply never appears (everything else works).
         (Already enabled on runegunp.)
      2. Realtime Database → Rules → paste firebase.rules.json (repo root).
-        That file is the complete tree: the co-op `rooms` block and the
-        `scores` block. Nothing else in the database is used by this game.
+        That file is the complete tree: the co-op `rooms` block, the `scores`
+        block, and the `progress` / `transfers` blocks used by progress
+        transfer. Nothing else in the database is used by this game.
      3. Nothing else: the database already backs co-op signaling.
 
    A second NAMED app instance is used on purpose. Co-op calls goOffline()
@@ -67,6 +78,22 @@ const FirebaseBoard = (() => {
   /* no O/0/I/1 — these are read off a screen, and 0/O is the only ambiguity
      anyone ever argues about */
   const NAME_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+  /* ---- progress transfer codes ----
+     A code is a bearer token: whoever knows it can read the save once. Keep
+     the alphabet equally unambiguous, keep the TTL short, and let the
+     redeeming device burn the node immediately after reading it. The payload
+     is a JSON string so the RTDB rules can cap its size in one place. */
+  const TRANSFERS = "transfers";
+  const PROGRESS = "progress";
+  const TRANSFER_TTL_MS = 10 * 60 * 1000;
+  const TRANSFER_CODE_LEN = 8;
+  const TRANSFER_MAX_CHARS = 60000;
+  /* One descent crosses once. The lineage id travels inside the save; the
+     server ledger keyed by that id is the authority, so forging a second code
+     from the same save cannot produce a second copy. */
+  const TRANSFER_LIMIT = 1;
+  const LINEAGE_LEN = 16;
 
   /* one board per mode; the value is the row field that carries its score */
   const FIELDS = { normal: "score", hard: "hardScore", classic: "classicScore", chaos: "chaosScore" };
@@ -503,6 +530,189 @@ function toEntry(id, row, key, slot, isClearTime) {
     return value;
   }
 
+  /* ---- progress transfer ----
+     The sender creates a random code and writes their save under it; the
+     receiver signs in (anonymously) just like the board, reads that node and
+     removes it. Rules allow create/read/delete but never overwrite, so a code
+     cannot be hijacked after it is forged. */
+  function normalizeTransferCode(input) {
+    return String(input == null ? "" : input).toUpperCase().replace(/[^A-Z0-9]/g, "");
+  }
+  function validTransferCode(code) {
+    if (code.length !== TRANSFER_CODE_LEN) return false;
+    for (let i = 0; i < code.length; i++) if (NAME_ALPHABET.indexOf(code[i]) < 0) return false;
+    return true;
+  }
+  function newTransferCode() {
+    const bytes = new Uint8Array(TRANSFER_CODE_LEN);
+    if (typeof crypto !== "undefined" && crypto.getRandomValues) crypto.getRandomValues(bytes);
+    else for (let i = 0; i < TRANSFER_CODE_LEN; i++) bytes[i] = Math.floor(Math.random() * 256);
+    let code = "";
+    for (let i = 0; i < TRANSFER_CODE_LEN; i++) code += NAME_ALPHABET[bytes[i] % NAME_ALPHABET.length];
+    return code;
+  }
+  function transferRef(code) { return db.ref(TRANSFERS + "/" + code); }
+  function validLineage(id) {
+    if (typeof id !== "string" || id.length !== LINEAGE_LEN) return false;
+    for (let i = 0; i < id.length; i++) if (NAME_ALPHABET.indexOf(id[i]) < 0) return false;
+    return true;
+  }
+  function progressRef(id) { return db.ref(PROGRESS + "/" + id); }
+  function clearBoardCaches() {
+    for (const k of ["normal", "hard", "classic", "chaos", "normal:clear", "hard:clear", "classic:clear", "chaos:clear"]) cache[k] = null;
+    cache.allRows = null;
+  }
+
+  /* The ledger is created on first contact. Every later write only touches
+     `uses`; Firebase rules make that a monotonic +1, capped at the limit, so
+     the client cannot refund or reset a crossing. */
+  async function ensureLineage(id) {
+    if (!validLineage(id)) throw new Error("transfer-damaged");
+    const snap = await guard(progressRef(id).get(), "lineage");
+    const found = snap && snap.val && snap.val();
+    if (found && typeof found === "object") return found;
+    const init = { limit: TRANSFER_LIMIT, uses: 0, createdAt: Date.now() };
+    try {
+      await guard(progressRef(id).set(init), "lineage-create");
+      return init;
+    } catch (e) {
+      /* another device may have created it between the read and the write */
+      const again = await guard(progressRef(id).get(), "lineage");
+      const raced = again && again.val && again.val();
+      if (!raced || typeof raced !== "object") throw e;
+      return raced;
+    }
+  }
+
+  async function transferStatus(id) {
+    if (!validLineage(id)) throw new Error("transfer-damaged");
+    if (!boot()) throw new Error("transfer-unavailable");
+    await signIn();
+    const v = await ensureLineage(id);
+    const limit = Math.max(1, Math.min(TRANSFER_LIMIT, Number(v.limit) || TRANSFER_LIMIT));
+    const uses = Math.max(0, Number(v.uses) || 0);
+    return { ok: true, uses, limit, remaining: Math.max(0, limit - uses) };
+  }
+
+  async function claimLineage(id) {
+    if (!validLineage(id)) throw new Error("transfer-damaged");
+    if (!boot()) throw new Error("transfer-unavailable");
+    if (!signedIn) await signIn();
+    await ensureLineage(id);
+    const res = await guard(progressRef(id).child("uses").transaction(cur => {
+      const used = Math.max(0, Number(cur) || 0);
+      if (used >= TRANSFER_LIMIT) return;      // abort: this descent already crossed
+      return used + 1;
+    }), "lineage-claim");
+    if (!res || !res.committed) throw new Error("transfer-exhausted");
+    return { ok: true, uses: Math.max(0, Number(res.snapshot && res.snapshot.val && res.snapshot.val()) || 0) };
+  }
+
+  async function createTransfer(payload) {
+    if (!boot()) throw new Error("transfer-unavailable");
+    const meta = payload && payload.meta;
+    if (!meta || !validLineage(meta.transferId)) throw new Error("transfer-no-lineage");
+    const json = JSON.stringify(payload || {});
+    if (json.length > TRANSFER_MAX_CHARS) throw new Error("transfer-too-large");
+    await signIn();
+    if (!uid) throw new Error("transfer-unavailable");
+    /* Forge only while the descent still has a crossing left. Two codes may
+       exist at once; the claim transaction decides which one lands. */
+    const st = await transferStatus(meta.transferId);
+    if (st.remaining <= 0) throw new Error("transfer-exhausted");
+    /* A transaction creates only when the slot is empty; a collision aborts
+       and the loop forges a fresh code. */
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const code = newTransferCode();
+      const now = Date.now();
+      const data = {
+        v: 1,
+        owner: String(uid),
+        createdAt: now,
+        expiresAt: now + TRANSFER_TTL_MS,
+        payload: json,
+      };
+      const res = await guard(transferRef(code).transaction(cur => (cur === null ? data : undefined)), "transfer-create");
+      if (res && res.committed) return { ok: true, code, expiresAt: data.expiresAt };
+    }
+    throw new Error("transfer-code-exhausted");
+  }
+
+  /* Read-only lookup so the UI can preview what will land before replacing
+     anything. The node stays until the receiver explicitly confirms. */
+  async function fetchTransfer(input) {
+    const code = normalizeTransferCode(input);
+    if (!validTransferCode(code)) throw new Error("transfer-invalid");
+    if (!boot()) throw new Error("transfer-unavailable");
+    await signIn();
+    const snap = await guard(transferRef(code).get(), "transfer-read");
+    const data = (snap && snap.val && snap.val()) || null;
+    if (!data) throw new Error("transfer-missing");
+    if (!(Number(data.expiresAt) > Date.now())) {
+      try { await guard(transferRef(code).remove(), "transfer-expire"); } catch (e) {}
+      throw new Error("transfer-expired");
+    }
+    if (typeof data.payload !== "string" || data.payload.length > TRANSFER_MAX_CHARS)
+      throw new Error("transfer-damaged");
+    let payload;
+    try { payload = JSON.parse(data.payload); } catch (e) { throw new Error("transfer-damaged"); }
+    return { ok: true, code, expiresAt: Number(data.expiresAt), payload };
+  }
+
+  async function consumeTransfer(input) {
+    const code = normalizeTransferCode(input);
+    if (!validTransferCode(code)) throw new Error("transfer-invalid");
+    if (!boot()) throw new Error("transfer-unavailable");
+    if (!signedIn) await signIn();
+    await guard(transferRef(code).remove(), "transfer-consume");
+    return true;
+  }
+
+  /* Redeem = claim the lineage, then burn the code. Claiming first means a
+     shared code can only ever produce one save; if the delete then fails the
+     code is still dead because the ledger is spent. */
+  async function redeemTransfer(input) {
+    const code = normalizeTransferCode(input);
+    if (!validTransferCode(code)) throw new Error("transfer-invalid");
+    if (!boot()) throw new Error("transfer-unavailable");
+    if (!signedIn) await signIn();
+    const snap = await guard(transferRef(code).get(), "transfer-redeem");
+    const data = (snap && snap.val && snap.val()) || null;
+    if (!data) throw new Error("transfer-missing");
+    if (!(Number(data.expiresAt) > Date.now())) {
+      try { await guard(transferRef(code).remove(), "transfer-expire"); } catch (e) {}
+      throw new Error("transfer-expired");
+    }
+    if (typeof data.payload !== "string" || data.payload.length > TRANSFER_MAX_CHARS)
+      throw new Error("transfer-damaged");
+    let payload;
+    try { payload = JSON.parse(data.payload); } catch (e) { throw new Error("transfer-damaged"); }
+    const lineage = payload && payload.meta && payload.meta.transferId;
+    if (!validLineage(lineage)) throw new Error("transfer-damaged");
+    try {
+      await claimLineage(lineage);
+    } catch (e) {
+      /* the descent already crossed: this code is dead too, clean it up */
+      try { await guard(transferRef(code).remove(), "transfer-burn"); } catch (e2) {}
+      throw e;
+    }
+    try { await guard(transferRef(code).remove(), "transfer-burn"); } catch (e) {}
+    return { ok: true, code, payload, lineage };
+  }
+
+  /* Carry the sender's callsign onto this device's own board row. The uid is
+     still this device's (anonymous identities cannot move), but the visible
+     WARDEN-XXXX follows the save. */
+  async function adoptCallsign(name) {
+    if (!signedIn || !uid) return "";
+    const value = String(name == null ? "" : name).trim();
+    if (!validCallsign(value)) return "";
+    await guard(rowRef().update({ name: value, updatedAt: stamp() }), "rename");
+    setCallsign(value);
+    clearBoardCaches();
+    return value;
+  }
+
   function callsignOf() { return callsign || storedCallsign() || ""; }
   function status() {
     return {
@@ -512,8 +722,9 @@ function toEntry(id, row, key, slot, isClearTime) {
   }
 
   return {
-    configured, signIn, setDisplayName, submitScore, submitClearTime, loadTopScores, loadTopClearTimes,
+    configured, signIn, setDisplayName, adoptCallsign, submitScore, submitClearTime, loadTopScores, loadTopClearTimes,
            loadPlayerCenteredScores, loadPlayerCenteredClearTimes,
            getUserTotalScore, showLeaderboard, unlockAchievement, readGate, status,
+           createTransfer, fetchTransfer, consumeTransfer, redeemTransfer, transferStatus,
            callsign: callsignOf, uid: () => uid };
 })();

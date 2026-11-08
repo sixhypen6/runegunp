@@ -21,6 +21,8 @@ const Meta = {
   runesSeen: {},      // glossary: every rune id ever carved into a gun
   char: "gunsmith", skin: "bone",
   boardName: "",      // generated callsign shown on the online score board (Firebase) — never a Google name
+  transferId: "",     // unique identity of this descent's progress lineage; one crossing is allowed
+                      // (systems/transfer.js, enforced by the /progress ledger in Firebase)
   gunSkin: null,      // warpaint worn on the GUN (SKINS key) or null = unpainted, rune-tinted barrels
   pet: null,          // equipped pet type (PTYPES key) or null for none
   aimMode: "auto",   // mobile: "auto" = 1 stick (move) + auto-aim + auto-fire (default) · "twin" = 2 sticks (move + aim/fire)
@@ -160,6 +162,9 @@ function metaLoad() {
       /* the online board callsign — only a well-formed WARDEN-XXXX survives, so a
          hand-edited save can't put a weird string in front of other players */
       if (typeof d.boardName === "string" && /^WARDEN-[A-Z2-9]{4}$/.test(d.boardName)) Meta.boardName = d.boardName;
+      /* the descent's transfer identity — 16 unambiguous marks, so a
+         hand-edited save cannot invent a lineage that bypasses the ledger */
+      if (typeof d.transferId === "string" && /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{16}$/.test(d.transferId)) Meta.transferId = d.transferId;
       if (d.gunSkin && SKINS[d.gunSkin]) Meta.gunSkin = d.gunSkin;
       if (d.pet && PTYPES[d.pet]) Meta.pet = d.pet;
       if (d.aimMode === "twin" || d.aimMode === "auto") Meta.aimMode = d.aimMode;
