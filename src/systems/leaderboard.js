@@ -142,7 +142,28 @@ const Leaderboard = (() => {
     return "unknown";
   }
 
-async function submit(id, amount, tag) {
+  function submissionPlatform() {
+    const cap = (typeof window !== "undefined" && window.Capacitor) ? window.Capacitor : null;
+    const plat = cap && typeof cap.getPlatform === "function" ? cap.getPlatform() : "";
+    if (plat === "android") return "android";
+    if (plat === "ios") return "ios";
+    if (plat === "web" && cap && cap.isNativePlatform && cap.isNativePlatform()) return "native";
+    if (typeof navigator === "undefined") return "unknown";
+    const ua = navigator.userAgent || "";
+    const uad = navigator.userAgentData;
+    const mobile = !!(uad && uad.mobile) || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua) ||
+      (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1); // iPadOS
+    if (/Android/i.test(ua)) return "android web";
+    if (/iPhone|iPod/i.test(ua) || (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1)) return "ios web";
+    if (/iPad/i.test(ua)) return "ipad web";
+    if (/Windows/i.test(ua)) return mobile ? "windows mobile" : "windows";
+    if (/Mac OS X|Macintosh/i.test(ua)) return "mac";
+    if (/CrOS/i.test(ua)) return "chromeos";
+    if (/Linux/i.test(ua)) return mobile ? "linux mobile" : "linux";
+    return mobile ? "mobile web" : "web";
+  }
+
+  async function submit(id, amount, tag) {
     const p = board();
     if (!p || !signedIn || !id || !(amount > 0)) return;
     /* Tally-age is a Play Games concept (Google ranks the public collection
@@ -152,13 +173,14 @@ async function submit(id, amount, tag) {
     
     const placeVal = submissionPlace();
 
-    try { 
-      await p.submitScore({ 
-        leaderboardID: id, 
-        totalScoreAmount: amount, 
+    try {
+      await p.submitScore({
+        leaderboardID: id,
+        totalScoreAmount: amount,
         tag,
-        place: placeVal // Automatically submits the environment place
-      }); 
+        place: placeVal, // Automatically submits the environment place
+        platform: submissionPlatform()
+      });
     } catch (e) {}
   }
 
@@ -166,7 +188,7 @@ async function submit(id, amount, tag) {
     const provider = fb();
     const timeMs = Math.round(Number(seconds) * 1000);
     if (!provider || board() !== provider || !signedIn || !modeSupported(mode) || !(timeMs > 0)) return;
-    provider.submitClearTime(modeOf(mode), timeMs, submissionPlace(), null, tag || null).catch(() => {});
+    provider.submitClearTime(modeOf(mode), timeMs, submissionPlace(), submissionPlatform(), tag || null).catch(() => {});
   }
   
   /* Re-post the stored bests the moment sign-in succeeds. A best earned while
@@ -324,9 +346,11 @@ async function submit(id, amount, tag) {
       icon:     e.iconImageUri || null,
       playerId: e.playerId || null,
       place:    e.place || "unknown",
+      platform: e.platform || "",
       pending:  !!e.pending,
       /* the loadout tag (Firebase only; Play Games rows have none) */
       char:     e.char || "",
+      pet:      e.pet || "",
       runes:    e.runes || "",
       challenge: e.challenge || "",
     }));
@@ -471,14 +495,15 @@ async function submit(id, amount, tag) {
     const b = bestsFor(mode);
     return (b && b.score) || 0;
   }
-  /* The warden + runes behind that record, as captured by recordBests().
+  /* The warden + runes (+ pet) behind that record, as captured by recordBests().
      Null when the record predates that capture: the stored char is only the
      default, and labelling an old run with it would be a lie. */
   function tagFor(mode) {
     const b = bestsFor(mode);
     if (!b || !b.tag) return null;
     const char = (typeof CHARS !== "undefined" && CHARS[b.char]) ? b.char : (Meta && Meta.char) || "gunsmith";
-    return { char, runes: (b.runes || "").slice(0, 96), challenge: (b.challenge || "").slice(0, 24) };
+    const pet = (typeof PTYPES !== "undefined" && PTYPES[b.pet]) ? b.pet : "";
+    return { char, pet, runes: (b.runes || "").slice(0, 96), challenge: (b.challenge || "").slice(0, 24) };
   }
   /* The loadout behind the fastest clear — a different record from the souls
      best, and captured in its own fields so the two can never borrow each
@@ -628,11 +653,20 @@ async function submit(id, amount, tag) {
     return null;
   }
 
-  return { available, init, submitRun, submitClearTime, show, syncMenuButton, syncAchievements,
+  async function setDisplayName(display) {
+    const p = board();
+    if (!p || !signedIn || typeof p.setDisplayName !== "function") throw new Error("board-unavailable");
+    const name = await p.setDisplayName(display);
+    if (name) playerName = name;
+    else if (typeof p.callsign === "function") playerName = p.callsign() || playerName;
+    return playerName || "";
+  }
+
+  return { available, init, submitRun, submitClearTime, setDisplayName, show, syncMenuButton, syncAchievements,
            getTopScores, getNearbyScores, getTopClearTimes, getNearbyClearTimes, myPlayerId, myName,
            localBest, tagFor, clearTagFor, liveTag, isMine, computeProjection, getProjectedRank, getProjectedClearRank,
            getMyServerScore, isLikelyHidden, modeSupported,
-           nativeUI, submissionPlace, backend: () => BOARD_BACKEND };
+           nativeUI, submissionPlace, submissionPlatform, backend: () => BOARD_BACKEND };
 })();
 
 /* Sign-in is kicked off from main.js boot — after the save is loaded, and after

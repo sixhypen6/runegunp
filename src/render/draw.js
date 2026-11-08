@@ -1621,10 +1621,11 @@ function drawWarden(P) {
         /* SHREDDER: jagged industrial body + independent whirling blade */
         cx.save(); cx.translate(px, py);
         cx.fillStyle = col;
+        const mods = P.mods || (typeof buildWeaponModsFrom === "function" ? (P.mods = buildWeaponModsFrom(P.runes || {}, P)) : null) || {};
 
         // 1. Draw the independent saw first (behind the body)
         cx.save();
-        const sawR = P.mods.sawReach || 76;
+        const sawR = mods.sawReach || (typeof CHARS !== "undefined" && CHARS.shredder && CHARS.shredder.sawReach) || 76;
         cx.rotate(P.sawRot || 0); // Use the independent rotation property
         cx.strokeStyle = col; cx.lineWidth = 3;
         cx.beginPath(); cx.arc(0, 0, sawR * 0.65, 0, TAU); cx.stroke();

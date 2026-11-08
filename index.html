@@ -10,7 +10,7 @@
 
   <!-- Web Manifest for PWA / Android -->
   <link rel="manifest" href="site.webmanifest">
-  
+
   <!-- Standard Favicon Fallback -->
   <link rel="icon" type="image/x-icon" href="favicon.ico" sizes="any">
   
@@ -240,7 +240,18 @@
   body.touch .aim-mode-row{display:flex}
   body.touch #deskCtrlRow{display:none !important}
   #btnAimModeSettings{border-color:var(--frost);color:var(--frost)}
+  #autoPickChar option,#autoPickChar optgroup{background:#120d22;color:var(--bone)}
   .aim-mode-note{font-size:calc(9px * var(--text-scale, 1));letter-spacing:.25em;color:var(--dim);margin-top:6px;text-align:center;max-width:100%}
+  .set-cat{width:100%;margin-top:12px;border:1px solid var(--line);background:rgba(0,0,0,.18)}
+  .set-cat-h{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;
+    font-family:inherit;font-size:calc(10px * var(--text-scale, 1));letter-spacing:.22em;color:var(--frost);
+    background:transparent;border:0;cursor:pointer;text-align:left}
+  .set-cat-h:hover{background:rgba(124,223,255,.06)}
+  .set-cat-h .arr{color:var(--dim);font-size:12px;line-height:1;min-width:12px;text-align:center}
+  .set-cat-body{padding:0 10px 12px}
+  .set-cat.collapsed .set-cat-body{display:none}
+  .set-cat-body > div,.set-cat-body > .aim-mode-row,.set-cat-body > .vol-row{margin-top:14px!important}
+  .set-cat-body > :first-child{margin-top:4px!important}
 
   /* ---------- desktop CONTROLS panel + controller focus (systems/controls.js) ---------- */
   body.touch #controlsRow{display:none!important}
@@ -293,6 +304,7 @@
   .panel .hint{font-size:calc(10px * var(--text-scale, 1));letter-spacing:.15em;color:var(--dim);text-align:center;margin-bottom:14px}
   .panel h3{font-size:calc(11px * var(--text-scale, 1));letter-spacing:.35em;color:var(--dim);margin:16px 0 8px;border-bottom:1px solid var(--line);padding-bottom:5px}
   .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+  .pet-group{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;align-content:start}
   .card{border:1px solid var(--line);background:rgba(0,0,0,.35);padding:10px;cursor:pointer;transition:all .12s;position:relative}
   .card:hover{border-color:currentColor}
   .card.sel{border-color:currentColor;box-shadow:0 0 12px currentColor}
@@ -919,6 +931,13 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
   <div class="panel">
     <h2>THE RECKONING</h2>
     <div class="hint">online records · <span style="color:var(--gold)" id="lbSubtitle">GLOBAL TOP</span></div>
+    <div id="lbNameEdit" style="display:flex;gap:8px;align-items:center;margin:8px 0 10px">
+      <input id="lbDisplayInput" maxlength="20" autocomplete="off" autocorrect="off" spellcheck="false"
+        placeholder="DISPLAY NAME (1-20)" aria-label="Leaderboard display name"
+        style="flex:1;min-width:0;background:rgba(0,0,0,.45);border:1px solid var(--line);color:var(--bone);padding:8px 10px;font:inherit;letter-spacing:.12em">
+      <button class="menu-btn small" id="lbDisplaySave" style="margin:0;white-space:nowrap">SET NAME</button>
+    </div>
+    <div class="hint" id="lbDisplayHint" style="margin:-2px 0 10px;min-height:1.2em"></div>
     <div class="glossary-tabs lb-mode-tabs">
       <button class="menu-btn small gloss-tab on" id="lbModeNormal">NORMAL</button>
       <button class="menu-btn small gloss-tab hard" id="lbModeHard">HARD</button>
@@ -1155,114 +1174,158 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
 
 <!-- SETTINGS -->
 <div class="overlay" id="settings" style="z-index:20">
-  <div class="panel" style="width:min(360px,90vw)">
+  <div class="panel" style="width:min(420px,92vw)">
     <h2>SETTINGS</h2>
-    <div class="rule" style="margin:14px 0"></div>
-    <div class="vol-row" style="justify-content:center">
-      <label>VOLUME</label>
-      <input type="range" id="volSettings" min="0" max="100" value="80">
-    </div>
-    <div id="textSizeRow" style="margin-top:18px;display:flex;flex-direction:column;align-items:center">
-      <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">TEXT SIZE</label>
-      <button class="menu-btn small" id="btnTextSize" style="border-color:var(--frost);color:var(--frost);margin-top:8px">TEXT SIZE: LARGE</button>
-      <div class="aim-mode-note" id="textSizeNote">small HUD &amp; menu text · best at 100% browser zoom (Ctrl+0 resets it)</div>
-    </div>
-    <!-- desktop (Electron) build only — shown by systems/native.js when the shell's bridge exists -->
-    <div class="aim-mode-row" id="displayRow" style="margin-top:18px;display:none">
-      <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">DISPLAY</label>
-      <button class="menu-btn small" id="btnDisplayMode" style="border-color:var(--frost);color:var(--frost);margin-top:8px">DISPLAY: FULLSCREEN</button>
-      <div class="aim-mode-note">f11 or alt+enter switches at any time</div>
-    </div>
-    <div class="aim-mode-row" id="hapticsRow" style="margin-top:18px">
-      <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">FEEDBACK</label>
-      <button class="menu-btn small" id="btnHaptics" style="border-color:var(--frost);color:var(--frost);margin-top:8px">VIBRATION: ON</button>
-    </div>
-    <!-- every build, phone and PC: not an .aim-mode-row, which is touch-only -->
-    <div id="shakeRow" style="margin-top:18px;display:flex;flex-direction:column;align-items:center">
-      <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">SCREEN SHAKE</label>
-      <button class="menu-btn small" id="btnShake" style="border-color:var(--frost);color:var(--frost);margin-top:8px">SCREEN SHAKE: ON</button>
-    </div>
-    <div id="numbersRow" style="margin-top:18px;display:flex;flex-direction:column;align-items:center">
-      <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">STAT DETAIL</label>
-      <button class="menu-btn small" id="btnAdvancedNumbers" style="border-color:var(--frost);color:var(--frost);margin-top:8px">ADVANCED NUMBERS: OFF</button>
-      <div class="aim-mode-note" id="advancedNumbersNote">show exact character stats and each rune’s current contribution, including stacks beyond three</div>
-    </div>
-    <div id="runeDescriptionsRow" style="margin-top:18px;display:flex;flex-direction:column;align-items:center">
-      <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">RUNE CHOICE CARDS</label>
-      <button class="menu-btn small" id="btnRuneDescriptions" style="border-color:var(--frost);color:var(--frost);margin-top:8px">RUNE DESCRIPTIONS: ON</button>
-      <div class="aim-mode-note">hide rune prose and use equally sized cards for a quicker pick</div>
-    </div>
-    <div id="runePauseRow" style="margin-top:18px;display:flex;flex-direction:column;align-items:center">
-      <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">RUNE PICKS</label>
-      <button class="menu-btn small" id="btnRunePause" style="border-color:var(--frost);color:var(--frost);margin-top:8px">PAUSE FOR RUNE PICKS: ON</button>
-      <div class="aim-mode-note" id="runePauseNote">on: the catacomb holds still while you choose · off: the fight keeps moving — in co-op the host's choice rules</div>
-    </div>
-    <div id="glowRow" style="margin-top:18px;display:flex;flex-direction:column;align-items:center">
-      <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">GLOW</label>
-      <button class="menu-btn small" id="btnGlow" style="border-color:var(--frost);color:var(--frost);margin-top:8px">GLOW: FULL</button>
-      <div class="aim-mode-note" id="glowNote">the intended look — every halo at full strength</div>
-    </div>
-    <div id="juiceRow" style="margin-top:18px;display:flex;flex-direction:column;align-items:center">
-      <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">KILL FEEDBACK</label>
-      <button class="menu-btn small" id="btnJuice" style="border-color:var(--frost);color:var(--frost);margin-top:8px">KILL FEEDBACK: FULL</button>
-      <div class="aim-mode-note" id="juiceNote">streak callouts, soul motes and screen flashes — the intended feel</div>
-    </div>
-    <div id="hiddenRunesRow" style="margin-top:18px;display:flex;flex-direction:column;align-items:center">
-      <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">HIDDEN WARDENS</label>
-      <button class="menu-btn small" id="btnHiddenRunes" style="border-color:var(--frost);color:var(--frost);margin-top:8px">HIDDEN WARDENS: OFF</button>
-      <div class="aim-mode-note" id="hiddenRunesNote">off by default — reveal hidden wardens in THE VAULT and let them find their hidden runes</div>
-    </div>
-    <div id="runTimerRow" style="margin-top:18px;display:flex;flex-direction:column;align-items:center">
-      <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">SPEEDRUN</label>
-      <button class="menu-btn small" id="btnRunTimer" style="border-color:var(--frost);color:var(--frost);margin-top:8px">RUN TIMER: ON</button>
-      <div class="aim-mode-note" id="runTimerNote">millisecond run clock · pauses with the game · keeps your fastest clear per warden and mode</div>
-    </div>
-    <div id="speedrunRow" style="margin-top:18px;display:flex;flex-direction:column;align-items:center">
-      <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">SPEEDRUN MODE</label>
-      <button class="menu-btn small" id="btnSpeedrun" style="border-color:var(--frost);color:var(--frost);margin-top:8px">SPEEDRUN MODE: OFF</button>
-      <div class="aim-mode-note" id="speedrunNote">guarantees WARD in the rightmost slot of your first rune choice, then SWIFT in your second — independent of the clock</div>
-      <div class="aim-mode-note" id="speedBestsNote" style="margin-top:6px"></div>
-    </div>
-    <div id="consoleRow" style="margin-top:18px;display:flex;flex-direction:column;align-items:center">
-      <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">RUN CONSOLE</label>
-      <button class="menu-btn small" id="btnConsole" style="border-color:var(--frost);color:var(--frost);margin-top:8px">OPEN CONSOLE</button>
-      <div class="aim-mode-note" id="consoleNote">F9 / backtick on desktop · type cheat, unlock all, pet seeker, soul 100000 and more · type help for the full list</div>
-    </div>
-    <div id="deskCtrlRow" style="margin-top:18px;display:flex;flex-direction:column;align-items:center;gap:8px">
-      <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">AIMING &amp; FIRING</label>
-      <button class="menu-btn small" id="btnDeskMode" style="border-color:var(--frost);color:var(--frost)">HOLD TO FIRE</button>
-      <div class="aim-mode-note" id="deskModeNote" style="display:block">aim with cursor · hold mouse to fire</div>
-    </div>
-    <!-- PC builds only — shown by systems/controls.js -->
-    <div id="controlsRow" style="margin-top:18px;display:none;flex-direction:column;align-items:center;gap:8px">
-      <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">CONTROLS</label>
-      <button class="menu-btn small" id="btnControls" style="border-color:var(--frost);color:var(--frost)">KEYS &amp; CONTROLLER</button>
-    </div>
-    <div class="aim-mode-row" id="mobileAimRow" style="margin-top:18px">
-      <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">AIMING</label>
-      <button class="menu-btn small" id="btnAimModeSettings" style="margin-top:8px">CONTROLS: AUTO-AIM</button>
-      <div class="aim-mode-note" id="aimModeNoteSettings">one thumb — left moves, gun aims &amp; fires itself</div>
-    </div>
-    <div class="aim-mode-row" id="ctrlSchemeRow" style="margin-top:18px">
-      <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">ON-SCREEN CONTROLS</label>
-      <button class="menu-btn small" id="btnCtrlScheme" style="border-color:var(--frost);color:var(--frost);margin-top:8px">CONTROLS: BUTTONS</button>
-      <div id="touchCtrlRow" style="display:none;flex-direction:column;align-items:center;margin-top:8px">
-        <button class="menu-btn small" id="btnCustomizeCtrl" style="border-color:var(--arcane);color:var(--arcane)">CUSTOMIZE LAYOUT</button>
-        <div class="aim-mode-note">drag the DASH &amp; SEAL buttons where your thumbs rest</div>
-        <button class="menu-btn small" id="btnBtnSize" style="border-color:var(--frost);color:var(--frost);margin-top:8px">BUTTON SIZE: MEDIUM</button>
-      </div>
-      <div id="gestureRow" style="display:none;flex-direction:column;align-items:center;margin-top:8px">
-        <button class="menu-btn small" id="btnGestureSwap" style="border-color:var(--frost);color:var(--frost)">TAP: SEAL · 2× DASH</button>
-        <div class="aim-mode-note" id="gestureNote">tap the screen to seal · double-tap to dash · best with auto-aim</div>
+
+    <div class="set-cat" data-cat="audio">
+      <button type="button" class="set-cat-h" data-cat-btn="audio">AUDIO &amp; DISPLAY <span class="arr">^</span></button>
+      <div class="set-cat-body">
+        <div class="vol-row" style="justify-content:center;margin-top:0">
+          <label>VOLUME</label>
+          <input type="range" id="volSettings" min="0" max="100" value="80">
+        </div>
+        <div id="textSizeRow" style="display:flex;flex-direction:column;align-items:center">
+          <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">TEXT SIZE</label>
+          <button class="menu-btn small" id="btnTextSize" style="border-color:var(--frost);color:var(--frost);margin-top:8px">TEXT SIZE: LARGE</button>
+          <div class="aim-mode-note" id="textSizeNote">small HUD &amp; menu text · best at 100% browser zoom (Ctrl+0 resets it)</div>
+        </div>
+        <div class="aim-mode-row" id="displayRow" style="display:none">
+          <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">DISPLAY</label>
+          <button class="menu-btn small" id="btnDisplayMode" style="border-color:var(--frost);color:var(--frost);margin-top:8px">DISPLAY: FULLSCREEN</button>
+          <div class="aim-mode-note">f11 or alt+enter switches at any time</div>
+        </div>
       </div>
     </div>
-    <!-- Shown only where UMP reports the privacy-options entry point is REQUIRED
-         (EEA/UK). Google mandates a persistent way to change ad consent. -->
-    <button class="menu-btn small" id="btnPrivacyOptions" style="width:100%;margin-top:24px;display:none">AD PRIVACY OPTIONS</button>
-    <button class="menu-btn small" id="btnReplayCutscene" style="width:100%;margin-top:24px">REPLAY OPENING</button>
-    <button class="menu-btn small" id="btnOpenSprites" style="width:100%;margin-top:10px;border-color:var(--frost);color:var(--frost);" onclick="window.location.href='sprites.html'">SPRITE STUDIO</button>
-    <button class="menu-btn small" id="btnHowToPlay" style="width:100%;margin-top:10px">HOW TO PLAY</button>
-    <button class="menu-btn small" id="settingsClose" style="width:100%;margin-top:10px">CLOSE</button>
+
+    <div class="set-cat" data-cat="feedback">
+      <button type="button" class="set-cat-h" data-cat-btn="feedback">FEEDBACK &amp; VISUALS <span class="arr">^</span></button>
+      <div class="set-cat-body">
+        <div class="aim-mode-row" id="hapticsRow">
+          <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">FEEDBACK</label>
+          <button class="menu-btn small" id="btnHaptics" style="border-color:var(--frost);color:var(--frost);margin-top:8px">VIBRATION: ON</button>
+        </div>
+        <div id="shakeRow" style="display:flex;flex-direction:column;align-items:center">
+          <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">SCREEN SHAKE</label>
+          <button class="menu-btn small" id="btnShake" style="border-color:var(--frost);color:var(--frost);margin-top:8px">SCREEN SHAKE: ON</button>
+        </div>
+        <div id="glowRow" style="display:flex;flex-direction:column;align-items:center">
+          <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">GLOW</label>
+          <button class="menu-btn small" id="btnGlow" style="border-color:var(--frost);color:var(--frost);margin-top:8px">GLOW: FULL</button>
+          <div class="aim-mode-note" id="glowNote">the intended look — every halo at full strength</div>
+        </div>
+        <div id="juiceRow" style="display:flex;flex-direction:column;align-items:center">
+          <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">KILL FEEDBACK</label>
+          <button class="menu-btn small" id="btnJuice" style="border-color:var(--frost);color:var(--frost);margin-top:8px">KILL FEEDBACK: FULL</button>
+          <div class="aim-mode-note" id="juiceNote">streak callouts, soul motes and screen flashes — the intended feel</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="set-cat" data-cat="runes">
+      <button type="button" class="set-cat-h" data-cat-btn="runes">RUNES &amp; PICKS <span class="arr">^</span></button>
+      <div class="set-cat-body">
+        <div id="numbersRow" style="display:flex;flex-direction:column;align-items:center">
+          <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">STAT DETAIL</label>
+          <button class="menu-btn small" id="btnAdvancedNumbers" style="border-color:var(--frost);color:var(--frost);margin-top:8px">ADVANCED NUMBERS: OFF</button>
+          <div class="aim-mode-note" id="advancedNumbersNote">show exact character stats and each rune’s current contribution, including stacks beyond three</div>
+        </div>
+        <div id="runeDescriptionsRow" style="display:flex;flex-direction:column;align-items:center">
+          <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">RUNE CHOICE CARDS</label>
+          <button class="menu-btn small" id="btnRuneDescriptions" style="border-color:var(--frost);color:var(--frost);margin-top:8px">RUNE DESCRIPTIONS: ON</button>
+          <div class="aim-mode-note">hide rune prose and use equally sized cards for a quicker pick</div>
+        </div>
+        <div id="runePauseRow" style="display:flex;flex-direction:column;align-items:center">
+          <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">RUNE PICKS</label>
+          <button class="menu-btn small" id="btnRunePause" style="border-color:var(--frost);color:var(--frost);margin-top:8px">PAUSE FOR RUNE PICKS: ON</button>
+          <div class="aim-mode-note" id="runePauseNote">on: the catacomb holds still while you choose · off: the fight keeps moving — in co-op the host's choice rules</div>
+        </div>
+        <div id="autoPickRow" style="display:flex;flex-direction:column;align-items:center">
+          <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">AUTO PICK</label>
+          <button class="menu-btn small" id="btnAutoPick" style="border-color:var(--frost);color:var(--frost);margin-top:8px">AUTO PICK: OFF</button>
+          <div class="aim-mode-note" id="autoPickNote">automatically carve prioritized runes for this character · turn on to set priorities</div>
+          <div id="autoPickPanel" style="display:none;width:100%;max-width:520px;margin-top:10px">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center">
+               <select id="autoPickChar" class="menu-btn small" style="border-color:var(--frost);color:var(--frost);background:#120d22;padding:8px;max-width:100%;width:min(100%,260px)"></select>
+              <button class="menu-btn small" id="btnAutoReroll" style="border-color:var(--gold);color:var(--gold);padding:8px">AUTO REROLL: OFF</button>
+            </div>
+            <div class="aim-mode-note" style="margin-top:6px">tap a rune to cycle priority: OFF · LOW · MID · HIGH. AUTO REROLL spends rerolls until a prioritized rune appears (host/solo; guest hands follow host offers).</div>
+            <div id="autoPickGrid" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:8px;max-height:220px;overflow:auto;padding:4px"></div>
+          </div>
+        </div>
+        <div id="hiddenRunesRow" style="display:flex;flex-direction:column;align-items:center">
+          <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">HIDDEN WARDENS</label>
+          <button class="menu-btn small" id="btnHiddenRunes" style="border-color:var(--frost);color:var(--frost);margin-top:8px">HIDDEN WARDENS: OFF</button>
+          <div class="aim-mode-note" id="hiddenRunesNote">off by default — reveal hidden wardens in THE VAULT and let them find their hidden runes</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="set-cat" data-cat="speedrun">
+      <button type="button" class="set-cat-h" data-cat-btn="speedrun">SPEEDRUN <span class="arr">^</span></button>
+      <div class="set-cat-body">
+        <div id="runTimerRow" style="display:flex;flex-direction:column;align-items:center">
+          <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">SPEEDRUN</label>
+          <button class="menu-btn small" id="btnRunTimer" style="border-color:var(--frost);color:var(--frost);margin-top:8px">RUN TIMER: ON</button>
+          <div class="aim-mode-note" id="runTimerNote">millisecond run clock · pauses with the game · keeps your fastest clear per warden and mode</div>
+        </div>
+        <div id="speedrunRow" style="display:flex;flex-direction:column;align-items:center">
+          <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">SPEEDRUN MODE</label>
+          <button class="menu-btn small" id="btnSpeedrun" style="border-color:var(--frost);color:var(--frost);margin-top:8px">SPEEDRUN MODE: OFF</button>
+          <div class="aim-mode-note" id="speedrunNote">guarantees WARD in the rightmost slot of your first rune choice, then SWIFT in your second — independent of the clock</div>
+          <div class="aim-mode-note" id="speedBestsNote" style="margin-top:6px"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="set-cat" data-cat="controls">
+      <button type="button" class="set-cat-h" data-cat-btn="controls">CONTROLS <span class="arr">^</span></button>
+      <div class="set-cat-body">
+        <div id="deskCtrlRow" style="display:flex;flex-direction:column;align-items:center;gap:8px">
+          <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">AIMING &amp; FIRING</label>
+          <button class="menu-btn small" id="btnDeskMode" style="border-color:var(--frost);color:var(--frost)">HOLD TO FIRE</button>
+          <div class="aim-mode-note" id="deskModeNote" style="display:block">aim with cursor · hold mouse to fire</div>
+        </div>
+        <div id="controlsRow" style="display:none;flex-direction:column;align-items:center;gap:8px">
+          <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">CONTROLS</label>
+          <button class="menu-btn small" id="btnControls" style="border-color:var(--frost);color:var(--frost)">KEYS &amp; CONTROLLER</button>
+        </div>
+        <div class="aim-mode-row" id="mobileAimRow">
+          <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">AIMING</label>
+          <button class="menu-btn small" id="btnAimModeSettings" style="margin-top:8px">CONTROLS: AUTO-AIM</button>
+          <div class="aim-mode-note" id="aimModeNoteSettings">one thumb — left moves, gun aims &amp; fires itself</div>
+        </div>
+        <div class="aim-mode-row" id="ctrlSchemeRow">
+          <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">ON-SCREEN CONTROLS</label>
+          <button class="menu-btn small" id="btnCtrlScheme" style="border-color:var(--frost);color:var(--frost);margin-top:8px">CONTROLS: BUTTONS</button>
+          <div id="touchCtrlRow" style="display:none;flex-direction:column;align-items:center;margin-top:8px">
+            <button class="menu-btn small" id="btnCustomizeCtrl" style="border-color:var(--arcane);color:var(--arcane)">CUSTOMIZE LAYOUT</button>
+            <div class="aim-mode-note">drag the DASH &amp; SEAL buttons where your thumbs rest</div>
+            <button class="menu-btn small" id="btnBtnSize" style="border-color:var(--frost);color:var(--frost);margin-top:8px">BUTTON SIZE: MEDIUM</button>
+          </div>
+          <div id="gestureRow" style="display:none;flex-direction:column;align-items:center;margin-top:8px">
+            <button class="menu-btn small" id="btnGestureSwap" style="border-color:var(--frost);color:var(--frost)">TAP: SEAL · 2× DASH</button>
+            <div class="aim-mode-note" id="gestureNote">tap the screen to seal · double-tap to dash · best with auto-aim</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="set-cat" data-cat="system">
+      <button type="button" class="set-cat-h" data-cat-btn="system">SYSTEM <span class="arr">^</span></button>
+      <div class="set-cat-body">
+        <div id="consoleRow2" style="display:flex;flex-direction:column;align-items:center">
+          <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">RUN CONSOLE</label>
+          <button class="menu-btn small" id="btnConsole" style="border-color:var(--frost);color:var(--frost);margin-top:8px">OPEN CONSOLE</button>
+          <div class="aim-mode-note" id="consoleNote">F9 / backtick on desktop · type cheat, unlock all, pet seeker, soul 100000 and more · type help for the full list</div>
+        </div>
+        <button class="menu-btn small" id="btnPrivacyOptions" style="width:100%;margin-top:14px;display:none">AD PRIVACY OPTIONS</button>
+        <button class="menu-btn small" id="btnReplayCutscene" style="width:100%;margin-top:10px">REPLAY OPENING</button>
+        <button class="menu-btn small" id="btnOpenSprites" style="width:100%;margin-top:10px;border-color:var(--frost);color:var(--frost);" onclick="window.location.href='sprites.html'">SPRITE STUDIO</button>
+        <button class="menu-btn small" id="btnHowToPlay" style="width:100%;margin-top:10px">HOW TO PLAY</button>
+      </div>
+    </div>
+
+    <button class="menu-btn small" id="settingsClose" style="width:100%;margin-top:14px">CLOSE</button>
   </div>
 </div>
 

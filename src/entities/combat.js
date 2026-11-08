@@ -342,19 +342,18 @@ function fireWeapon(p, inp, dt) {
     }
     return;
   }
-  if (!firing || p.fireT > 0) return;
-  /* The Shredder's trigger throws rune-etched debris off the saw's rim at whatever
-     the blade is grinding. It used to spawn ON the victim and fly along your aim
-     with that victim skipped — which read as the enemy firing somewhere random,
-     and meant no bullet rune ever touched the horror in front of you. */
+  /* SHREDDER auto-fires debris while the saw is grinding a target (character default),
+     aimed toward cursor/player aim — no trigger required. */
   if (p.char === "shredder") {
-    const target = p.sawHitTarget;
-    if (!target || target.dead || target.team === "p") return;
+    if (p.fireT > 0) return;
+    let target = p.sawHitTarget;
+    if (!target || target.dead || target.team === "p") target = null;
+    if (!target) return;
     p.fireT = 1 / (m.rate * jamMul);
-    const aimAt = angTo(p.x, p.y, target.x, target.y);
+    const aimAt = aim;
     /* start the debris a little inside the blade: spawnShot pushes it 18px out,
        and a horror pressed against you must still be in front of the shards */
-    spawnShot(p, p.x - Math.cos(aimAt) * 12, p.y - Math.sin(aimAt) * 12, aimAt);
+    spawnShot(p, p.x - Math.cos(aimAt) * 12, p.y - Math.sin(aimAt) * 12, aimAt, target);
     p.kickT = 0.07;
     Game.shake = Math.max(Game.shake, 1.5);
     AudioFX.shoot();
@@ -370,6 +369,7 @@ function fireWeapon(p, inp, dt) {
     }
     return;
   }
+  if (!firing || p.fireT > 0) return;
   /* THE WRAITH does not pull a trigger — it tears the veil */
   if (p.char === "wraith") {
     p.veilCdBase = clamp(6.75 / (m.rate * jamMul), 0.5, 4.5); // base 1.5s · RAPID shortens · JAM lengthens

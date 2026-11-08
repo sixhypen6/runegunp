@@ -236,6 +236,91 @@ function runeEntryFor(idx) {
   return (Game.pendingPickup && Game.pendingPickupBy === idx) ? { pk: Game.pendingPickup } : null;
 }
 
+/* Auto-pick (per character, configured in Settings). Returns the rune id to
+   carve from `ids`, or null. Priority: 3=high,2=mid,1=low,0/off=ignore.
+   Ties keep the hand's left-to-right order (stable). */
+function autoPickRune(chooser, ids) {
+  if (!chooser || !ids || !ids.length || typeof Meta === "undefined" || !Meta.autoPick) return null;
+  const cfg = Meta.autoPick[chooser.char];
+  if (!cfg || !cfg.on || !cfg.pri) return null;
+  let best = null, bestP = 0;
+  for (let i = 0; i < ids.length; i++) {
+    const p = cfg.pri[ids[i]] | 0;
+    if (p > bestP) { bestP = p; best = ids[i]; }
+  }
+  return bestP > 0 ? best : null;
+}
+
+function autoRerollForRune(ch, pk, idx, paused) {
+  const cfg = (typeof Meta !== "undefined" && Meta.autoPick) ? Meta.autoPick[ch.char] : null;
+  if (!cfg || !cfg.on || !cfg.reroll || !cfg.pri) return false;
+  let hasPri = false;
+  for (const k in cfg.pri) if ((cfg.pri[k] | 0) > 0) { hasPri = true; break; }
+  if (!hasPri || !pk || !pk.ids) return false;
+  /* Host/solo can spend rerolls immediately. Guests cannot mutate host state;
+     their hands reroll only via host offers, so we don't loop-spend here. */
+  if (typeof Net !== "undefined" && Net.role === "guest") return false;
+  let changed = false;
+  while (ch.rerolls > 0 && !autoPickRune(ch, pk.ids)) {
+    ch.rerolls--;
+    const pool = runePool(ch);
+    const onScreen = new Set(pk.ids);
+    let avail = pool.filter(id => !onScreen.has(id));
+    if (!avail.length) avail = pool.slice();
+    if (!avail.length) break;
+    pk.ids = [pick(avail), pick(avail), pick(avail)];
+    changed = true;
+  }
+  if (changed) {
+    if (typeof updateRerolls === "function" && ch === localPlayer()) updateRerolls();
+    if (!paused && Game.runeOverlayBy === idx) renderRuneChoice(idx);
+    else if (paused && Game.state === "rune") renderRuneChoice(idx);
+  }
+  return !!autoPickRune(ch, pk.ids);
+}
+
+function tryAutoPickRune(pickerIdx) {
+  const idx = (typeof pickerIdx === "number") ? pickerIdx : Game.pendingPickupBy;
+  const ch = players[idx] || localPlayer();
+  const entry = runeEntryFor(idx);
+  const pk = entry && entry.pk;
+  if (!ch || !pk || !pk.ids) return false;
+  if (Game.challenge === "runeless") return false;
+  if (typeof Net !== "undefined" && Net.active && ch !== localPlayer()) return false;
+  const paused = shouldPauseForRune();
+  autoRerollForRune(ch, pk, idx, paused);
+  const id = autoPickRune(ch, pk.ids);
+  if (!id) return false;
+  const R = runeDefFor(ch, id);
+  /* Co-op guest: send pick to host (host grants), same as CARVE button */
+  if (typeof Net !== "undefined" && Net.role === "guest") {
+    Net.sendR({ t: "runePick", id, pickerIdx: idx });
+    if (typeof AudioFX !== "undefined") AudioFX.equip();
+    if (!paused) {
+      Game.pendingPickups = Game.pendingPickups.filter(e => e.by !== idx);
+      hideRuneOverlay(idx);
+    } else {
+      Game.pendingPickup = null;
+      $("waitTitle").textContent = "CARVED — THE DESCENT RESUMES";
+      setState("wait");
+    }
+    return true;
+  }
+  /* Host/solo: grant immediately */
+  const pidx = pickups.indexOf(pk);
+  if (pidx !== -1) pickups.splice(pidx, 1);
+  grantRune(ch, id);
+  if (!paused) Game.pendingPickups = Game.pendingPickups.filter(e => e.by !== idx);
+  else Game.pendingPickup = null;
+  floatText(ch.x, ch.y - 30, (R ? R.name : id) + " · AUTO", R ? R.color : "#ffd23d", 14);
+  shockwaves.push({ x: ch.x, y: ch.y, r: 8, max: 120, speed: 520, dmg: 0,
+    hostile: false, color: R ? R.color : "#ffd23d", hitSet: new Set() });
+  if (typeof Net !== "undefined" && Net.role === "host") Net.sendR({ t: "runeGranted", idx: ch.idx, id, pickerIdx: idx });
+  if (!paused) hideRuneOverlay(idx);
+  else if (Game.state === "rune") setState("play");
+  return true;
+}
+
 /* ---------- rune choice: pick one of three, reroll per-slot ---------- */
 function openRuneChoice(pickerIdx) {
   /* pickerIdx is the player index who touched the orb.
@@ -272,9 +357,10 @@ function openRuneChoice(pickerIdx) {
     }
     return;
   }
-  if (!paused) { showRuneOverlay(idx); return; }
+  if (!paused) { showRuneOverlay(idx); if (tryAutoPickRune(idx)) return; return; }
   setState("rune");
   renderRuneChoice(idx);
+  if (tryAutoPickRune(idx)) return;
 }
 function renderRuneChoice(pickerIdx) {
   const idx = (typeof pickerIdx === "number") ? pickerIdx : Game.pendingPickupBy;

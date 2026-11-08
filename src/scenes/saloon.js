@@ -88,7 +88,10 @@ const SAL_ASKS = [
   { ask: "HOW DO I GET OUT?", lines: [
     "Down. Past a clock that stopped.",
     "Through glass that walks like you.",
-    "To the last living star. Then you choose."] },
+    "To the last living star. Then you choose.",
+    "", "", "", "", "", "", "", 
+    "Hm", 
+    "Are you going to stay here forever?",] },
 ];
 const SAL_FIRST_ROUND = "House rule: first's on me. The rest are ten souls.";
 const SAL_BROKE = "Ten souls a round. Come back when you've got them.";
@@ -233,14 +236,20 @@ const SAL_REGULARS = [
     "Half vitality, all loyalty. A fair trade.",
     "The dead make better company. They don't talk back.",
     "Four thralls. That's the cap. I've counted."] },
-  { id: "sniper", char: "sniper", skin: "bone", x: 1240, y: 646, aim: Math.PI / 4, lines: [
-    "One shot. One soul. One less thing in my way.",
-    "I've counted every bullet I've ever fired.",
-    "The further down you go, the bigger the targets.",
-    "Sit tight. I prefer them from a distance."]}
-];
-/* each body murmurs at its own pitch when it speaks */
-const SAL_VOICE = { gunsmith: 200, wraith: 270, juggernaut: 120, demolitionist: 170, alchemist: 235, necromancer: 180, sniper: 210 };
+     { id: "sniper", char: "sniper", skin: "bone", x: 1240, y: 646, aim: Math.PI / 4, lines: [
+       "One shot. One soul. One less thing in my way.",
+       "I've counted every bullet I've ever fired.",
+       "The further down you go, the bigger the targets.",
+       "Sit tight. I prefer them from a distance."]}
+ ];
+ /* John Runegun appears only when unlocked (console gate / unlock). */
+ const SAL_JOHN_REGULAR = { id: "john", char: "john", skin: "bone", x: 1360, y: 646, aim: -Math.PI / 2, owned: true, lines: [
+   "Runegun. The name came before the legend.",
+   "Every stack doubles the hurt. I stopped counting at twelve.",
+   "You wanted the man himself? Buy a round first.",
+   "Ten rerolls and a signature. The rest is aim."]};
+ /* each body murmurs at its own pitch when it speaks */
+ const SAL_VOICE = { gunsmith: 200, wraith: 270, juggernaut: 120, demolitionist: 170, alchemist: 235, necromancer: 180, sniper: 210, john: 155 };
 /* the piano player's one song, a little wrong: [Hz, seconds] — 0 is a rest */
 const SAL_TUNE = [[392, 0.28], [440, 0.28], [523, 0.28], [659, 0.56], [587, 0.28], [523, 0.28], [440, 0.56],
   [392, 0.28], [523, 0.28], [659, 0.28], [784, 0.56], [698, 0.28], [659, 0.28], [587, 0.84], [0, 0.9]];
@@ -307,8 +316,10 @@ function makeSaloon(hello) {
   const keep = salFolk(me.char, me.skin, SAL_KEEP.x, SAL_KEEP.y, Math.PI / 2);
   keep.gunSkin = me.gunSkin; keep.runes = Object.assign({}, me.runes); keep.voice = 150;
   /* no regular wears your exact character + paint; they may wear paints you don't own yet */
-  const taken = new Set([me.char + "|" + me.skin]);
-  const regs = SAL_REGULARS.map(R => {
+   const taken = new Set([me.char + "|" + me.skin]);
+   const roster = SAL_REGULARS.slice();
+   if (Meta.unlocked && Meta.unlocked["char:john"]) roster.push(SAL_JOHN_REGULAR);
+   const regs = roster.map(R => {
     let skin = R.skin;
     if (taken.has(R.char + "|" + skin)) skin = pick(Object.keys(SKINS).filter(k => !taken.has(R.char + "|" + k)));
     taken.add(R.char + "|" + skin);

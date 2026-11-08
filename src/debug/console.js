@@ -22,10 +22,11 @@ const RunegunConsole = {
   init() {
     const style = document.createElement("style");
     style.textContent = `
-      #runegunConsole{position:fixed;inset:8% 6%;z-index:100;display:none;flex-direction:column;
+      #runegunConsole{position:fixed;inset:8% 6%;z-index:120;display:none;flex-direction:column;
         max-width:900px;max-height:80vh;margin:auto;padding:12px;background:rgba(8,7,17,.97);
         border:1px solid #9d6bff;box-shadow:0 0 32px rgba(157,107,255,.28);color:#e8e2d0;
-        font:12px "Courier New",monospace;letter-spacing:.04em;pointer-events:auto;user-select:text;-webkit-user-select:text}
+        font:12px "Courier New",monospace;letter-spacing:.04em;pointer-events:auto;user-select:text;-webkit-user-select:text;
+        box-sizing:border-box;padding-bottom:max(12px,env(safe-area-inset-bottom));touch-action:manipulation}
       #runegunConsole.on{display:flex}
       #runegunConsole .rg-head{display:flex;align-items:center;justify-content:space-between;gap:8px;
         padding-bottom:8px;border-bottom:1px solid #2c2a45;color:#c9b8ff}
@@ -97,15 +98,20 @@ const RunegunConsole = {
 
   toggle(force) {
     this.open = force === undefined ? !this.open : !!force;
+    if (this.open) {
+      if (typeof closeSettings === "function") { try { closeSettings(); } catch (e) {} }
+      if (typeof closePausePanel === "function" && Game && Game.state === "pause") { /* keep pause state; console opens over it */ }
+    }
     this.box.classList.toggle("on", this.open);
     if (this.open) {
-      if (Game.state === "play" && !(typeof Net !== "undefined" && Net.active)) {
+      if (Game && Game.state === "play" && !(typeof Net !== "undefined" && Net.active)) {
         this.paused = true;
         setState("pause");
       }
-      this.input.focus();
+      this.render();
+      if (this.input) { try { this.input.focus({ preventScroll: true }); } catch (e) { try { this.input.focus(); } catch (_) {} } }
     } else {
-      if (this.paused && Game.state === "pause") setState("play");
+      if (this.paused && Game && Game.state === "pause") setState("play");
       this.paused = false;
     }
   },

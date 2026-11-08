@@ -253,8 +253,8 @@ const FirebaseBoard = (() => {
     finally { initPromise = null; }
   }
 
-  /* Accepts optional `place` and manual `display` fields during score submission */
-  async function submitScore({ leaderboardID, totalScoreAmount, tag, place, display } = {}) {
+  /* Accepts optional `place`, `platform` and manual `display` fields during score submission */
+  async function submitScore({ leaderboardID, totalScoreAmount, tag, place, platform, display } = {}) {
     if (!signedIn || !uid) return;
     const amount = Math.floor(Number(totalScoreAmount) || 0);
     if (!(amount > 0) || amount > SCORE_CAP) return;
@@ -269,8 +269,9 @@ const FirebaseBoard = (() => {
     const updatePayload = {};
     if (amount > cur) updatePayload[key] = amount;
     if (amount > cur) updatePayload.updatedAt = stamp();
-    if (place) updatePayload.place = place;
-    if (display) updatePayload.display = display; // Manual display name override
+    if (place) updatePayload.place = String(place).slice(0, 80);
+    if (platform) updatePayload.platform = String(platform).slice(0, 40);
+    if (display) updatePayload.display = String(display).slice(0, 32); // Manual display name override
 
     if (Object.keys(updatePayload).length) {
       await guard(rowRef().update(updatePayload), "submit");
@@ -349,6 +350,7 @@ function toEntry(id, row, key, slot, isClearTime) {
       rawScore: raw,
       playerId: id,
       place: (row && typeof row.place === "string") ? row.place : "unknown",
+      platform: (row && typeof row.platform === "string") ? row.platform : "",
       char: (tag && typeof tag.char === "string") ? tag.char : "",
       pet: (tag && typeof tag.pet === "string") ? tag.pet : "",
       runes: (tag && typeof tag.runes === "string") ? tag.runes : "",
@@ -482,6 +484,25 @@ function toEntry(id, row, key, slot, isClearTime) {
   async function showLeaderboard() {}
   async function unlockAchievement() {}
 
+  async function setDisplayName(display) {
+    if (!signedIn || !uid) throw new Error("board-signed-out");
+    const value = (display == null ? "" : String(display)).replace(/\s+/g, " ").trim().slice(0, 20);
+    if (value) {
+      await guard(rowRef().update({ display: value, updatedAt: stamp() }), "display");
+      setCallsign(value); // local preferred handle for this session/device
+    } else {
+      await guard(rowRef().child("display").remove(), "display-clear");
+      try {
+        const snap = await guard(rowRef().child("name").get(), "name");
+        const n = snap && snap.val && typeof snap.val() === "string" ? snap.val() : "";
+        if (n) setCallsign(n);
+      } catch (e) {}
+    }
+    cache.allRows = null;
+    for (const k of ["normal", "hard", "classic", "chaos", "normal:clear", "hard:clear", "classic:clear", "chaos:clear"]) cache[k] = null;
+    return value;
+  }
+
   function callsignOf() { return callsign || storedCallsign() || ""; }
   function status() {
     return {
@@ -490,7 +511,8 @@ function toEntry(id, row, key, slot, isClearTime) {
     };
   }
 
-  return { configured, signIn, submitScore, submitClearTime, loadTopScores, loadTopClearTimes,
+  return {
+    configured, signIn, setDisplayName, submitScore, submitClearTime, loadTopScores, loadTopClearTimes,
            loadPlayerCenteredScores, loadPlayerCenteredClearTimes,
            getUserTotalScore, showLeaderboard, unlockAchievement, readGate, status,
            callsign: callsignOf, uid: () => uid };

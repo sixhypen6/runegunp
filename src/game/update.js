@@ -285,6 +285,27 @@ function updatePlayer(p, inp, dt) {
           vx: Math.cos(back) * rnd(70, 140) + rnd(-25, 25), vy: Math.sin(back) * rnd(70, 140) + rnd(-25, 25),
           t: 0, life: rnd(0.15, 0.3), r: rnd(1.5, 3), color: "#bcd0ff" });
       }
+      /* boost ram: contact damage while SHIFT thrusters are engaged and moving */
+      p.fortressRamT = Math.max(0, (p.fortressRamT || 0) - dt);
+      const thrustSpd = Math.hypot(p.fvx || 0, p.fvy || 0);
+      if (boosting && thrustSpd > 40 && p.fortressRamT <= 0 && !Game.inSaloon) {
+        let hit = false;
+        for (let ei = 0; ei < enemies.length; ei++) {
+          const e = enemies[ei];
+          if (!e || e.dead || e.ghost || e.spawnT > 0 || e.team === "p") continue;
+          if (dist2(p.x, p.y, e.x, e.y) < (p.r + e.r + 6) ** 2) {
+            hit = true;
+            const ka = angTo(p.x, p.y, e.x, e.y);
+            damageEnemy(e, typeof FORTRESS_RAM_DMG === "number" ? FORTRESS_RAM_DMG : 14,
+              { x: p.x - Math.cos(ka) * 8, y: p.y - Math.sin(ka) * 8, knock: typeof FORTRESS_RAM_KNOCK === "number" ? FORTRESS_RAM_KNOCK : 120, owner: p });
+            if (!e.dead) {
+              e.x += Math.cos(ka) * 6; e.y += Math.sin(ka) * 6;
+            }
+            if (Game.state !== "play") return;
+          }
+        }
+        if (hit) p.fortressRamT = typeof FORTRESS_RAM_TICK === "number" ? FORTRESS_RAM_TICK : 0.22;
+      }
     }
     if (onIce(p.x, p.y)) {
       const k = 1 - Math.exp(-2.4 * dt);

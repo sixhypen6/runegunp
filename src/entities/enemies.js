@@ -569,11 +569,11 @@ function wavePool() {
   /* the deep floors' second horrors: the lapse, the penitent, the carrion */
   if (Game.mapIdx === 5) pool.push("lapse");
   if (Game.mapIdx === 6) pool.push("penitent");
-  if (Game.mapIdx === 7) pool.push("carrion");
+  if (Game.mapIdx === 7) pool.push("carrion", "carrion", "carrion", "carrion");
   /* once you've lapped the catacomb, the floors' horrors roam everywhere */
   if (Game.loop >= 1) pool.push("wisp", "summoner", "shade", "cinder", "slag", "angler", "riptide");
   /* ...the deep floors' too, on a solo descent that has walked them (co-op laps after the Void) */
-  if (Game.loop >= 1 && loopLen() === FLOORS.length) pool.push("mourner", "lapse", "lumen", "penitent", "drifter", "carrion");
+  if (Game.loop >= 1 && loopLen() === FLOORS.length) pool.push("mourner", "lapse", "lumen", "penitent", "drifter", "carrion", "carrion", "carrion");
   return pool;
 }
 
@@ -598,7 +598,7 @@ function triggerAmbush(chest) {
   chest.state = "ambush";
   const raw = 6 + Math.floor(Game.wave * 1.3 + depth() * 1.5);
   const n = Math.max(1, Math.round(raw * (1 - partyWardCut()) * partyWaveMul()));
-  const pool = wavePool();
+  const pool = wavePool().filter(t => t !== "carrion");
   let remaining = 0;
   for (let i = 0; i < n; i++) {
     const a = rnd(0, TAU), d = rnd(160, 320);

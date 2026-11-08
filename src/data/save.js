@@ -23,7 +23,7 @@ const Meta = {
   boardName: "",      // generated callsign shown on the online score board (Firebase) — never a Google name
   gunSkin: null,      // warpaint worn on the GUN (SKINS key) or null = unpainted, rune-tinted barrels
   pet: null,          // equipped pet type (PTYPES key) or null for none
-  aimMode: "auto",   // mobile: "auto" = 1 stick (move) + auto-aim (default) · "twin" = 2 sticks (move + aim/fire)
+  aimMode: "auto",   // mobile: "auto" = 1 stick (move) + auto-aim + auto-fire (default) · "twin" = 2 sticks (move + aim/fire)
   deskMode: "hold",  // desktop: "hold" = aim cursor, fire on hold · "cursor" = aim cursor, auto-fire · "auto" = auto-aim + auto-fire
   keyBinds: null,    // desktop CONTROLS: null = KEY_DEFAULTS (input.js) · else {action: [primary, alt]} of
                      // KeyboardEvent.code ("KeyW" — the physical key) or "Mouse<button>"; null slot = unbound
@@ -49,6 +49,7 @@ const Meta = {
   runTimer: true,     // speedrun clock in the HUD — display only; records are kept either way
   speedrun: false,    // SPEEDRUN mode: guarantee WARD then SWIFT in the first two rune choices (independent of the clock)
   speedBests: {},     // fastest COMPLETED descent per warden id and mode, seconds (0/absent = never cleared)
+  autoPick: {},      // per-character: { [charId]: { on: bool, reroll: bool, pri: { [runeId]: 0-3 } } } 0=off,1=low,2=mid,3=high
   bests: {            // personal records (local leaderboard — you vs your own past runs)
     score: 0,               // max Game.score
     survivedSec: 0,         // longest single run, floor(Game.time)
@@ -252,6 +253,20 @@ function metaLoad() {
       loadClearTag(d.bestsHard, Meta.bestsHard);
       loadClearTag(d.bestsClassic, Meta.bestsClassic);
       loadClearTag(d.bestsChaos, Meta.bestsChaos);
+      /* AUTO PICK config — per character, rune priorities (0 off, 1 low, 2 mid, 3 high) */
+      if (d.autoPick && typeof d.autoPick === "object") {
+        for (const cid in d.autoPick) {
+          if (typeof CHARS !== "undefined" && !CHARS[cid]) continue;
+          const c = d.autoPick[cid];
+          if (!c || typeof c !== "object") continue;
+          const pri = {};
+          if (c.pri && typeof c.pri === "object") for (const rid in c.pri) {
+            const v = c.pri[rid] | 0;
+            if (v >= 0 && v <= 3) pri[rid] = v;
+          }
+          Meta.autoPick[cid] = { on: !!c.on, reroll: !!c.reroll, pri };
+        }
+      }
       /* v3 migration: THE DROWNED NAVE was wedged in before the void, pushing the
          Event Horizon from kind/floor-index 3 to 4 — carry the old void records over.
          Old depth = loop*4 + idx decomposes exactly, old idx 3 (the void) is now 4. */
@@ -301,6 +316,7 @@ function recordBests() {
   if (improved.score) {
     b.char = recordChar;
     b.runes = recordRunes;
+    b.pet = (recordPlayer && recordPlayer.pet) || "";
     b.challenge = Game.challenge || "";
     b.tag = true;
   }
@@ -309,6 +325,7 @@ function recordBests() {
   if (!b.tag && Game.score >= b.score) {
     b.char = recordChar;
     b.runes = recordRunes;
+    b.pet = (recordPlayer && recordPlayer.pet) || "";
     b.challenge = Game.challenge || "";
     b.tag = true;
   }

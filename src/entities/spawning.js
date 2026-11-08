@@ -29,6 +29,8 @@ function makePlayer(cfg, idx) {
     boonMaxHp: 0, boonMove: 0,
     /* SEEKER: the locator's marks and the dark after it cuts a seal */
     seekerCd: 0, seekerMarkX: null, seekerMarkY: null, seekerAmbush: false, seekerVital: false,
+    /* FORTRESS: boost ram contact tick */
+    fortressRamT: 0,
     /* downed / revive (co-op): crawling, waiting on a partner's hands */
     downed: false, reviveT: 0,
     /* REPRIEVE: the save's cooldown and the horde-hold it leaves behind */

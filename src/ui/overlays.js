@@ -445,10 +445,13 @@ function renderVault() {
   }
   else if (vaultTab === "buffs") grid.appendChild(vaultStackCard());
   else for (const k in PTYPES) {
-    grid.appendChild(vaultPetCard(k, PTYPES[k]));
-    /* an owned pet reveals its upgrade cards right beneath it */
+    const group = document.createElement("div");
+    group.className = "pet-group";
+    group.appendChild(vaultPetCard(k, PTYPES[k]));
+    /* an owned pet reveals its upgrade cards right beneath it, kept in the same row group */
     if (Meta.unlocked["pet:" + k] && PTYPES[k].upgrades)
-      for (const u in PTYPES[k].upgrades) grid.appendChild(vaultPetUpgradeCard(k, u, PTYPES[k].upgrades[u]));
+      for (const u in PTYPES[k].upgrades) group.appendChild(vaultPetUpgradeCard(k, u, PTYPES[k].upgrades[u]));
+    grid.appendChild(group);
   }
 }
 function vaultShowTab(tab) { vaultTab = tab; renderVault(); }
@@ -734,17 +737,21 @@ function lbCharName(id) {
   if (!id) return "";
   return (typeof CHARS !== "undefined" && CHARS[id] && CHARS[id].name) ? CHARS[id].name : String(id).toUpperCase();
 }
+function lbPetName(id) {
+  if (!id) return "";
+  return (typeof PTYPES !== "undefined" && PTYPES[id] && PTYPES[id].name) ? PTYPES[id].name : String(id).toUpperCase();
+}
 /* "warp,hex" → "ᚥ ᛜ". A rune this build doesn't know becomes its raw id, so a
-   row never renders as blank glyph soup. 
+   row never renders as blank glyph soup.
 
-  This displays the rune thingy (rapid,heavy,mend turns into R, H, D with a dot)
-   hidden runes are now shown*/
+   This displays the rune thingy (rapid,heavy,mend turns into R, H, D with a dot)
+    hidden runes are now shown*/
 
 function lbRuneGlyphs(csv) {
   if (!csv) return "";
   return csv.split(",").slice(0, 8).map(id => {
-    const R = (typeof RUNES !== "undefined" && RUNES[id]) 
-           || (typeof HIDDEN_RUNES !== "undefined" && HIDDEN_RUNES[id]) 
+    const R = (typeof RUNES !== "undefined" && RUNES[id])
+           || (typeof HIDDEN_RUNES !== "undefined" && HIDDEN_RUNES[id])
            || null;
     return R && R.glyph ? R.glyph : id;
   }).join(" ");
@@ -767,20 +774,21 @@ function lbRow(entry, me, pending) {
   name.textContent = rowName + (me ? " · YOU" : "");
 
   /* Loadout details (character, runes, challenge) */
-  const who = lbCharName(entry.char), runes = lbRuneGlyphs(entry.runes);
+  const who = lbCharName(entry.char), runes = lbRuneGlyphs(entry.runes), pet = lbPetName(entry.pet);
   const chal = (typeof challengeName === "function") ? challengeName(entry.challenge) : "";
-  
-  if (who || runes || chal) {
+
+  if (who || pet || runes || chal) {
     const sub = document.createElement("small");
-    sub.textContent = [who, runes, chal].filter(Boolean).join(" · ");
+    sub.textContent = [who, pet ? "PET " + pet : "", runes, chal].filter(Boolean).join(" · ");
     name.appendChild(sub);
   }
 
-  /* Place indicator (github / vscode live server) displayed right below the name/loadout */
-  if (entry.place) {
+  /* Place / platform indicator (github / vscode live server / device) below name */
+  const metaBits = [entry.place, entry.platform].filter(v => v && v !== "unknown");
+  if (metaBits.length) {
     const placeSub = document.createElement("small");
     placeSub.className = "lb-place-sub";
-    placeSub.textContent = entry.place.toUpperCase();
+    placeSub.textContent = metaBits.join(" · ").toUpperCase();
     placeSub.style.display = "block";
     placeSub.style.opacity = "0.6";
     placeSub.style.fontSize = "0.8em";
@@ -801,16 +809,21 @@ function lbSimRow(rank, best, tag) {
   const currentPlace = (typeof Leaderboard !== "undefined" && Leaderboard.submissionPlace)
     ? Leaderboard.submissionPlace()
     : "unknown";
+  const currentPlatform = (typeof Leaderboard !== "undefined" && Leaderboard.submissionPlatform)
+    ? Leaderboard.submissionPlatform()
+    : "";
 
-  return lbRow({ 
-    rank, 
+  return lbRow({
+    rank,
     displayName: Leaderboard.myDisplayName?.() || Leaderboard.myName() || "WARDEN",
-    name: Leaderboard.myName() || "—", 
+    name: Leaderboard.myName() || "—",
     score: best.toLocaleString(),
-    place: currentPlace, // <--- This passes the place property into lbRow!
-    char: tag && tag.char, 
-    runes: tag && tag.runes, 
-    challenge: tag && tag.challenge 
+    place: currentPlace,
+    platform: currentPlatform,
+    char: tag && tag.char,
+    pet: tag && tag.pet,
+    runes: tag && tag.runes,
+    challenge: tag && tag.challenge
   }, true, true);
 }
 function lbHint(list, text) {
@@ -938,12 +951,39 @@ function openLeaderboard() {
      end there — hide it instead of leaving a tap that does nothing. */
   const nv = $("lbNativeView");
   if (nv) nv.style.display = Leaderboard.nativeUI() ? "" : "none";
+  const nameEdit = $("lbNameEdit");
+  const canEditName = !!(Leaderboard.backend && Leaderboard.backend() === "firebase" && typeof Leaderboard.setDisplayName === "function");
+  if (nameEdit) nameEdit.style.display = canEditName ? "flex" : "none";
+  const inp = $("lbDisplayInput");
+  if (inp && canEditName && !inp.value && typeof Leaderboard.myName === "function") inp.value = Leaderboard.myName() || "";
+  const hint = $("lbDisplayHint"); if (hint) hint.textContent = "";
   setState("leaderboard");
   resetPanelScroll("leaderboardScreen");
   lbTab = "global"; lbMode = "normal"; lbMetric = "score";    // always land on the normal global score view
   lbSync();
 }
 function closeLeaderboard() { refreshMenu(); setState("menu"); }
+
+async function saveLeaderboardDisplayName() {
+  const inp = $("lbDisplayInput"), hint = $("lbDisplayHint"), btn = $("lbDisplaySave");
+  if (!inp || !Leaderboard || typeof Leaderboard.setDisplayName !== "function") return;
+  const val = inp.value.replace(/\s+/g, " ").trim().slice(0, 20);
+  if (hint) hint.textContent = "";
+  if (btn) btn.disabled = true;
+  try {
+    const saved = await Leaderboard.setDisplayName(val);
+    inp.value = saved || "";
+    if (hint) hint.textContent = saved ? "NAME SET." : "DISPLAY NAME CLEARED.";
+    renderLeaderboard();
+  } catch (e) {
+    if (hint) hint.textContent = "COULD NOT SAVE NAME. SIGN IN AND CHECK CONNECTION/RULES.";
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+$("lbDisplaySave").addEventListener("click", saveLeaderboardDisplayName);
+$("lbDisplayInput").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); saveLeaderboardDisplayName(); } });
 
 $("lbTabGlobal").addEventListener("click", () => lbShowTab("global"));
 $("lbTabNearby").addEventListener("click", () => lbShowTab("nearby"));
@@ -1003,7 +1043,7 @@ async function fillRunRankLine(elId, wantState) {
 function applyAimMode() {
   const auto = Meta.aimMode === "auto";
   document.body.classList.toggle("autoaim", auto);
-  const label = "CONTROLS: " + (auto ? "AUTO-AIM" : "TWIN-STICK");
+  const label = "CONTROLS: " + (auto ? "AUTO-AIM · AUTO-FIRE" : "TWIN-STICK");
   const sniper = typeof localPlayer === "function" && localPlayer() && localPlayer().char === "sniper";
   const note = sniper
     ? "SNIPER always keeps the right aim stick — she never fires by herself"
@@ -1013,7 +1053,7 @@ function applyAimMode() {
   { const el = $("btnAimModeSettings"); if (el) el.textContent = label; }
   { const el = $("aimModeNoteSettings"); if (el) el.textContent = note; }
   if (auto) { Input.aiming = false; }      // drop any stale right-stick fire
-  else if (player) player.autoFire = false;
+  else if (player && player.char !== "sniper") player.autoFire = false;
 }
 function toggleAimMode() {
   Meta.aimMode = Meta.aimMode === "auto" ? "twin" : "auto";
@@ -1025,9 +1065,9 @@ $("btnAimModeSettings").addEventListener("click", toggleAimMode);
 
 /* ---------- control scheme (desktop): hold-fire vs auto-fire vs auto-aim ---------- */
 const DESK_MODES = {
-  hold: { label: "HOLD TO FIRE", note: "aim with cursor · hold mouse to fire" },
-  cursor: { label: "AUTO-FIRE", note: "aim with cursor · fires on its own" },
-  auto: { label: "AUTO-AIM", note: "targets nearest enemy · fires on its own" },
+  hold:   { label: "HOLD TO FIRE",        note: "aim with cursor · hold mouse to fire (DEFAULT)" },
+  cursor: { label: "AIM CURSOR · AUTO-FIRE", note: "aim with cursor · fires on its own" },
+  auto:   { label: "AUTO-AIM · AUTO-FIRE",  note: "gun aims & fires itself · move to dodge" },
 };
 const DESK_ORDER = ["hold", "cursor", "auto"];
 function applyDeskMode() {
@@ -1283,6 +1323,96 @@ function cycleSpeedrun() {
 }
 $("btnSpeedrun").addEventListener("click", cycleSpeedrun);
 
+/* ---------- AUTO PICK: per-character rune priorities ----------
+   Meta.autoPick[charId] = { on: bool, pri: { [runeId]: 0-3 } }
+   0 = off, 1 = low, 2 = mid, 3 = high. When any offered rune has priority > 0
+   (and auto-pick is on for that character), the highest-priority one is carved
+   automatically; ties keep the hand's order. */
+function autoPickCfg(charId) {
+  if (!Meta.autoPick) Meta.autoPick = {};
+  if (!Meta.autoPick[charId]) Meta.autoPick[charId] = { on: false, reroll: false, pri: {} };
+  const c = Meta.autoPick[charId];
+  if (!c.pri || typeof c.pri !== "object") c.pri = {};
+  if (typeof c.reroll !== "boolean") c.reroll = !!c.reroll;
+  return c;
+}
+function autoPickCharId() {
+  const sel = $("autoPickChar");
+  const id = sel && sel.value;
+  if (id && typeof CHARS !== "undefined" && CHARS[id]) return id;
+  return (typeof Meta !== "undefined" && Meta.char && CHARS[Meta.char]) ? Meta.char : "gunsmith";
+}
+function renderAutoPickGrid() {
+  const grid = $("autoPickGrid"); if (!grid) return;
+  grid.innerHTML = "";
+  const cid = autoPickCharId();
+  const cfg = autoPickCfg(cid);
+  const ids = (typeof RUNE_IDS !== "undefined" ? RUNE_IDS.slice() : []).concat(
+    (typeof HIDDEN_RUNE_IDS !== "undefined" && Meta.showHiddenRunes) ? HIDDEN_RUNE_IDS : []);
+  const names = ["", "LOW", "MID", "HIGH"];
+  const cols = ["var(--dim)", "#5ee6ff", "#ffd23d", "#ff4d5e"];
+  for (const id of ids) {
+    const R = (typeof RUNES !== "undefined" && RUNES[id]) || (typeof HIDDEN_RUNES !== "undefined" && HIDDEN_RUNES[id]);
+    if (!R) continue;
+    const p = cfg.pri[id] | 0;
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "menu-btn small";
+    b.style.cssText = "margin:0;padding:6px 8px;font-size:11px;line-height:1.1;min-width:0;border-color:" + (p ? cols[p] : "rgba(255,255,255,.12)") + ";color:" + (p ? cols[p] : "var(--dim)") + ";opacity:" + (p ? "1" : ".75");
+    b.title = R.name + " — " + (p ? names[p] : "OFF");
+    b.innerHTML = "<span style='font-size:14px'>" + R.glyph + "</span> <span style='font-size:9px;letter-spacing:.08em'>" + R.name + (p ? " · " + names[p] : "") + "</span>";
+    b.addEventListener("click", () => {
+      const c = autoPickCfg(cid);
+      c.pri[id] = ((c.pri[id] | 0) + 1) % 4;
+      if (!c.pri[id]) delete c.pri[id];
+      metaSave();
+      renderAutoPickGrid();
+      if (typeof AudioFX !== "undefined") AudioFX.equip();
+    });
+    grid.appendChild(b);
+  }
+}
+function syncAutoPickUI() {
+  const cid = autoPickCharId();
+  const cfg = autoPickCfg(cid);
+  const btn = $("btnAutoPick");
+  if (btn) btn.textContent = "AUTO PICK: " + (cfg.on ? "ON · " + ((CHARS[cid] && CHARS[cid].name) || cid.toUpperCase()) : "OFF");
+  const panel = $("autoPickPanel");
+  if (panel) panel.style.display = cfg.on ? "" : "none";
+  const rer = $("btnAutoReroll");
+  if (rer) rer.textContent = "AUTO REROLL: " + (cfg.reroll ? "ON" : "OFF");
+  const sel = $("autoPickChar");
+  if (sel && !sel.options.length && typeof CHARS !== "undefined") {
+    for (const id in CHARS) {
+      if (CHARS[id].consoleOnly && !(Meta.unlocked && Meta.unlocked["char:" + id])) continue;
+      const o = document.createElement("option");
+      o.value = id; o.textContent = CHARS[id].name || id;
+      sel.appendChild(o);
+    }
+    sel.value = Meta.char && CHARS[Meta.char] ? Meta.char : sel.options[0] && sel.options[0].value;
+    sel.addEventListener("change", () => { syncAutoPickUI(); renderAutoPickGrid(); });
+  } else if (sel && !sel.value) sel.value = cid;
+  if (cfg.on) renderAutoPickGrid();
+}
+function toggleAutoPick() {
+  const cid = autoPickCharId();
+  const cfg = autoPickCfg(cid);
+  cfg.on = !cfg.on;
+  metaSave();
+  syncAutoPickUI();
+  if (typeof AudioFX !== "undefined") AudioFX.equip();
+}
+function toggleAutoReroll() {
+  const cid = autoPickCharId();
+  const cfg = autoPickCfg(cid);
+  cfg.reroll = !cfg.reroll;
+  metaSave();
+  syncAutoPickUI();
+  if (typeof AudioFX !== "undefined") AudioFX.equip();
+}
+$("btnAutoPick").addEventListener("click", toggleAutoPick);
+$("btnAutoReroll").addEventListener("click", toggleAutoReroll);
+
 /* ---------- on-screen controls (mobile): scheme · button layout · gestures ---------- */
 function applyCtrlSettingsUI() {
   const gestures = Meta.ctrlScheme === "gestures";
@@ -1337,8 +1467,32 @@ $("btnCustomizeCtrl").addEventListener("click", openCtrlEdit);
 $("ctrlEditDone").addEventListener("click", () => closeCtrlEdit(true));
 $("ctrlEditReset").addEventListener("click", resetCtrlLayout);
 
+/* ---------- settings categories (collapsible) ---------- */
+(function initSettingsCats() {
+  const KEY = "runegun.settingsCats";
+  let state = {};
+  try { state = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) {}
+  document.querySelectorAll("#settings .set-cat[data-cat]").forEach(cat => {
+    const id = cat.getAttribute("data-cat");
+    const btn = cat.querySelector("[data-cat-btn]");
+    const arr = btn && btn.querySelector(".arr");
+    const apply = (collapsed) => {
+      cat.classList.toggle("collapsed", !!collapsed);
+      if (arr) arr.textContent = collapsed ? "v" : "^";
+      if (btn) btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    };
+    if (state[id] === true) apply(true);
+    if (btn) btn.addEventListener("click", () => {
+      const collapsed = !cat.classList.contains("collapsed");
+      apply(collapsed);
+      state[id] = collapsed;
+      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+    });
+  });
+})();
+
 /* ---------- settings overlay ---------- */
-function openSettings() { if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings opened"); syncVolumeUI(); applyDeskMode(); applyAimMode(); applyBtnSizeUI(); applyCtrlSettingsUI(); applyHapticsUI(); applyShakeUI(); applyAdvancedNumbersUI(); applyRuneDescriptionSettingsUI(); applyTextSizeUI(); applyGlowUI(); applyJuiceUI(); applyHiddenRunesUI(); applyRunTimerUI(); applySpeedrunUI(); syncPrivacyOptions(); $("btnReplayCutscene").style.display = (Game.state === "menu") ? "" : "none"; $("settings").classList.add("on"); }
+function openSettings() { if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings opened"); syncVolumeUI(); applyDeskMode(); applyAimMode(); applyBtnSizeUI(); applyCtrlSettingsUI(); applyHapticsUI(); applyShakeUI(); applyAdvancedNumbersUI(); applyRuneDescriptionSettingsUI(); applyTextSizeUI(); applyGlowUI(); applyJuiceUI(); applyHiddenRunesUI(); applyRunTimerUI(); applySpeedrunUI(); syncAutoPickUI(); syncPrivacyOptions(); $("btnReplayCutscene").style.display = (Game.state === "menu") ? "" : "none"; $("settings").classList.add("on"); }
 function closeSettings() { $("settings").classList.remove("on"); if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings closed"); }
 /* Google requires EEA/UK players to have a persistent way back to the consent
    choice. UMP tells us who needs one; everyone else never sees the button. */
@@ -1370,7 +1524,10 @@ $("btnReplayCutscene").addEventListener("click", () => {     // replay the full 
 });
 $("btnLeaderboard").addEventListener("click", openLeaderboard);
 $("btnConsole").addEventListener("click", () => {
-  if (typeof RunegunConsole !== "undefined") RunegunConsole.toggle();
+  if (typeof RunegunConsole !== "undefined") {
+    if (typeof closeSettings === "function") closeSettings();
+    RunegunConsole.toggle(true);
+  }
 });
 
 /* ---------- menu / death ---------- */

@@ -943,6 +943,7 @@ const Coop = {
       Game.pendingPickupBy = pickerIdx;
       setState("rune");
       renderRuneChoice(pickerIdx);
+      if (typeof tryAutoPickRune === "function" && tryAutoPickRune(pickerIdx)) return;
     } else {
       /* ride the choice over live play — no world freeze */
       const existing = Game.pendingPickups.findIndex(e => e.by === pickerIdx);
@@ -950,7 +951,17 @@ const Coop = {
       if (existing >= 0) Game.pendingPickups[existing] = e;
       else Game.pendingPickups.push(e);
       showRuneOverlay(pickerIdx);
+      if (typeof tryAutoPickRune === "function" && tryAutoPickRune(pickerIdx)) return;
     }
+    /* Auto Pick + Auto Reroll (guest): host owns rerolls, so ask for rerolls
+       until a prioritized rune appears or rerolls run out. */
+    try {
+      const cfg = (typeof Meta !== "undefined" && Meta.autoPick) ? Meta.autoPick[(localPlayer() || {}).char] : null;
+      if (cfg && cfg.on && cfg.reroll && cfg.pri && !(typeof autoPickRune === "function" && autoPickRune(localPlayer(), pk.ids))) {
+        let hasPri = false; for (const k in cfg.pri) if ((cfg.pri[k] | 0) > 0) { hasPri = true; break; }
+        if (hasPri && (m.rerolls | 0) > 0) Net.sendR({ t: "reroll", slot: 0, pickerIdx });
+      }
+    } catch (e) {}
   },
 
   /* ---------------- guest-side event juice ---------------- */

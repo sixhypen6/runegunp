@@ -31,6 +31,9 @@ const FORTRESS_BOOST_MUL = 2.4;        // multiplier on base speed while thrusti
 const FORTRESS_BOOST_ACCEL = 6;        // how fast velocity chases the thrust (1/s)
 const FORTRESS_BOOST_DRAG = 1.6;       // how slowly momentum bleeds off after release
 const FORTRESS_BOOST_STOP = 2;         // px/s below which the hull is considered still
+const FORTRESS_RAM_DMG = 14;           // contact damage while boosting (per hit tick)
+const FORTRESS_RAM_TICK = 0.22;        // seconds between boost ram hits on the same frame pass
+const FORTRESS_RAM_KNOCK = 120;        // knockback applied by a boost ram hit
 
 
 /* ---------- characters & skins (vault unlockables) ---------- */
