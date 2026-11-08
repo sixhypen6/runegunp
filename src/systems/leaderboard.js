@@ -389,7 +389,16 @@ async function submit(id, amount, tag) {
       const best = bestsFor(mode);
       const targetTimeMs = best && best.speedSec > 0 ? Math.round(best.speedSec * 1000) : 0;
       const res = await p.loadPlayerCenteredClearTimes({ leaderboardID: mode, maxResults: opts.maxResults || 25, targetTimeMs });
-      return { ok: true, entries: normalizeEntries(res) };
+      const entries = normalizeEntries(res);
+      /* a local clear that has not reached the server yet is synthesized by the
+         provider without a loadout; label it from the saved clear record so the
+         pending row does not appear blank */
+      const tag = clearTagFor(mode);
+      if (tag) entries.forEach(e => {
+        if (!e.pending) return;
+        e.char = tag.char; e.pet = tag.pet; e.runes = tag.runes; e.challenge = tag.challenge;
+      });
+      return { ok: true, entries };
     } catch (e) { return { ok: false, entries: [] }; }
   }
 
