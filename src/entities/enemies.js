@@ -127,10 +127,14 @@ function thrallSteerAngle(e, tx, ty) {
 function thrallCursorAI(e, dt) {
   const owner = e.owner;
   if (!owner) { e.vx = e.vy = 0; return; }
-  /* the type's own brain still runs its attacks/abilities — the cursor owns
-     the feet, not the teeth */
-  if (hasHostileTarget(e)) ETYPES[e.type].ai(e, dt);
-  if (!thrallCanSteer(e)) return;
+  /* the type's own brain still runs its attacks/abilities against a real horror —
+     the cursor owns the feet, not the teeth. With nothing to bite, a gunner must
+     not fall back to shooting its own master (combatTarget resolves to the owner). */
+  const hostile = hasHostileTarget(e);
+  const steer = thrallCanSteer(e);
+  if (hostile) ETYPES[e.type].ai(e, dt);
+  else if (!steer) { thrallFollowAI(e); return; }   // wisps / phylacteries keep their old idle
+  if (!steer) return;
   const c = thrallCursorPoint(owner);
   if (!c) { e.vx = e.vy = 0; return; }
   const dx = c.x - e.x, dy = c.y - e.y;
