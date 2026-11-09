@@ -190,6 +190,10 @@ function updatePlayer(p, inp, dt) {
         t: 0, life: 0.4, r: rnd(1.5, 3), color: "#ff4d5e" });
     return;
   }
+  /* THRALL COMMAND — Q (the surge bind) flips a Reanimator's pack between its
+     own hunt and the warden's mark. The tap arrives on the wire, so the host
+     toggles a guest's pack in step with the guest's own HUD copy. */
+  if (p.char === "necromancer" && inp.surgeTap) toggleThrallMode(p);
   /* REANIMATOR — the thrall rites. The host owns them in a shared descent;
      the guest only keeps its own HUD cue in step with the host's timer.
      R is the shared ABILITY key: the Reanimator recalls thralls with it,
@@ -391,6 +395,17 @@ function updatePlayer(p, inp, dt) {
     const tgt = nearestEnemy(p.x, p.y);
     if (tgt) { p.aim = angTo(p.x, p.y, tgt.x, tgt.y); p.autoFire = true; }
     else p.autoFire = false;
+  }
+  /* THRALL MARK — where the pack is sent in cursor mode (entities/enemies.js).
+     A guest's pointer arrives already in world px; the host and solo wardens
+     use their crosshair, or the last tap on a touchscreen. */
+  if (p.char === "necromancer") {
+    if (typeof inp.thrallX === "number") p.thrallCursor = { x: inp.thrallX, y: inp.thrallY };
+    else if (isLocal && inp.touchMode) {
+      if (typeof Input.tapWX === "number") p.thrallCursor = { x: Input.tapWX, y: Input.tapWY };
+    } else if (isLocal && inp.mouseX !== undefined) {
+      p.thrallCursor = { x: inp.mouseX / ZOOM + Game.cam.x, y: inp.mouseY / ZOOM + Game.cam.y };
+    }
   }
   updateShredderSaw(p, dt);
   fireWeapon(p, inp, dt);
@@ -818,7 +833,8 @@ function update(dt) {
       e.vx = Math.cos(fa) * e.speed * e.slowMul; e.vy = Math.sin(fa) * e.speed * e.slowMul;
     } else if (e.boss) bossAI(e, dt);
     else if (e.team === "p") {
-      if (hasHostileTarget(e)) ETYPES[e.type].ai(e, dt);
+      if (e.owner && e.owner.thrallMode === "cursor") thrallCursorAI(e, dt);
+      else if (hasHostileTarget(e)) ETYPES[e.type].ai(e, dt);
       else thrallFollowAI(e);
     } else ETYPES[e.type].ai(e, dt);
     deepMoveEnemy(e, dt);   // e.x/e.y += velocity — mired by stasis fields, skidding on black ice

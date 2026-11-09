@@ -304,6 +304,8 @@ const Coop = {
       f.boost = !!m.boost;
       f.aimX = Math.cos(m.aim); f.aimY = Math.sin(m.aim);
       f.aimMode = "manual";
+      /* the guest's thrall mark (world px) — undefined on a non-Reanimator */
+      if (Number.isFinite(m.tx) && Number.isFinite(m.ty)) { f.thrallX = m.tx; f.thrallY = m.ty; }
       if (m.dashN > taps.dash) { f.dashTap = true; taps.dash = m.dashN; }
       if (m.useN > taps.use) { f.useTap = true; taps.use = m.useN; }
       if (m.recallN > taps.recall) { f.recallTap = true; taps.recall = m.recallN; }
@@ -564,7 +566,12 @@ const Coop = {
     else if (f.deskMode === "auto") fire = !!self.autoFire;
     else if (f.deskMode === "cursor") fire = true;
     else fire = f.mouseDown;
-    Net.sendU({ t: "i", mx: f.mx, my: f.my, aim: self.aim, fire, boost: !!f.boost, dashN: this._dashN, useN: this._useN, recallN: this._recallN, surgeN: this._surgeN });
+    /* the Reanimator's mark, in world px: the host owns a guest's pack, so it
+       needs the pointer itself, not just the aim angle */
+    let tx, ty;
+    if (Input.touchMode && typeof Input.tapWX === "number") { tx = Input.tapWX; ty = Input.tapWY; }
+    else if (Input.mouseX !== undefined) { tx = Input.mouseX / ZOOM + Game.cam.x; ty = Input.mouseY / ZOOM + Game.cam.y; }
+    Net.sendU({ t: "i", mx: f.mx, my: f.my, aim: self.aim, fire, boost: !!f.boost, tx, ty, dashN: this._dashN, useN: this._useN, recallN: this._recallN, surgeN: this._surgeN });
   },
 
   /* interaction hints (display only — the host executes on our useTap) */

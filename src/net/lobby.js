@@ -48,6 +48,9 @@ const Lobby = {
        queued room cleanup has flushed */
     Signal.releaseSoon();
     setState("menu");
+    /* the gate is entered from the DESCEND chooser (SOLO / CO-OP), so back
+       steps to that chooser — a second back then leaves for the main menu. */
+    if (typeof openDescentChoice === "function") openDescentChoice();
   },
 
   render() {

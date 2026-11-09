@@ -191,7 +191,31 @@ function drawSniperLock(g) {
   g.restore();
 }
 
-/* PARTY CHAT HUD — the last few lines of the party chat, bottom-left, fading
+/* THRALL MARK — a Reanimator in cursor mode shows where the pack is being sent.
+   Also owns the mobile PACK button's visibility (only a necromancer has a pack). */
+function drawThrallCursor(g) {
+  const P = typeof localPlayer === "function" ? localPlayer() : null;
+  const btn = typeof document !== "undefined" && document.getElementById("btnThrall");
+  if (btn) btn.style.display = P && P.char === "necromancer" ? "flex" : "none";
+  if (!P || P.char !== "necromancer" || P.thrallMode !== "cursor") return;
+  const c = P.thrallCursor;
+  if (!c) return;
+  const pulse = 0.5 + 0.5 * Math.sin(Game.time * 5);
+  g.save();
+  g.translate(c.x, c.y);
+  g.strokeStyle = "#b9a8ff";
+  g.lineWidth = 1.6;
+  g.globalAlpha = 0.5 + pulse * 0.35;
+  g.beginPath(); g.arc(0, 0, 15 + pulse * 3, 0, TAU); g.stroke();
+  g.globalAlpha = 0.32 + pulse * 0.28;
+  g.beginPath();
+  g.moveTo(-7, 0); g.lineTo(7, 0);
+  g.moveTo(0, -7); g.lineTo(0, 7);
+  g.stroke();
+  g.restore();
+}
+
+/* PARTY CHAT HUD - the last few lines of the party chat, bottom-left, fading
    out over ~9s. Co-op only. */
 function drawChatHUD(g) {
   const coop = typeof Coop !== "undefined" && typeof Net !== "undefined" && Net.active;
@@ -1495,7 +1519,7 @@ function draw() {
   }
   if (chaosLast) drawChaosLastMark(cx, chaosLast);
   drawSniperLock(cx);
-  drawChatHUD(cx);
+  drawThrallCursor(cx);
 
   /* pets */
   for (const pet of pets) drawPet(cx, pet);
@@ -1514,6 +1538,9 @@ function draw() {
   if (Game.inUnknown) drawUnknownOver();
 
   drawAfterWardens();
+  /* party chat is a SCREEN-space strip — draw it after the world transform has
+     been unwound (drawAfterWardens restores it) */
+  drawChatHUD(cx);
 }
 
 /* one warden's sprite, auras and cooldown readouts. Extracted verbatim from the

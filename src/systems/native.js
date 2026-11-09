@@ -66,26 +66,21 @@
   });
 
   App.addListener("backButton", () => {
-    /* Settings / layout editor are classList overlays, not states — close them
-       first or back would exit the app / resume play underneath the panel.
-       The editor (z40) stacks ON TOP of a still-open settings (z20): topmost first. */
-    if ($("ctrlEdit").classList.contains("on")) { closeCtrlEdit(true); return; }
-    if ($("settings").classList.contains("on")) { closeSettings(); return; }
-    if ($("descentChoice").classList.contains("on")) { closeDescentChoice(); return; }
-    switch (Game.state) {
-      case "cutscene": endCutscene(); break;          // skip the intro
-      case "vaultcut": endVaultCutscene(); break;      // skip the unchaining (still frees the Keeper)
-      case "tutorial": tutorialSkip(); break;          // skip the walkthrough
-      case "continue": declineContinue(); break;       // back = accept death
-      case "resume":   resumeRun(); break;             // the revive is already paid for — step back in
-      case "held":     toggleRunesHeld(); break;       // close the rune panel
-      case "vault":    closeVault(); break;            // leave the vault
-      case "lobby":    Lobby.close(); break;           // abandon the co-op gate
-      case "pause":    togglePause(); break;           // resume play
-      case "blackjack": closeBlackjack(); break;       // get up from the table (only between hands)
-      case "play":     togglePause(); break;           // open pause menu
-      case "menu":     App.exitApp(); break;           // at the root → leave the app
-      default:         break;                          // ending/choice/ascend: consume, do nothing
+    /* Back means exactly what Escape means (uiBack): close the topmost panel,
+       else step back one screen. The one thing it adds is the root: on the main
+       menu with nothing open, back leaves the app. */
+    if (Game.state === "menu" &&
+        !$("settings").classList.contains("on") &&
+        !$("controls").classList.contains("on") &&
+        !$("ctrlEdit").classList.contains("on") &&
+        !$("transfer").classList.contains("on") &&
+        !$("chat").classList.contains("on") &&
+        !$("descentChoice").classList.contains("on") &&
+        !$("modeChoice").classList.contains("on") &&
+        !$("challengeChoice").classList.contains("on")) {
+      App.exitApp();
+      return;
     }
+    uiBack();
   });
 })();

@@ -67,20 +67,95 @@ function thrallFollowAI(e) {
   if (!owner) { e.vx = e.vy = 0; return; }
   const tx = owner.x + Math.cos(owner.aim) * 240;
   const ty = owner.y + Math.sin(owner.aim) * 240;
-  const angle = angTo(e.x, e.y, tx, ty);
   const d = dist2(e.x, e.y, tx, ty);
-  let moveAngle = angle;
-  if (lineBlocked(e.x, e.y, tx, ty)) {
-    for (const offset of [0.5, -0.5, 1, -1]) {
-      const testAngle = angle + offset;
-      if (!lineBlocked(e.x, e.y, e.x + Math.cos(testAngle) * 40, e.y + Math.sin(testAngle) * 40)) {
-        moveAngle = testAngle; break;
-      }
-    }
-  }
+  const moveAngle = thrallSteerAngle(e, tx, ty);
   if (d > 40 * 40) {
     e.vx = Math.cos(moveAngle) * e.speed * 0.8;
     e.vy = Math.sin(moveAngle) * e.speed * 0.8;
+  } else { e.vx *= 0.8; e.vy *= 0.8; }
+}
+
+/* =========================================================
+   THRALL CURSOR COMMAND — Q on a Reanimator flips the pack between
+   its own hunt and the warden's pointer. In cursor mode the pack
+   walks to the crosshair / last tap; ranged thralls hold a standoff
+   ring around the mark instead of piling onto it, and anything in a
+   committed move (a dash, a leap, a slam) still finishes its swing.
+   ========================================================= */
+const THRALL_CURSOR = {
+  arrive: 34,        // melee thralls settle this close to the mark
+  reach: 900,        // farther than this the mark is ignored (the pack holds)
+  strafe: 0.35,      // how fast a held ranged thrall drifts around the ring
+  standoff: {        // ranged types keep this much air between them and the mark
+    gunner: 190, spitter: 250, summoner: 280, riptide: 220,
+  },
+};
+function thrallStandoff(e) {
+  const v = THRALL_CURSOR.standoff[e.type];
+  return typeof v === "number" ? v : 0;
+}
+/* a type mid-commitment must finish its own move — the cursor steers only the
+   free-walk phases (a dasher's dash, a slag's leap, a slammer's raise…) */
+function thrallCanSteer(e) {
+  switch (e.type) {
+    case "dasher": case "slag": case "slagling": return e.phase === "stalk";
+    case "slammer": return e.phase === "walk";
+    case "angler": return e.phase === "lurk" || e.phase === "reveal";
+    case "riptide": return e.phase === "flow";
+    case "wisp": case "phylactery": return false;   // teleports / orbit the boss
+    default: return true;
+  }
+}
+/* where the pack is being sent: the owner's pointer (mouse, last tap, or the
+   point the host mirrored from a guest), falling back to the aim line */
+function thrallCursorPoint(owner) {
+  if (!owner) return null;
+  if (owner.thrallCursor) return owner.thrallCursor;
+  return { x: owner.x + Math.cos(owner.aim) * 240, y: owner.y + Math.sin(owner.aim) * 240 };
+}
+/* walk toward tx/ty, sliding around stone the way the follow-AI does */
+function thrallSteerAngle(e, tx, ty) {
+  const angle = angTo(e.x, e.y, tx, ty);
+  if (!lineBlocked(e.x, e.y, tx, ty)) return angle;
+  for (const offset of [0.5, -0.5, 1, -1]) {
+    const testAngle = angle + offset;
+    if (!lineBlocked(e.x, e.y, e.x + Math.cos(testAngle) * 40, e.y + Math.sin(testAngle) * 40))
+      return testAngle;
+  }
+  return angle;
+}
+function thrallCursorAI(e, dt) {
+  const owner = e.owner;
+  if (!owner) { e.vx = e.vy = 0; return; }
+  /* the type's own brain still runs its attacks/abilities — the cursor owns
+     the feet, not the teeth */
+  if (hasHostileTarget(e)) ETYPES[e.type].ai(e, dt);
+  if (!thrallCanSteer(e)) return;
+  const c = thrallCursorPoint(owner);
+  if (!c) { e.vx = e.vy = 0; return; }
+  const dx = c.x - e.x, dy = c.y - e.y;
+  const d = Math.hypot(dx, dy);
+  if (d > THRALL_CURSOR.reach) { e.vx *= 0.8; e.vy *= 0.8; return; }
+  const stand = thrallStandoff(e);
+  if (stand > 0) {
+    /* ranged: hold a ring around the mark, drifting so the pack never stacks */
+    if (d > stand + 24) {
+      const a = thrallSteerAngle(e, c.x, c.y);
+      e.vx = Math.cos(a) * e.speed * e.slowMul;
+      e.vy = Math.sin(a) * e.speed * e.slowMul;
+    } else if (d < stand - 24) {
+      e.vx = -(dx / d) * e.speed * e.slowMul;
+      e.vy = -(dy / d) * e.speed * e.slowMul;
+    } else {
+      const dir = Math.sin(Game.time * 1.3 + e.r) > 0 ? 1 : -1;
+      const sa = Math.atan2(dy, dx) + (Math.PI / 2) * dir;
+      e.vx = Math.cos(sa) * e.speed * THRALL_CURSOR.strafe * e.slowMul;
+      e.vy = Math.sin(sa) * e.speed * THRALL_CURSOR.strafe * e.slowMul;
+    }
+  } else if (d > THRALL_CURSOR.arrive) {
+    const a = thrallSteerAngle(e, c.x, c.y);
+    e.vx = Math.cos(a) * e.speed * e.slowMul;
+    e.vy = Math.sin(a) * e.speed * e.slowMul;
   } else { e.vx *= 0.8; e.vy *= 0.8; }
 }
 

@@ -18,6 +18,8 @@ function makePlayer(cfg, idx) {
     dashT: 0, dashCd: 0, dashCdBase: c.dashCd, dashDur: c.dashDur || 0.18, dashSpeed: c.dashSpeed || 720, dashAng: 0, puddleTick: 0, autoFire: false,
     sawT: 0, sawRot: 0, sawHitTarget: null,
     veilT: 0, veilCdBase: 0,
+    /* REANIMATOR: the pack's command mode ("ai" hunts, "cursor" follows the mark) */
+    thrallMode: "ai", thrallCursor: null,
     curses: {}, brandTick: 0, shield: 0, shieldMax: 0, shieldT: 0,
     /* the build — each warden carves their own path */
     runes: {}, lockedRunes: null, mods: null,

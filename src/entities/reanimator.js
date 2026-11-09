@@ -151,6 +151,20 @@ function reanimatorRecallNow(p) {
   return true;
 }
 
+/* Q (the surge bind) — flip the pack between its own hunt and the warden's
+   mark. In MARK mode the thralls walk to the crosshair / last tap; ranged
+   thralls hold a standoff ring there (entities/enemies.js). */
+function toggleThrallMode(p) {
+  if (!p || p.char !== "necromancer") return;
+  p.thrallMode = p.thrallMode === "cursor" ? "ai" : "cursor";
+  const cursor = p.thrallMode === "cursor";
+  if (typeof toast === "function")
+    toast(cursor ? "THRALLS FOLLOW THE MARK · Q TO HUNT" : "THRALLS HUNT ON THEIR OWN · Q TO MARK");
+  if (typeof floatText === "function")
+    floatText(p.x, p.y - 46, cursor ? "FOLLOW THE MARK" : "HUNT", "#b9a8ff", 13);
+  if (typeof AudioFX !== "undefined" && AudioFX.click) AudioFX.click();
+}
+
 /* Spend a few of the pack to claw the master back above the brink.
    killEnemy runs the ordinary thrall-death hook with `sacrifice` set, which
    pays REANIMATOR.sacrificeHealMul × SOUL FEED and tallies the total instead
@@ -223,7 +237,9 @@ function updateThrallCue(p) {
   const t = Math.ceil(p.thrallRecallT || 0);
   const ready = t <= 0;
   const key = ready && !Input.touchMode ? bindLabel("recall") : "";
-  const txt = "THRALLS " + n + " / " + reanimatorThrallCap(p) + " · " +
+  const modeKey = !Input.touchMode ? bindLabel("surge") : "";
+  const mode = (p.thrallMode === "cursor" ? "MARK" : "HUNT") + (modeKey ? " [" + modeKey + "]" : "");
+  const txt = "THRALLS " + n + " / " + reanimatorThrallCap(p) + " · " + mode + " · " +
     (ready ? "RECALL READY" + (key ? " [" + key + "]" : "") : "RECALL IN " + t + "s");
   const cls = "on" + (ready && n ? " ready" : "");
   if (lastThrallCue !== txt + cls) {
@@ -231,4 +247,11 @@ function updateThrallCue(p) {
     el.textContent = txt;
     el.className = cls;
   }
+}
+
+/* mobile: the PACK button is the touch build's Q — same latch, so it rides the
+   co-op wire exactly like the key */
+{
+  const b = $("btnThrall");
+  if (b) b.addEventListener("click", () => { if (Game.state === "play") Input.surgeTap = true; });
 }

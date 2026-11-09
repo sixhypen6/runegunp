@@ -13,6 +13,8 @@ const Input = {
   touchMode: false,
   dashTap: false, useTap: false, recallTap: false, surgeTap: false,
   mark1Tap: false, mark2Tap: false,
+  /* touchscreen thrall mark — world px of the last tap (Reanimator cursor mode) */
+  tapWX: undefined, tapWY: undefined,
 };
 
 /* ---------- key bindings (desktop) ----------
@@ -66,12 +68,26 @@ function pressBound(code, e) {
    toggle pause→play underneath the panel. Topmost first: the editor (z40) and CONTROLS
    (z25) both stack ON TOP of a still-open settings (z20). */
 function uiBack() {
+  /* overlays first, TOPMOST first: the editor (z40), chat (z34), transfer (z30),
+     CONTROLS (z25), then the z20 panels. Closing settings while a transfer sits
+     above it would silently strip the wrong screen. */
   if ($("ctrlEdit").classList.contains("on")) { closeCtrlEdit(true); return; }
-  if ($("controls").classList.contains("on")) { closeControls(); return; }
   if ($("chat") && $("chat").classList.contains("on")) { if (typeof Coop !== "undefined" && Coop.chatClose) Coop.chatClose(); return; }
+  if ($("transfer") && $("transfer").classList.contains("on")) { ProgressTransfer.close(); return; }
+  if ($("controls").classList.contains("on")) { closeControls(); return; }
   if ($("settings").classList.contains("on")) { closeSettings(); return; }
   if ($("descentChoice").classList.contains("on")) { closeDescentChoice(); return; }
   if ($("modeChoice").classList.contains("on")) { closeModeChoice(); return; }
+  if ($("challengeChoice") && $("challengeChoice").classList.contains("on")) { closeChallengeChoice(); return; }
+  /* then step the state machine back one screen. These are the same actions the
+     Escape key takes in its early-return branches, so the hardware back button
+     (systems/native.js) and a controller's B behave identically. */
+  if (Game.state === "tutorial") { tutorialSkip(); return; }
+  if (Game.state === "cutscene") { endCutscene(); return; }
+  if (Game.state === "vaultcut") { endVaultCutscene(); return; }
+  if (Game.state === "blackjack") { closeBlackjack(); return; }
+  if (Game.state === "glossary") { closeGlossary(); return; }
+  if (Game.state === "leaderboard") { closeLeaderboard(); return; }
   if (Game.state === "play" || Game.state === "pause") togglePause();
   else if (Game.state === "held") toggleRunesHeld();
   else if (Game.state === "vault") closeVault();
@@ -79,6 +95,7 @@ function uiBack() {
   /* the revive is bought and paid for; Escape here means "I'm ready", not "cancel".
      Deliberately NOT bound to Space — a mashed dash key must not skip the breath. */
   else if (Game.state === "resume") resumeRun();
+  else if (Game.state === "continue") declineContinue();
 }
 
 window.addEventListener("keydown", e => {
@@ -152,6 +169,16 @@ window.addEventListener("mouseup", e => {
   if (e.button === 0) Input.mouseDown = false;
 });
 cv.addEventListener("contextmenu", e => e.preventDefault());
+/* touchscreen: a tap on the arena is the Reanimator's thrall mark (cursor mode
+   sends the pack there). Sticks and HUD buttons sit above the canvas, so their
+   touches never land here. */
+cv.addEventListener("touchstart", e => {
+  if (Game.state !== "play") return;
+  const t = e.changedTouches[0];
+  if (!t) return;
+  Input.tapWX = t.clientX / ZOOM + Game.cam.x;
+  Input.tapWY = t.clientY / ZOOM + Game.cam.y;
+}, { passive: true });
 
 function makeStick(el, onMove, onEnd) {
   const base = el.querySelector(".base"), nub = el.querySelector(".nub");
