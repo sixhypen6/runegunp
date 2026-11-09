@@ -360,9 +360,16 @@ function updatePlayer(p, inp, dt) {
   if (!inp.touchMode) {
     if (p.char === "sniper") {
       /* the rifle is aimed by hand in every desktop mode — AUTO-AIM and
-         AUTO-FIRE both stay out of a marksman's hands */
-      if (isLocal && inp.mouseX !== undefined)
-        p.aim = Math.atan2((inp.mouseY / ZOOM + Game.cam.y) - p.y, (inp.mouseX / ZOOM + Game.cam.x) - p.x);
+         AUTO-FIRE both stay out of a marksman's hands. The scope's instinct
+         only moves the line onto a body already under the crosshair. */
+      if (isLocal && inp.mouseX !== undefined) {
+        const wx = inp.mouseX / ZOOM + Game.cam.x;
+        const wy = inp.mouseY / ZOOM + Game.cam.y;
+        const lock = sniperLockFor(p, wx, wy);
+        p.sniperLock = lock;
+        if (lock) p.aim = angTo(p.x, p.y, lock.x, lock.y);
+        else p.aim = Math.atan2(wy - p.y, wx - p.x);
+      }
       p.autoFire = false;
     } else if (inp.deskMode === "auto") {
       const tgt = nearestEnemy(p.x, p.y);
@@ -387,6 +394,59 @@ function updatePlayer(p, inp, dt) {
   }
   updateShredderSaw(p, dt);
   fireWeapon(p, inp, dt);
+}
+
+/* THE SCOPE'S INSTINCT — pick the horror the crosshair is nearest to. Bodies
+   under the crosshair are ranked by how many horrors share their line of fire
+   (behind them — the pierce's worth — and between them and the rifle), then by
+   the crosshair's distance. A warden in reach always outranks the horde. The
+   current mark is kept on near-ties so the rifle does not flicker between two
+   equally good bodies. */
+function sniperLineBodies(p, e) {
+  const a = angTo(p.x, p.y, e.x, e.y);
+  const ax = Math.cos(a), ay = Math.sin(a);
+  const pad = typeof SNIPER_LOCK_CORRIDOR === "number" ? SNIPER_LOCK_CORRIDOR : 16;
+  let n = 0;
+  for (const o of enemies) {
+    if (o === e || o.dead || o.ghost || o.spawnT > 0 || o.team === "p") continue;
+    const rx = o.x - p.x, ry = o.y - p.y;
+    const along = rx * ax + ry * ay;
+    if (along <= 0) continue;                       // behind the rifle: not on this line
+    if (Math.abs(rx * ay - ry * ax) > o.r + pad) continue;
+    n++;
+  }
+  return n;
+}
+
+function sniperLockFor(p, cx, cy) {
+  const reach = typeof SNIPER_LOCK_RADIUS === "number" ? SNIPER_LOCK_RADIUS : 90;
+  const bossReach = reach * (typeof SNIPER_LOCK_BOSS_MUL === "number" ? SNIPER_LOCK_BOSS_MUL : 1.6);
+  const tie = typeof SNIPER_LOCK_TIE_PX === "number" ? SNIPER_LOCK_TIE_PX : 6;
+  const cur = p.sniperLock;
+  let best = null, bestBoss = false, bestScore = -1;
+  let bestCursor = Infinity, bestDist = Infinity;
+  for (const e of enemies) {
+    if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p" || e.untargetable) continue;
+    const boss = !!e.boss;
+    const cursor = Math.hypot(e.x - cx, e.y - cy) - e.r;
+    if (cursor > (boss ? bossReach : reach)) continue;
+    if (lineBlocked(p.x, p.y, e.x, e.y)) continue;  // stone ends the round first
+    const score = sniperLineBodies(p, e);
+    const dp = Math.hypot(e.x - p.x, e.y - p.y);
+    let take;
+    if (!best) take = true;
+    else if (boss !== bestBoss) take = boss;
+    else if (score !== bestScore) take = score > bestScore;
+    else if (e === cur && Math.abs(cursor - bestCursor) <= tie) take = true;
+    else if (best === cur && Math.abs(cursor - bestCursor) <= tie) take = false;
+    else if (Math.abs(cursor - bestCursor) > tie) take = cursor < bestCursor;
+    else take = dp < bestDist;
+    if (take) {
+      best = e; bestBoss = boss; bestScore = score;
+      bestCursor = cursor; bestDist = dp;
+    }
+  }
+  return best;
 }
 
 /* SNIPER's scope-lead: the camera drifts toward the aim, up to SNIPER_CAM_LEAD

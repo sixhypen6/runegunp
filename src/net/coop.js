@@ -66,6 +66,9 @@ const Coop = {
   _buf: [],                          // guest: snapshot buffer (newest last)
   _inputs: new Map(),                // host: player idx -> { m, at } (one per guest)
   _taps: new Map(),                  // host: player idx -> consumed tap counters
+  _chatMsgs: [],                     // { id, idx, text, at } — shared party chat
+  _chatNextId: 1,
+  CHAT_MAX: 12,
   _floorReady: false,
   _prevWave: 0,
 
@@ -124,6 +127,7 @@ const Coop = {
     this._dashN = 0; this._useN = 0; this._recallN = 0; this._surgeN = 0;   // guest outgoing counters
     this._prevWave = 0;
     this._stateN = 0;      // newest host-state packet acted on (see _stale)
+    this._chatMsgs.length = 0;   // a fresh descent starts with a clean log
     Net.onMessage = (m, peer) => this._onMsg(m, peer);
     Net.onPeerLost = (why, peer) => this._peerLost(why, peer);
     Protocol._snapN = 0; Protocol._fx = [];
@@ -133,6 +137,7 @@ const Coop = {
     else Game.pendingPickups = [];
     Game.pendingPickup = null; Game.pendingPickupBy = 0;
     if (typeof hideRuneOverlay === "function") hideRuneOverlay();
+    this.chatInit();
   },
 
   /* A seat with no live peer (a leaver on DESCEND AGAIN, or a host that
@@ -147,6 +152,74 @@ const Coop = {
   },
   _peerByIdx(idx) {
     return Net.peers.find(p => p.idx === idx);
+  },
+  /* the callsign a warden chats under — local Meta, else the peer's hello cfg */
+  chatName(idx) {
+    if (idx === Net.localIdx) return Meta.boardName || "WARDEN";
+    const peer = this._peerByIdx(idx);
+    return (peer && (peer.cfg && peer.cfg.boardName) || "WARDEN");
+  },
+  /* store a chat line (host rebroadcasts, so dedupe by id kills echoes) */
+  chatAdd(msg) {
+    if (!msg || typeof msg.text !== "string") return;
+    if (this._chatMsgs.some(m => m.id === msg.id)) return;
+    this._chatMsgs.push({ id: msg.id, idx: msg.idx, text: String(msg.text).slice(0, 120), at: msg.at || Date.now() });
+    while (this._chatMsgs.length > this.CHAT_MAX) this._chatMsgs.shift();
+    if ($("chat") && $("chat").classList.contains("on")) this.chatUI();
+  },
+  /* say something as the local warden — echoed locally at once, then sent */
+  chatSay(text) {
+    const t = text.trim();
+    if (!t) return;
+    /* ids are sender-scoped so two peers' counters can never collide */
+    const msg = { t: "chat", id: Net.localIdx + "-" + (this._chatNextId++), idx: Net.localIdx, text: t, at: Date.now() };
+    this.chatAdd(msg);
+    if (typeof Net !== "undefined" && Net.active) Net.sendR(msg);
+  },
+  /* ---------- chat UI ---------- */
+  chatUI() {
+    const list = $("chatList");
+    const input = $("chatInput");
+    if (!list || !input) return;
+    list.innerHTML = "";
+    for (const m of this._chatMsgs) {
+      const age = Date.now() - (m.at || 0);
+      const dim = age > 9000 ? "opacity:.5" : "";
+      const name = this.chatName(m.idx);
+      const me = m.idx === Net.localIdx ? " chat-me" : "";
+      const div = document.createElement("div");
+      div.className = "chat-line" + me;
+      div.style.cssText = "margin:2px 0;" + dim;
+      div.textContent = name + ": " + m.text;
+      list.appendChild(div);
+    }
+    list.scrollTop = list.scrollHeight;
+  },
+  chatOpen() {
+    const el = $("chat");
+    if (el) { el.classList.add("on"); this.chatUI(); const input = $("chatInput"); if (input) setTimeout(() => input.focus(), 40); }
+  },
+  chatClose() {
+    const el = $("chat");
+    if (el) el.classList.remove("on");
+  },
+  chatToggle() {
+    const el = $("chat");
+    if (!el) return;
+    if (el.classList.contains("on")) this.chatClose();
+    else { this.chatClose(); this.chatOpen(); }
+  },
+  chatInit() {
+    if (this._chatInited) return;
+    this._chatInited = true;
+    const send = $("chatSend");
+    const input = $("chatInput");
+    const close = $("chatClose");
+    if (send) send.addEventListener("click", () => { const v = input ? input.value : ""; input && (input.value = ""); this.chatSay(v); this.chatUI(); });
+    if (input) input.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); this.chatSay(input.value); input.value = ""; this.chatUI(); } });
+    if (close) close.addEventListener("click", () => this.chatClose());
+    const touchBtn = $("btnChat");
+    if (touchBtn) touchBtn.addEventListener("click", () => this.chatOpen());
   },
   /* may this warden answer a rune hand right now? Pause mode: only the one the
      host froze on. No-pause mode: whoever holds an open entry. */
@@ -689,6 +762,11 @@ const Coop = {
         const from = m.pickerIdx ?? (peer && peer.idx);
         if (this._canPick(from)) this._hostReroll(m.slot, from);
       } break;
+      /* chat: host rebroadcasts so every warden hears it; dedupe by id keeps
+         the sender's own echo from double-posting */
+      case "chat": this.chatAdd(m);
+        if (Net.role === "host" && typeof Net.sendR === "function") Net.sendR(m);
+        break;
       /* explicit rather than a toggle: a pause request that raced the host's own
          pause must not resume the game instead */
       case "pauseReq": if (Net.role === "host" && Game.state === "play") togglePause(); break;
@@ -1275,3 +1353,7 @@ $("waitLeave").addEventListener("click", () => {
     return _frameFor(p);
   };
 }
+
+/* wire the party-chat overlay once, at load — the send button must work even
+   before a descent begins (chatInit is idempotent, so _start's call is a no-op) */
+if (typeof document !== "undefined" && document.getElementById("chatSend")) Coop.chatInit();

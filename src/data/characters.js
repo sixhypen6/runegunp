@@ -24,6 +24,14 @@ const SNIPER_CAM_LEAD = 240;      // world px the camera may drift toward the ai
 const SNIPER_PET_ORDER_RANGE = 1500;   // how far a sealed box may be and still be sent for
 const SNIPER_PET_ORDER_SPEED = 430;    // companion's travel speed on the errand
 const SNIPER_PET_ORDER_REACH = 34;     // px from the box that counts as "there"
+/* THE SCOPE'S INSTINCT — when the crosshair drifts near a horror, the rifle
+   settles onto it by itself. Among the bodies under the crosshair the one with
+   the longest line of horrors behind (or in front of) it wins, so a single
+   round spends its pierce; a warden in reach always outranks the horde. */
+const SNIPER_LOCK_RADIUS = 90;        // world px from the crosshair to a body's edge
+const SNIPER_LOCK_BOSS_MUL = 1.6;     // wardens pull from this much farther out
+const SNIPER_LOCK_CORRIDOR = 16;      // px of slop around the shot line when counting bodies
+const SNIPER_LOCK_TIE_PX = 6;         // cursor distance that counts as a tie (keeps the mark steady)
 /* FORTRESS — the war-machine's thrusters. Holding SHIFT drives the hull toward
    its boosted top speed through a soft acceleration curve, so it leans into a
    turn instead of snapping; releasing SHIFT lets it coast down on its own. */
@@ -64,7 +72,7 @@ const CHARS = {
     hp: 85, speed: 257.5, dashCd: 1.0, startRunes: 0, rerolls: 4,
     weaponBase: { dmg: 16, rate: 2.6, size: 4 } },
   sniper: { name: "SNIPER", glyph: "ᚿ", color: "#c8e6a0", cost: 60000,
-    desc: "90 vitality. A patient marksman: the farther a shot travels, the harder it bites — +15% damage per 100px, up to +90% at 600px. Base rounds hit +60%, fly +50% faster and punch through 2 bodies, but the rifle cycles 35% slower and NEVER fires itself — hold the trigger. The scope sees farther than anyone. PUNCTURE answers the rifle at full strength: five stacks guarantee the gap for ×2.5. With a companion at your side, [E] sends it to break a distant seal. SCATTER never answers the rifle.",
+    desc: "90 vitality. A patient marksman: the farther a shot travels, the harder it bites — +15% damage per 100px, up to +90% at 600px. Base rounds hit +60%, fly +50% faster and punch through 2 bodies, but the rifle cycles 35% slower and NEVER fires itself — hold the trigger. The scope sees farther than anyone, and settles onto a horror under the crosshair — preferring the one with the most horrors lined up behind it, and always a warden. PUNCTURE answers the rifle at full strength: five stacks guarantee the gap for ×2.5. With a companion at your side, [E] sends it to break a distant seal. SCATTER never answers the rifle.",
     hp: 90, speed: 235, dashCd: 1.25, startRunes: 0, rerolls: 3,
     rangeDmg: SNIPER_RANGE_DMG, rangeStep: SNIPER_RANGE_STEP, rangeCap: SNIPER_RANGE_CAP,
     weaponBase: { dmg: 16, rate: 2.925, size: 4, speed: 810, spread: 0.02, knock: 70, pierce: SNIPER_PIERCE } },

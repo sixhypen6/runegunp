@@ -165,6 +165,67 @@ function drawChaosLastMark(g, e) {
   g.restore();
 }
 
+/* SNIPER's lock mark: four small brackets settle around the body the scope has
+   chosen. Only the local marksman sees it — a guest's mark travels to the host
+   as an aim angle, not as a shared marker. */
+function drawSniperLock(g) {
+  if (typeof localPlayer !== "function") return;
+  const P = localPlayer();
+  const e = P && P.char === "sniper" && P.sniperLock;
+  if (!e || e.dead) return;
+  const t = Game.time, pulse = 0.5 + 0.5 * Math.sin(t * 6);
+  const r = e.r + 7 + pulse * 2;
+  const arm = clamp(r * 0.45, 5, 11);
+  g.save();
+  g.translate(e.x, e.y);
+  g.globalAlpha = 0.55 + pulse * 0.35;
+  g.strokeStyle = typeof charColorFor === "function" ? charColorFor("sniper") : "#c8e6a0";
+  g.lineWidth = 1.7;
+  g.lineCap = "round";
+  for (let k = 0; k < 4; k++) {
+    g.rotate(TAU / 4);
+    g.beginPath();
+    g.moveTo(r, -arm); g.lineTo(r, 0); g.lineTo(r, arm);
+    g.stroke();
+  }
+  g.restore();
+}
+
+/* PARTY CHAT HUD — the last few lines of the party chat, bottom-left, fading
+   out over ~9s. Co-op only. */
+function drawChatHUD(g) {
+  const coop = typeof Coop !== "undefined" && typeof Net !== "undefined" && Net.active;
+  const btn = typeof document !== "undefined" && document.getElementById("btnChat");
+  if (btn) btn.style.display = coop ? "flex" : "none";
+  if (!coop) return;
+  const msgs = Coop._chatMsgs.slice(-6);
+  if (!msgs.length) return;
+  const now = Date.now();
+  const x = 10, yStart = H - 10, lh = 15, pad = 6;
+  g.save();
+  g.textBaseline = "bottom";
+  g.font = "12px monospace";
+  let maxW = 0;
+  const lines = [];
+  for (const m of msgs) {
+    const txt = Coop.chatName(m.idx) + ": " + m.text;
+    const w = g.measureText(txt).width;
+    if (w > maxW) maxW = w;
+    const alpha = Math.min(1, Math.max(0, 1 - (now - (m.at || 0)) / 9000));
+    lines.push({ txt, alpha });
+  }
+  const boxW = maxW + pad * 2, boxH = lines.length * lh + pad * 2;
+  g.fillStyle = "rgba(7,6,14,0.55)";
+  g.fillRect(x - pad, yStart - boxH + 6, boxW, boxH);
+  let cy = yStart - pad;
+  for (const ln of lines) {
+    g.fillStyle = "rgba(232,226,208," + ln.alpha + ")";
+    g.fillText(ln.txt, x, cy);
+    cy -= lh;
+  }
+  g.restore();
+}
+
 /* One creature's body silhouette, drawn at the origin — the caller translates to
    (e.x, e.y) first. aimA is a parameter (not read from a live `player`) so the
    main-menu glossary can reuse the exact in-game art with a stub creature. */
@@ -1433,6 +1494,8 @@ function draw() {
     for (const e of after) { if (e.boss) drawEnemyBody(cx, e); drawEnemyBars(e); }
   }
   if (chaosLast) drawChaosLastMark(cx, chaosLast);
+  drawSniperLock(cx);
+  drawChatHUD(cx);
 
   /* pets */
   for (const pet of pets) drawPet(cx, pet);

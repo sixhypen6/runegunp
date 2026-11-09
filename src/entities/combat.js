@@ -372,7 +372,7 @@ function fireWeapon(p, inp, dt) {
   if (!firing || p.fireT > 0) return;
   /* THE WRAITH does not pull a trigger — it tears the veil */
   if (p.char === "wraith") {
-    p.veilCdBase = clamp(6.75 / (m.rate * jamMul), 0.5, 4.5); // base 1.5s · RAPID shortens · JAM lengthens
+    p.veilCdBase = clamp(6.75 / (m.rate * jamMul), 0.4, 4.5); // base 1.5s · RAPID shortens · JAM lengthens
     p.fireT = p.veilCdBase;
     fireVeil(p);
     return;
@@ -452,7 +452,7 @@ function dropVenomPool(x, y, venom, owner) {
    Anything that DIES inside the circle discharges your full gun
    shot from its corpse, so the bullet runes still answer.
    ========================================================= */
-const VEIL_DMG_MUL = 2.6;   // ring damage = weapon damage × this (HEAVY, VELOCITY etc. scale it)
+const VEIL_DMG_MUL = 3.0;   // ring damage = weapon damage × this (HEAVY, VELOCITY etc. scale it)
 function fireVeil(p) {
   const m = p.mods;
   const R = clamp(110 + m.size * 9, 90, 340);   // bigger bullets → wider circle (HEAVY / TITAN)

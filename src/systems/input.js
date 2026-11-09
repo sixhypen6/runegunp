@@ -68,6 +68,7 @@ function pressBound(code, e) {
 function uiBack() {
   if ($("ctrlEdit").classList.contains("on")) { closeCtrlEdit(true); return; }
   if ($("controls").classList.contains("on")) { closeControls(); return; }
+  if ($("chat") && $("chat").classList.contains("on")) { if (typeof Coop !== "undefined" && Coop.chatClose) Coop.chatClose(); return; }
   if ($("settings").classList.contains("on")) { closeSettings(); return; }
   if ($("descentChoice").classList.contains("on")) { closeDescentChoice(); return; }
   if ($("modeChoice").classList.contains("on")) { closeModeChoice(); return; }
@@ -91,6 +92,15 @@ window.addEventListener("keydown", e => {
   /* letters typed into a text field (the co-op join code) are text, not actions */
   const typing = e.target && e.target.tagName === "INPUT" && e.target.type !== "range";
   if (!typing) pressBound(e.code, e);
+  /* T opens party chat mid-descent — never while another modal (settings, controls,
+     transfer…) is up, and never while typing into a field. */
+  if (e.code === "KeyT" && !typing && ["play", "pause"].includes(Game.state) &&
+      typeof Coop !== "undefined" && typeof Coop.chatToggle === "function" &&
+      !$("settings").classList.contains("on") && !$("controls").classList.contains("on") &&
+      !$("ctrlEdit").classList.contains("on") && !$("transfer").classList.contains("on") &&
+      !$("descentChoice").classList.contains("on") && !$("modeChoice").classList.contains("on")) {
+    Coop.chatToggle(); e.preventDefault();
+  }
   if (e.code === "Escape" || (e.code === "KeyP" && !typing)) uiBack();
 });
 window.addEventListener("keyup", e => Input.keys[e.code] = false);

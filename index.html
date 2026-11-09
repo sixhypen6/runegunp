@@ -770,6 +770,7 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
 <div class="tbtns">
   <button class="tbtn" id="btnDash">DASH</button>
   <button class="tbtn" id="btnUse">SEAL</button>
+  <button class="tbtn" id="btnChat" style="display:none;border-color:var(--frost);color:var(--frost)">SAY</button>
 </div>
 <button id="btnTutSkip">SKIP ▸▸</button>
 
@@ -1402,6 +1403,22 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
     </div>
 
     <button class="menu-btn small" id="transferClose" style="width:100%;margin-top:14px">RETURN</button>
+  </div>
+</div>
+
+<!-- PARTY CHAT — co-op only; T to open, enter to send, esc to close -->
+<div class="overlay" id="chat" style="z-index:34">
+  <div class="panel" style="width:min(480px,92vw);max-height:64vh;display:flex;flex-direction:column">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <h2 style="margin:0">PARTY CHAT</h2>
+      <button class="menu-btn small" id="chatClose">CLOSE</button>
+    </div>
+    <div id="chatList" style="flex:1;overflow-y:auto;background:#0b0c0f;border:1px solid var(--frost);padding:8px;gap:6px;font-size:calc(10px*var(--text-scale,1));line-height:1.4;color:#e8e2d0"></div>
+    <div style="margin-top:8px;display:flex;gap:6px">
+      <input class="transfer-input" id="chatInput" autocomplete="off" autocapitalize="sentences" spellcheck="false" placeholder="say something…">
+      <button class="menu-btn" id="chatSend">SEND</button>
+    </div>
+    <div class="hint" style="margin-top:6px">press T to open · enter to send · esc to close</div>
   </div>
 </div>
 

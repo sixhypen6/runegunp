@@ -42,7 +42,7 @@ function makePlayer(cfg, idx) {
 }
 function localPlayerCfg() {
   return { char: Meta.char, skin: Meta.skin, gunSkin: Meta.gunSkin, pet: Meta.pet,
-    rerollBuff: Meta.unlocked["buff:rerolls"] || 0 };
+    boardName: Meta.boardName || "", rerollBuff: Meta.unlocked["buff:rerolls"] || 0 };
 }
 
 function resetRun(cfgs) {
