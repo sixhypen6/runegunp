@@ -144,6 +144,7 @@ const Protocol = {
         /* the saloon's shared buzz rides wherever the party carries it */
         drunk: Q2(Game.drunk), dh: Q2(Game.drunkHold), dt: Q2(Game.drunkT), ds: Q2(Game.drunkSpan),
         bloodfeast: Q2(Game.bloodfeast || 0),
+        pvp: Game.pvpMode ? 1 : 0, pvpW: Game.pvpWinner == null ? -1 : Game.pvpWinner,
       },
       pl: players.map(p => {
         const o = pluck(p, PLAYER_FIELDS);
@@ -277,6 +278,9 @@ const Protocol = {
     Game.chestsTotal = g.chestsTotal; Game.chestsOpened = g.chestsOpened;
     Game.flawless = g.flawless;
     Game.bloodfeast = g.bloodfeast || 0;
+    /* ONLINE VERSUS rides the snapshot so the guest sees the same match state */
+    if (g.pvp !== undefined) Game.pvpMode = !!g.pvp;
+    if (g.pvpW !== undefined) Game.pvpWinner = g.pvpW < 0 ? null : g.pvpW;
     Game.pendingPickupBy = g.pickupBy;
     SEAL.state = g.seal;
     /* the saloon's shared buzz. The host owns the clock; the guest mirrors it and

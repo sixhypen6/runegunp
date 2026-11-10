@@ -82,4 +82,6 @@ const Game = {
                           // Kept across resetRun(), like the mode flags; chosen with the descent.
   coopVictory: false,     // co-op CLASSIC: THE EVENT HORIZON fell and the shared descent is complete.
                           // Only read by the death screen (it changes the title), never by the sim.
+  pvpMode: false,         // ONLINE VERSUS: wardens can shoot each other. Host simulates, guests mirror.
+  pvpWinner: null,        // idx of the last warden standing — set when the match ends
 };

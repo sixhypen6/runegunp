@@ -40,6 +40,17 @@ function contactHurt(e, pad, dmg) {
         break;
       }
     }
+    /* PVP: a warden's body is just as dangerous as a horror's when versus is on */
+    if (Game.pvpMode) {
+      for (const target of players) {
+        if (target === e || target.hp <= 0 || target.downed) continue;
+        if (dist2(e.x, e.y, target.x, target.y) < (e.r + target.r + pad) ** 2) {
+          e.friendlyHitAt = Game.time + 0.55;
+          hurtPlayer(target, dmg, e);
+          break;
+        }
+      }
+    }
     return;
   }
   for (const p of players) {
@@ -801,7 +812,7 @@ function killEnemy(e, killer) {
   }
   /* slain horrors sometimes rise as allied ghosts; summoned units cannot reanimate. */
   const reanimator = killer && killer.char === "necromancer";
-  if (reanimator && reanimatorThrallCount(killer) < reanimatorThrallCap(killer) &&
+  if (reanimator && !Game.pvpMode && reanimatorThrallCount(killer) < reanimatorThrallCap(killer) &&
       !e.boss && !e.summoned && e.team !== "p" && Math.random() < 0.4) {
     const thrall = spawnEnemy(e.type, e.x, e.y);
     thrall.team = "p"; thrall.owner = killer; thrall.summoned = true;
@@ -1096,8 +1107,17 @@ function reviveTimeFor()   { return REVIVE_TIME + PARTY.reviveTime * partyExtra(
 function reviveHpFracFor() { return Math.max(0.15, REVIVE_HP_FRAC - PARTY.reviveHp * partyExtra()); }
 function downPlayer(p) {
   p.hp = 0;
+  /* PVP: there is no partner to lift you — the last warden standing takes it */
+  if (Game.pvpMode) {
+    let wi = players.findIndex(o => o !== p && o.hp > 0 && !o.downed && !o.gone);
+    if (wi < 0) wi = players.findIndex(o => o !== p);
+    pvpWin(wi);
+    return;
+  }
   const partnerUp = players.some(o => o !== p && o.hp > 0 && !o.downed && !o.gone);
-  if (!partnerUp) { gameOver(); return; }
+  if (!partnerUp) {
+    gameOver(); return;
+  }
   p.downed = true; p.reviveT = 0;
   p.dashT = 0; p.veilT = 0; p.autoFire = false;
   floatText(p.x, p.y - 26, "DOWN", "#ff4d5e", 20);
@@ -1108,7 +1128,22 @@ function downPlayer(p) {
   AudioFX.hurt();
   updateHp();
 }
+
+/* PVP: the last warden standing wins the match. The host sets this and the
+   snapshot carries Game.pvpWinner to every guest. */
+function pvpWin(winnerIdx) {
+  Game.pvpMode = false;
+  Game.pvpWinner = winnerIdx;
+  const w = players[winnerIdx];
+  const losers = players.filter((_, i) => i !== winnerIdx);
+  for (const l of losers) { l.hp = 0; l.downed = true; }
+  toast(w ? w.char.toUpperCase() + " WINS THE MATCH" : "MATCH OVER");
+  Game.slowmo = Math.max(Game.slowmo, 0.9);
+  Game.shake = Math.max(Game.shake, 14);
+}
+
 function revivePartner(p) {
+  if (Game.pvpMode || Game.pvpWinner != null) return;   // no lifts in a duel
   p.downed = false;
   p.hp = Math.max(1, Math.round(p.maxHp * reviveHpFracFor()));
   p.iframes = 2; p.reviveT = 0;

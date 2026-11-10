@@ -160,6 +160,7 @@ function updatePlayer(p, inp, dt) {
   const mx = inp.mx, my = inp.my;
   p.dashCd -= dt;
   p.iframes -= dt;
+  if (p.pvpNovaT > 0) p.pvpNovaT -= dt;
   /* REPRIEVE: the cooldown between saves, and the hold that keeps the horde still
      (the hold is read by the enemy loop below; bosses only take the slow) */
   p.reprieveCd = Math.max(0, (p.reprieveCd || 0) - dt);
@@ -192,8 +193,11 @@ function updatePlayer(p, inp, dt) {
   }
   /* THRALL COMMAND — Q (the surge bind) flips a Reanimator's pack between its
      own hunt and the warden's mark. The tap arrives on the wire, so the host
-     toggles a guest's pack in step with the guest's own HUD copy. */
-  if (p.char === "necromancer" && inp.surgeTap) toggleThrallMode(p);
+     toggles a guest's pack in step with the guest's own HUD copy.
+     In VERSUS there is no pack: the same tap spends a soul burst instead. */
+  if (p.char === "necromancer" && inp.surgeTap) {
+    if (Game.pvpMode) pvpNecroSurge(p); else toggleThrallMode(p);
+  }
   /* REANIMATOR — the thrall rites. The host owns them in a shared descent;
      the guest only keeps its own HUD cue in step with the host's timer.
      R is the shared ABILITY key: the Reanimator recalls thralls with it,
@@ -765,7 +769,7 @@ function update(dt) {
 
   /* --- waves keep coming until the warden falls --- */
   const ambient = enemies.filter(e => !e.ambush && !e.boss && e.team !== "p").length;
-  if (!Game.ambush && !Game.boss && ambient === 0 && !portal && !Game.inRift && !Game.inSaloon && !Game.inUnknown && !Game.ceremonyT) {
+  if (!Game.pvpMode && Game.pvpWinner == null && !Game.ambush && !Game.boss && ambient === 0 && !portal && !Game.inRift && !Game.inSaloon && !Game.inUnknown && !Game.ceremonyT) {
     Game.intermission -= dt;
     if (Game.intermission <= 0) { startWave(); Game.intermission = 3; }
   }
@@ -1064,6 +1068,23 @@ function update(dt) {
         break;
       }
     }
+    /* PVP: your shot carries into another warden — point it at the rival, not the pack */
+    if (!dead && Game.pvpMode && !b.thrallShot) {
+      const pvpHS = b.pvpHitSet || (b.pvpHitSet = new Set());
+      for (const foe of players) {
+        if (foe === b.owner || foe.hp <= 0 || foe.downed || pvpHS.has(foe)) continue;
+        if (dist2(b.x, b.y, foe.x, foe.y) < (b.r + foe.r) ** 2) {
+          pvpHS.add(foe);
+          let bdmg = b.dmg;
+          const crit = b.crit && Math.random() < b.crit;
+          if (crit) { bdmg *= b.critMul; Game.shake = Math.max(Game.shake, 5); AudioFX.crit(); }
+          hurtPlayer(foe, bdmg, b);
+          bulletSparks(b, Math.atan2(-b.vy, -b.vx), crit ? 6 : 4);
+          if (b.pierce > 0) b.pierce--; else dead = true;
+          break;
+        }
+      }
+    }
     /* the hit may have felled the EVENT HORIZON — startEnding() empties this very
        array mid-loop, so the frame must stop here, not at the guard below */
     if (Game.state !== "play") return;
@@ -1194,6 +1215,14 @@ function update(dt) {
       for (const e of enemies) {
         if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p" || s.hitSet.has(e)) continue;
         if (dist2(s.x, s.y, e.x, e.y) < (s.r + e.r) ** 2) { s.hitSet.add(e); damageEnemy(e, s.dmg, s.owner ? { owner: s.owner } : undefined); }
+      }
+      /* PVP: a friendly nova bites the other warden too */
+      if (Game.pvpMode) {
+        s.pvpHitSet = s.pvpHitSet || new Set();
+        for (const foe of players) {
+          if (foe === s.owner || foe.hp <= 0 || foe.downed || s.pvpHitSet.has(foe)) continue;
+          if (dist2(s.x, s.y, foe.x, foe.y) < (s.r + foe.r) ** 2) { s.pvpHitSet.add(foe); hurtPlayer(foe, s.dmg, s); }
+        }
       }
       /* a friendly wave may have felled the warden — same mid-frame stop as the bullet loop */
       if (Game.state !== "play") return;

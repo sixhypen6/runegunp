@@ -309,6 +309,78 @@ const RunegunConsole = {
       Coop.resyncEdit();
   },
 
+  /* ONLINE VERSUS — points-based loadout plus the match switch. Deliberately
+     console-only for now: no menu, no buttons, just a working test duel. */
+  pvpCommand(args, rawArgs) {
+    const sub = args[0];
+    if (sub === "start") {
+      this.currentPlayer();           // gate + state check (host-only in co-op)
+      pvpStart();
+      this.log("VERSUS LIVE · " + players.length + " wardens · last one standing wins.");
+      return;
+    }
+    if (sub === "stop") {
+      pvpStop();
+      this.log("VERSUS OFF.");
+      return;
+    }
+    const p = this.currentPlayer();
+    if (sub === undefined || sub === "points") {
+      this.log(this.editTag(p) + "PVP POINTS " + pvpPointsLeft(p) + " / " + pvpBasePoints(p) +
+        (p.char === "necromancer" ? "  (no pack in versus · +" + (PVP_CHAR_BONUS_POINTS.necromancer || 0) + " compensation)" : "") +
+        "\nSPENT " + pvpSpent(p) + " · pvp list for prices · pvp buy/sell <rune> [n] · pvp reset");
+      return;
+    }
+    if (sub === "list" || sub === "cost" || sub === "loadout") {
+      const rows = pvpCostList(p);
+      this.log(this.editTag(p) + "PVP PRICES · " + p.char.toUpperCase() + " · " +
+        pvpPointsLeft(p) + "/" + pvpBasePoints(p) + " points left\n" +
+        rows.map(r => (r.held ? "×" + r.held + " " : "   ") + String(r.cost).padStart(2) + " · " + r.name + " (" + r.id + ")").join("\n"));
+      return;
+    }
+    if (sub === "buy" || sub === "add") {
+      const id = args[1];
+      if (!id) throw new Error("Usage: pvp buy <rune> [n]. Run pvp list for ids and prices.");
+      if (Game.pvpMode) throw new Error("The match has begun — the loadout is sealed. pvp stop first.");
+      const n = this.pvpAmount(rawArgs[2]);
+      const bought = pvpBuy(p, id, n);
+      this.afterEdit();
+      this.log(this.editTag(p) + (bought
+        ? "BOUGHT " + RUNES[id].name + " ×" + bought + " · " + pvpPointsLeft(p) + " points left"
+        : "Not enough points for " + RUNES[id].name + " (needs " + pvpRuneCost(p, id, (p.runes[id] || 0) + 1) + ")."));
+      return;
+    }
+    if (sub === "sell" || sub === "remove") {
+      const id = args[1];
+      if (!id) throw new Error("Usage: pvp sell <rune> [n].");
+      if (Game.pvpMode) throw new Error("The match has begun — the loadout is sealed. pvp stop first.");
+      const n = this.pvpAmount(rawArgs[2]);
+      const sold = pvpSell(p, id, n);
+      this.afterEdit();
+      this.log(this.editTag(p) + (sold
+        ? "SOLD " + RUNES[id].name + " ×" + sold + " · " + pvpPointsLeft(p) + " points left"
+        : "No " + (RUNES[id] ? RUNES[id].name : id) + " to sell."));
+      return;
+    }
+    if (sub === "reset") {
+      if (Game.pvpMode) throw new Error("The match has begun — the loadout is sealed. pvp stop first.");
+      pvpReset(p);
+      this.afterEdit();
+      this.log(this.editTag(p) + "PVP LOADOUT CLEARED · " + pvpPointsLeft(p) + " points to spend.");
+      return;
+    }
+    throw new Error("Usage: pvp start|stop|points|list|buy <rune> [n]|sell <rune> [n]|reset.");
+  },
+
+  /* the console's shared stack parser lives inside execute(); PVP needs its own copy */
+  pvpAmount(value) {
+    if (value === undefined) return 1;
+    if (!/^\d+$/.test(value)) throw new Error("Stack count must be a whole number.");
+    const n = Number(value);
+    if (n > 99) throw new Error("Maximum stack count is 99.");
+    return Math.max(1, n);
+  },
+
   /* `auth <code>` checks the typed code against the SHA-256 stored at
      `console/coop`. `auth hash <code>` prints that digest for the Firebase
      console; `auth off` seals the console again. Never logs the code. */
@@ -582,6 +654,10 @@ const RunegunConsole = {
       "  status                        current warden, vitality, rune count",
       "  target [1-4|me|partner]       choose which warden edits apply to (aliases p1…p4)",
       "  runes                         runes held by the target",
+      "  pvp start|stop                flip a shared descent into a versus duel (host only)",
+      "  pvp points|list               show the loadout budget / every rune's point price",
+      "  pvp buy|sell <rune> [n]       carve or refund rune stacks with points",
+      "  pvp reset                     clear the target's loadout and refund every point",
       "  list                          every carvable rune id",
       "  add <rune> [n]                carve n more stacks (default 1)",
       "  set <rune> <n>                set a rune to an exact stack count",
@@ -667,6 +743,8 @@ const RunegunConsole = {
         this.log(held.length
           ? this.editTag(p) + held.map(id => { const R = runeDefFor(p, id); return R.glyph + " " + id + " ×" + p.runes[id]; }).join("\n")
           : this.editTag(p) + "No runes held.");
+      } else if (command === "pvp" || command === "versus") {
+        this.pvpCommand(args, rawArgs);
       } else if (command === "list") {
         this.log(RUNE_IDS.map(id => RUNES[id].glyph + " " + id).join("\n"));
       } else if (command === "enemies") {

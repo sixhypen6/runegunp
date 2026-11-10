@@ -64,6 +64,7 @@ function resetRun(cfgs) {
   resetJuice();   // the juice scratch is keyed to Game.time, which resets to 0 below
   Game.banked = false; Game.continuesUsed = 0; Game.voidConquered = false; Game.voidKillTime = -1;
   Game.flawless = true; Game.flawlessToast = 0; Game.flawlessAward = 0;
+  Game.pvpMode = false; Game.pvpWinner = null;   // a new descent is never still a duel
   Game.riftOffered = false; Game.riftDone = false; Game.inRift = false; Game.riftCreature = null; Game.riftPicks = null;
   Game.inSaloon = false; Game.saloon = null; Game.saloonVisits = 0;
   Game.drunk = 0; Game.drunkHold = 0; Game.drunkSpan = 0; Game.drunkJolt = 0;
