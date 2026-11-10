@@ -1069,6 +1069,17 @@ const Coop = {
       particles.push({ x: m.x, y: m.y, vx: rnd(-260, 260), vy: rnd(-260, 260),
         t: 0, life: rnd(0.3, 0.9), r: rnd(2, 6), color: m.color });
     }
+    /* the warden's death ceremony: the same four coloured rings and gold soul
+       fountain the host sees in bossSlain(). The snapshot carries slowmo and
+       ceremonyT; the rings are host-only FX, so they have to be rebuilt here. */
+    if (m.boss) {
+      for (let k = 0; k < 4; k++)
+        shockwaves.push({ x: m.x, y: m.y, r: 10, max: 180 + k * 90, speed: 700, dmg: 0,
+          hostile: false, color: m.color, hitSet: new Set(), delay: k * 0.12 });
+      for (let k = 0; k < 30 && particles.length < 560; k++)
+        particles.push({ x: m.x, y: m.y, vx: rnd(-160, 160), vy: rnd(-330, -90),
+          t: 0, life: rnd(0.6, 1.2), r: rnd(2, 5), color: "#ffd23d" });
+    }
     Game.shake = Math.max(Game.shake, m.boss ? 16 : 4);
     AudioFX.kill();
     if (wasMain) {
