@@ -587,7 +587,7 @@ const RunegunConsole = {
       "  set <rune> <n>                set a rune to an exact stack count",
       "  remove <rune> [n]             take n stacks away",
       "  clear                         drop every rune this run",
-      "  orb [n] / spawn orb [n]       spawn rune orbs near the target (max 20; aliases: runeorb, rune-orb)",
+      "  orb [n] / spawn orb [n]       spawn rune orbs near the target (max 20; aliases: runeorb, rune-orb, rune, runespawn)",
       "  bonusruneslots [n|+n|-n]      show, set, add or remove bonus rune slots",
       "  heal                          restore the run's vitality",
       "  souls <n>                     add souls to THIS RUN's score",
@@ -674,14 +674,15 @@ const RunegunConsole = {
       } else if (command === "spawn") {
         if (!args[0]) throw new Error("Usage: spawn <enemy type> [count], or spawn boss [kind]. Use enemies to list valid types.");
         if (args[0] === "boss" || args[0] === "warden") { this.spawnWarden(rawArgs.slice(1).join(" ")); return; }
-        if (args[0] === "orb" || args[0] === "runeorb" || args[0] === "rune-orb") {
+        if (args[0] === "orb" || args[0] === "runeorb" || args[0] === "rune-orb" || args[0] === "rune") {
           this.spawnRuneOrbs(args[1] === undefined ? 1 : amount(args[1], 1));
           return;
         }
         const count = args[1] === undefined ? 1 : amount(args[1], 1);
         this.spawnEnemies(args[0], count);
-      } else if (command === "orb" || command === "runeorb" || command === "rune-orb") {
-        this.spawnRuneOrbs(args[0] === undefined ? 1 : amount(args[0], 1));
+      } else if (command === "orb" || command === "runeorb" || command === "rune-orb" || command === "rune" || command === "runespawn") {
+        const n = args[0] === "spawn" ? (args[1] === undefined ? 1 : amount(args[1], 1)) : (args[0] === undefined ? 1 : amount(args[0], 1));
+        this.spawnRuneOrbs(n);
       } else if (command === "bonusruneslots" || command === "bonus-rune-slots") {
         this.setBonusRuneSlots(rawArgs[0]);
       } else if (command === "boss" || command === "warden" || command === "spawnboss") {
