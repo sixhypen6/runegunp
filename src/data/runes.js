@@ -827,8 +827,9 @@ function grantRune(p, id, silent) {
   recalc(p);
   if (!silent && p === localPlayer()) { toast(runeDefFor(p, id).name + " ×" + p.runes[id] + " CARVED IN"); AudioFX.equip(); }
   if (typeof RunegunConsole !== "undefined" && p === localPlayer()) RunegunConsole.logEvent("RUNE", id + " carved (stack " + p.runes[id] + ")");
-  /* UNLOCK: Wayward Passenger (35 WARP stacks in one run) */
-  if (p === localPlayer() && id === "warp" && p.runes.warp >= 35 && !Meta.unlocked["char:sinner"]) {
+  /* UNLOCK: Wayward Passenger (35 WARP stacks in one run) — solo only, since a
+     shared descent keeps no unlocks */
+  if (p === localPlayer() && id === "warp" && p.runes.warp >= 35 && !Meta.unlocked["char:sinner"] && !runIsCoop()) {
     Meta.unlocked["char:sinner"] = true;
     toast("UNLOCKED: WAYWARD PASSENGER — THE DIMENSIONAL DRIFTER", 3);
     metaSave();

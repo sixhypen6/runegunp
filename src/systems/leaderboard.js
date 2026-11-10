@@ -312,6 +312,10 @@ const Leaderboard = (() => {
      nothing else competes on. */
   function submitRun(/* improved */) {
     if (!available() || Game.devRun) return;   // TEST TOOLS runs post nothing and unlock nothing
+    /* A shared descent posts nothing and unlocks nothing — even after its last
+       partner leaves. Without this, dropping the second player before the final
+       warden turned a carried kill into a solo leaderboard row. */
+    if (runIsCoop()) return;
     const mode = runMode();                    // still holds the run's mode at every run-end sink
     const id = boardId(mode);
     if (id) submit(id, Math.max(Game.score, localBest(mode)), tagFor(mode));

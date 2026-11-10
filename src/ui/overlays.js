@@ -169,16 +169,19 @@ $("btnResume").addEventListener("click", () => { if (Game.state === "pause") tog
 $("btnQuit").addEventListener("click", () => {
   if (Game.state !== "pause") return;
   if (typeof Net !== "undefined" && Net.active) {
-    /* co-op runs never touch records or leaderboards — just bank and go */
     Net.sendR({ t: Net.role === "host" ? "hostQuit" : "guestQuit" });
-    Coop.running = false;
     Net.hangUp();
+  }
+  /* a run that BEGAN as a shared descent never touches records or the board,
+     even when the last partner has already left the link */
+  if (runIsCoop()) {
+    if (typeof Coop !== "undefined") Coop.running = false;
     bankSouls();
     refreshMenu();
     setState("menu");
     return;
   }
-  /* an abandoned run still counts: record bests + post the score, like death does */
+  /* an abandoned solo run still counts: record bests + post the score, like death does */
   const improved = recordBests();
   Leaderboard.submitRun(improved);
   bankSouls();
@@ -1641,12 +1644,14 @@ function refreshMenu() {
    game-over (bank souls + SLAIN screen) if no continue is available or taken. */
 function gameOver() {
   /* co-op has its own second chance — the revive. No paid continues. */
-  if (!(typeof Net !== "undefined" && Net.active) && offerContinue()) return;
+  if (!runIsCoop() && offerContinue()) return;
   if (typeof Net !== "undefined" && Net.role === "host" && Coop.running) Net.sendR({ t: "over" });
   doGameOver();
 }
 function doGameOver() {
-  const coop = typeof Net !== "undefined" && Net.active;
+  /* a run that began as a shared descent stays co-op on the tally, even if its
+     last partner left before this death */
+  const coop = runIsCoop();
   const banked = bankSouls();
   haptic(120);
   setState("dead");
@@ -1852,6 +1857,12 @@ function enterFullscreen() {
 
 function startGame() {
   if (Game.devRun) devEndRun();   // a real descent always starts from the real save
+  /* SOLO start: a link left over from a finished/broken co-op run must not make
+     this descent look shared (resetRun freezes coopLap from Net.active). */
+  if (typeof Net !== "undefined" && Net.active) {
+    if (typeof Coop !== "undefined") Coop.running = false;
+    Net.hangUp();
+  }
   AudioFX.unlock();
   Ads.preload();        // arm the interstitial early so a revive / the run's end shows it instantly
   resetRun();

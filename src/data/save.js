@@ -312,6 +312,9 @@ function heldRuneString(p) {
   return ids.join(",").slice(0, 96);
 }
 function recordBests() {
+  /* A shared descent keeps no records — and it stays shared for this purpose
+     even if the partner left before the final blow (Game.coopLap). */
+  if (runIsCoop()) return {};
   const b = modeBests(), improved = {};
   const survived = Math.floor(Game.time), d = depth();
   const recordPlayer = typeof localPlayer === "function" ? localPlayer() : null;

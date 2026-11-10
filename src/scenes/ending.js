@@ -250,6 +250,15 @@ function showAscend() {
     dr.appendChild(sp);
   });
   $("aBankedLine").textContent = "+" + banked + " SOULS BANKED — SPEND THEM IN THE VAULT";
+  if (runIsCoop()) {
+    /* a shared descent's tally keeps no record and posts no score — including a
+       run whose last partner left before the final blow (Game.coopLap) */
+    $("aBestLine").textContent = "A SHARED DESCENT — THE LEDGERS KEEP NO RECORD";
+    $("aBestLine").classList.remove("record");
+    if ($("aRankLine")) { $("aRankLine").textContent = ""; $("aRankLine").style.display = "none"; }
+    devRunEndLines("a");
+    return;
+  }
   const improved = recordBests();
   $("aBestLine").textContent = bestLineText(improved);
   Leaderboard.submitRun(improved);   // no-op off the native shell / until Phase 2 ships

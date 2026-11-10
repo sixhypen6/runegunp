@@ -747,6 +747,9 @@ function chainStorm(fromE, stacks, alreadyHit, owner) {
    durable record the FLAWLESS Play Games achievements are asserted from.
    Only the first kill of each kind touches storage, so this is cheap. */
 function recordSlain(key, flawless) {
+  /* Shared descents keep no bestiary / achievement ledger — a carried kill must
+     not unlock HARD, CHAOS or a Play Games achievement later. */
+  if (runIsCoop()) return;
   const book = flawless ? Meta.slainFlawless : Meta.slain;
   if (book[key]) return;
   book[key] = true;
@@ -917,7 +920,7 @@ function bossSlain(e, killer) {
   }
   if (e && e.kind === 4) toast("THE VOID COLLAPSES — " + award + " SOULS SPILL FREE");
   /* the lifetime void records are kept for honest arsenals — CHAOS stays out of them */
-  if (e && e.kind === 4 && !Game.chaosMode) {
+  if (e && e.kind === 4 && !Game.chaosMode && !runIsCoop()) {
     /* record the void kill: lifetime count, fastest clear, and the anchor for
        post-void survival — then let Phase 2 unlock the online achievement. */
     Meta.bests.voidKills++;

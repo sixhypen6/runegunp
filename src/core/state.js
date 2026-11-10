@@ -85,3 +85,12 @@ const Game = {
   pvpMode: false,         // ONLINE VERSUS: wardens can shoot each other. Host simulates, guests mirror.
   pvpWinner: null,        // idx of the last warden standing — set when the match ends
 };
+
+/* A descent that BEGAN as a shared one stays a co-op run for every record,
+   leaderboard and achievement decision — even after the last partner leaves.
+   `Game.coopLap` is frozen by resetRun(), so this does not go back to solo when
+   the link drops mid-run (which used to turn a carried UNKNOWN kill into a
+   posted solo score). */
+function runIsCoop() {
+  return !!Game.coopLap || (typeof Net !== "undefined" && !!Net.active);
+}

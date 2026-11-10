@@ -674,9 +674,13 @@ function unknownSlain(e, award) {
   /* the descent is complete — stop the speedrun clock and bank the clear */
   if (typeof RunTimer !== "undefined") RunTimer.finish();
   unknownHud(false);
-  /* THE UNKNOWN falls — it walks free as a playable warden from here on. */
-  Meta.unlocked["char:theUnknown"] = true;
-  metaSave();
+  /* THE UNKNOWN falls — it walks free as a playable warden from here on.
+     A shared descent keeps no unlock: the kill can be carried, so it must be
+     earned in a solo run (the same rule as every other record). */
+  if (!runIsCoop()) {
+    Meta.unlocked["char:theUnknown"] = true;
+    metaSave();
+  }
   if (!U) { startEnding(); return; }
   unkClearCombat();
   U.stage = "dying"; U.st = 0; U.boom = false;

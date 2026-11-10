@@ -65,7 +65,7 @@ const RunTimer = {
     this.running = false; this.done = true;
     const sec = this.t, stamp = Math.round(sec * 1000) / 1000;
     let prev = 0, newBest = false;
-    if (!Game.devRun && !(typeof Net !== "undefined" && Net.active)) {
+    if (!Game.devRun && !runIsCoop()) {
       const mode = modeBests();
       const clearTag = (typeof Leaderboard !== "undefined" && typeof Leaderboard.liveTag === "function")
         ? Leaderboard.liveTag() : null;
