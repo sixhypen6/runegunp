@@ -217,6 +217,12 @@ const Protocol = {
       let bf = 0;
       if (b.pet) bf |= 1;
       if (b.shard) bf |= 2;
+      /* visual-only flags: the guest has no `owner` object, so its copy of a
+         bullet must carry the few look decisions draw() would otherwise read
+         from the warden (Sancho's arrow, a saw shard's violet, bleed's red) */
+      if (b.bleed) bf |= 4;
+      if (b.owner && b.owner.char === "sancho") bf |= 8;
+      if (b.owner && b.owner.char === "shredder") bf |= 16;
       s.bn.push([QI(b.x), QI(b.y), QI(b.vx), QI(b.vy), b.r, Q2(b.life),
         b.venom || 0, b.ember || 0, b.frost || 0, bf]);
     }
@@ -391,7 +397,8 @@ const Protocol = {
     for (const b of s.bn)
       bullets.push({ x: b[0], y: b[1], vx: b[2], vy: b[3], r: b[4], dmg: 0, t: 0, life: b[5],
         pierce: 0, bounce: 0, homing: 0, venom: b[6], ember: b[7], frost: b[8], storm: 0,
-        execute: 0, knock: 0, pet: !!(b[9] & 1), shard: !!(b[9] & 2), cosmetic: true });
+        execute: 0, knock: 0, pet: !!(b[9] & 1), shard: !!(b[9] & 2),
+        bleed: !!(b[9] & 4), arrow: !!(b[9] & 8), saw: !!(b[9] & 16), cosmetic: true });
 
     /* puddles: static head once, then just id + age */
     const puById = new Map();

@@ -1451,9 +1451,10 @@ function draw() {
      glow cutoff is gone because there is no longer a blur pass to cut */
   for (const b of bullets) {
     if (b.x < cullL - 60 || b.x > cullR + 60 || b.y < cullT - 60 || b.y > cullB + 60) continue;
-    const col = b.pet ? "#ffe08a" : b.shard ? "#d0c4ff" : b.bleed ? "#ff4d5e" : b.venom ? "#7dff5e" : b.frost ? "#5ee6ff" : b.ember ? "#ff7a3d" : (b.owner && b.owner.char === "shredder") ? "#c9b8ff" : b.cannon ? "#ffd23d" : "#fff3c8";
-    /* SANCHO's Hardblood arrow: a thin piercing streak and a barbed point */
-    if (b.owner && b.owner.char === "sancho" && !b.melee) {
+    const col = b.pet ? "#ffe08a" : b.shard ? "#d0c4ff" : b.bleed ? "#ff4d5e" : b.venom ? "#7dff5e" : b.frost ? "#5ee6ff" : b.ember ? "#ff7a3d" : (b.saw || (b.owner && b.owner.char === "shredder")) ? "#c9b8ff" : b.cannon ? "#ffd23d" : "#fff3c8";
+    /* SANCHO's Hardblood arrow: a thin piercing streak and a barbed point.
+       `b.arrow` is the guest's snapshot copy — it has no owner object. */
+    if ((b.arrow || (b.owner && b.owner.char === "sancho")) && !b.melee) {
       cx.save(); cx.translate(b.x, b.y); cx.rotate(Math.atan2(b.vy, b.vx));
       cx.strokeStyle = col; cx.lineWidth = 2; cx.globalAlpha = 0.9;
       cx.beginPath(); cx.moveTo(-15, 0); cx.lineTo(15, 0); cx.stroke();
