@@ -1340,6 +1340,11 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
     <div class="set-cat" data-cat="system">
       <button type="button" class="set-cat-h" data-cat-btn="system">SYSTEM <span class="arr">^</span></button>
       <div class="set-cat-body">
+        <div id="pauseOnBlurRow" style="display:flex;flex-direction:column;align-items:center;margin-bottom:14px">
+          <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">FOCUS</label>
+          <button class="menu-btn small" id="btnPauseOnBlur" style="border-color:var(--frost);color:var(--frost);margin-top:8px">PAUSE WHEN UNFOCUSED: ON</button>
+          <div class="aim-mode-note" id="pauseOnBlurNote">auto-pauses a live run when the window or app loses focus · solo and co-op</div>
+        </div>
         <div id="consoleRow2" style="display:flex;flex-direction:column;align-items:center">
           <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">RUN CONSOLE</label>
           <button class="menu-btn small" id="btnConsole" style="border-color:var(--frost);color:var(--frost);margin-top:8px">OPEN CONSOLE</button>

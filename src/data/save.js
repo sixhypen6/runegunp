@@ -40,6 +40,7 @@ const Meta = {
   showRuneDescriptions: true, // hide rune-choice prose for a compact, stable card layout
   showVaultDescriptions: true, // hide vault card prose (wards, pets, buffs) for a compact shop
   runePause: true,    // freeze the run while a rune is picked (off: the fight keeps moving)
+  pauseOnBlur: true,  // auto-pause a live run when the window/app loses focus
   showHiddenRunes: false,     // easter-egg runes only appear for hidden wardens unless toggled on
   cheatSecret: false,         // the auth-code secret: secret runes always on, reprieve ×3, exterminate ×2, shredder + every pet unlocked
   glow: "full",       // neon halo budget: "full" (default — the intended look) · "half" · "off".
@@ -189,6 +190,7 @@ function metaLoad() {
       Meta.showRuneDescriptions = d.showRuneDescriptions !== false;
       Meta.showVaultDescriptions = d.showVaultDescriptions !== false;
       Meta.runePause = d.runePause !== false;   // freeze-for-a-pick, on unless turned off
+      Meta.pauseOnBlur = d.pauseOnBlur !== false;   // auto-pause on lost focus, on unless turned off
       /* saves from before the glow toggle existed simply keep "full" — the look they already had */
       if (d.glow === "full" || d.glow === "half" || d.glow === "off") Meta.glow = d.glow;
       /* likewise: saves from before the streak juice existed default to "full" */

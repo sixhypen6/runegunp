@@ -1238,6 +1238,31 @@ function toggleRunePause() {
 $("btnRunePause").addEventListener("click", toggleRunePause);
 applyRunePauseUI();
 
+/* ---------- pause when unfocused ----------
+   A live run holds its breath when the browser window/app loses focus — the
+   point is multi-tabbing: switch away and the warden is not left standing in
+   the horde. Returning shows the pause screen; nothing auto-resumes. In co-op
+   this uses the ordinary pause path, so a guest's lost focus asks the host. */
+function applyPauseOnBlurUI() {
+  const b = $("btnPauseOnBlur");
+  if (b) b.textContent = "PAUSE WHEN UNFOCUSED: " + (Meta.pauseOnBlur !== false ? "ON" : "OFF");
+}
+function togglePauseOnBlur() {
+  Meta.pauseOnBlur = Meta.pauseOnBlur === false;
+  metaSave();
+  applyPauseOnBlurUI();
+  AudioFX.equip();
+}
+$("btnPauseOnBlur").addEventListener("click", togglePauseOnBlur);
+function pauseForFocusLoss() {
+  if (Meta.pauseOnBlur === false) return;
+  if (Game.state !== "play") return;   // menus, picks, cutscenes and an existing pause stay put
+  togglePause();
+}
+window.addEventListener("blur", pauseForFocusLoss);
+document.addEventListener("visibilitychange", () => { if (document.hidden) pauseForFocusLoss(); });
+applyPauseOnBlurUI();
+
 applyAdvancedNumbersUI();
 applyRuneDescriptionSettingsUI();
 applyVaultDescriptionSettingsUI();
@@ -1535,7 +1560,7 @@ $("ctrlEditReset").addEventListener("click", resetCtrlLayout);
 })();
 
 /* ---------- settings overlay ---------- */
-function openSettings() { if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings opened"); syncVolumeUI(); applyDeskMode(); applyAimMode(); applyBtnSizeUI(); applyCtrlSettingsUI(); applyHapticsUI(); applyShakeUI(); applyAdvancedNumbersUI(); applyRuneDescriptionSettingsUI(); applyVaultDescriptionSettingsUI(); applyTextSizeUI(); applyGlowUI(); applyJuiceUI(); applyHiddenRunesUI(); applyRunTimerUI(); applySpeedrunUI(); syncAutoPickUI(); syncPrivacyOptions(); $("btnReplayCutscene").style.display = (Game.state === "menu") ? "" : "none"; $("settings").classList.add("on"); }
+function openSettings() { if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings opened"); syncVolumeUI(); applyDeskMode(); applyAimMode(); applyBtnSizeUI(); applyCtrlSettingsUI(); applyHapticsUI(); applyShakeUI(); applyAdvancedNumbersUI(); applyRuneDescriptionSettingsUI(); applyVaultDescriptionSettingsUI(); applyTextSizeUI(); applyGlowUI(); applyJuiceUI(); applyHiddenRunesUI(); applyRunTimerUI(); applySpeedrunUI(); applyPauseOnBlurUI(); syncAutoPickUI(); syncPrivacyOptions(); $("btnReplayCutscene").style.display = (Game.state === "menu") ? "" : "none"; $("settings").classList.add("on"); }
 function closeSettings() { $("settings").classList.remove("on"); if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings closed"); }
 /* Google requires EEA/UK players to have a persistent way back to the consent
    choice. UMP tells us who needs one; everyone else never sees the button. */

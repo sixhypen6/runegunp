@@ -62,7 +62,14 @@
      (input.js) covers most cases, but Capacitor's appStateChange is the reliable
      signal on Android — notably when an AdMob ad activity covers the WebView. */
   App.addListener("appStateChange", ({ isActive }) => {
-    try { if (isActive) AudioFX.resume(); else AudioFX.suspend(); } catch (e) {}
+    try {
+      if (isActive) AudioFX.resume();
+      else {
+        AudioFX.suspend();
+        /* the same lost-focus rule as a background tab (ui/overlays.js) */
+        if (typeof pauseForFocusLoss === "function") pauseForFocusLoss();
+      }
+    } catch (e) {}
   });
 
   App.addListener("backButton", () => {
