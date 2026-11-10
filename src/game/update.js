@@ -142,6 +142,8 @@ function updateShredderSaw(p, dt) {
     if (particles.length < 480) particles.push({ x: (p.x + e.x) / 2, y: (p.y + e.y) / 2,
       vx: rnd(-120, 120), vy: rnd(-120, 120), t: 0, life: 0.12, r: rnd(1.5, 3), color: "#fff3c8" });
   }
+  /* PVP: the blade grinds a rival warden as readily as a horror */
+  if (Game.pvpMode) pvpBlastWardens(p, p.x, p.y, reach, damage, { x: p.x, y: p.y, knock: m.knock * 0.4 });
   if (p.sawHitTarget && p.sawHitTarget.dead) {
     p.sawHitTarget = null;
     nearest = Infinity;

@@ -94,6 +94,18 @@ const SANCHO_SURGE_HEAL = 20;                     // vitality restored
    (TWIN / SCATTER) must not multiply her healing. Tune both numbers here. */
 const SANCHO_VAMPIRE_HEAL_SHOTS = 4;              // one feed every N weapon attacks
 const SANCHO_VAMPIRE_HEAL_PER_STACK = 0.6;        // vitality per VAMPIRE stack per feed
+/* PVP — close-range blows (Sancho's steel, the Wraith's veil, the saw, the soul
+   burst) test the rival warden exactly as they test the horde. The host owns
+   every point of HP, so a guest's copy of the same blow is dropped inside
+   hurtPlayer (Net.role === "guest") instead of landing twice. */
+function pvpBlastWardens(p, x, y, r, dmg, src) {
+  if (!Game.pvpMode) return;
+  for (const foe of players) {
+    if (foe === p || foe.hp <= 0 || foe.downed || foe.gone) continue;
+    if (dist2(x, y, foe.x, foe.y) > (r + foe.r) ** 2) continue;
+    hurtPlayer(foe, dmg, src || { x, y });
+  }
+}
 function sanchoDashHit(p) {
   if (!p.dashHitSet) p.dashHitSet = new Set();
   const m = p.mods, stage = p.hbStage || 1;
@@ -119,6 +131,14 @@ function sanchoDashHit(p) {
       vy: Math.sin(p.dashAng + Math.PI) * rnd(60, 180) + rnd(-40, 40),
       t: 0, life: 0.28, r: rnd(1.5, 3), color: "#ff7180",
     });
+  }
+  /* PVP: the body-check skewers a rival warden too — once per pass */
+  if (Game.pvpMode) for (const foe of players) {
+    if (foe === p || foe.hp <= 0 || foe.downed || foe.gone || p.dashHitSet.has(foe)) continue;
+    if (dist2(p.x, p.y, foe.x, foe.y) > (p.r + foe.r + pad) ** 2) continue;
+    p.dashHitSet.add(foe);
+    const crit = m.crit > 0 && Math.random() < m.crit;
+    hurtPlayer(foe, dmg * (crit ? m.critMul : 1), p);
   }
 }
 
@@ -152,6 +172,17 @@ function sanchoSwing(p, x, y, aim) {
       e.bleedDps = Math.max(e.bleedDps || 0, bleedDps(m.bleed));
       e.bleedBy = p;
     }
+  }
+  /* PVP: the sweep is tested against a rival warden in the same forward arc */
+  if (Game.pvpMode) for (const foe of players) {
+    if (foe === p || foe.hp <= 0 || foe.downed || foe.gone) continue;
+    const fdx = foe.x - x, fdy = foe.y - y;
+    if (fdx * fdx + fdy * fdy > (reach + foe.r) ** 2) continue;
+    let fdelta = Math.atan2(fdy, fdx) - aim;
+    fdelta = Math.atan2(Math.sin(fdelta), Math.cos(fdelta));
+    if (Math.abs(fdelta) > halfArc) continue;
+    const crit = m.crit > 0 && Math.random() < m.crit;
+    hurtPlayer(foe, m.dmg * (crit ? m.critMul : 1), { x, y, knock: m.knock });
   }
   return true;
 }
@@ -204,6 +235,8 @@ function sanchoSurge(p) {
       damageEnemy(e, dmg, { owner: p, x: p.x, y: p.y, knock: 220, melee: true });
     }
   }
+  /* PVP: the crimson ring does not care whose blood it is */
+  pvpBlastWardens(p, p.x, p.y, SANCHO_SURGE_RADIUS, dmg, p);
   p.hp = Math.min(p.maxHp, p.hp + SANCHO_SURGE_HEAL);
   if (p === localPlayer() && typeof updateHp === "function") updateHp();
   /* crimson burst visual */
@@ -491,6 +524,8 @@ function fireVeil(p) {
     if (m.venom && puddles.length < 140) puddles.push({ x: e.x, y: e.y, r: 20 + 10 * m.venom, t: 0, life: 3,
       team: "p", dmg: 3 + 2 * m.venom, color: "#7dff5e", tickMap: {}, owner: p });
   }
+  /* PVP: the hollow circle wounds a rival warden caught inside it just the same */
+  pvpBlastWardens(p, px, py, R, ringDmg, { x: px, y: py, knock: m.knock });
   /* every foe slain inside the circle discharges your full shot at its nearest kin */
   for (const e of slain) {
     let tgt = null, bd = Infinity;
