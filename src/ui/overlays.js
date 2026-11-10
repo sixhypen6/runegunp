@@ -1254,13 +1254,42 @@ function togglePauseOnBlur() {
   AudioFX.equip();
 }
 $("btnPauseOnBlur").addEventListener("click", togglePauseOnBlur);
+/* Is the auto-pause armed? Other tabs carry their own in-memory Meta, so the
+   shared save wins whenever the two disagree — that is what makes the setting
+   behave like one global switch while several Runegun tabs are open. (A TEST
+   TOOLS run intentionally keeps settings unpersisted; it trusts its own copy.) */
+function pauseOnBlurEnabled() {
+  let on = Meta.pauseOnBlur !== false;
+  if (typeof Game !== "undefined" && Game.devRun) return on;
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw).pauseOnBlur;
+      if (typeof saved === "boolean" && saved !== on) {
+        on = saved;
+        Meta.pauseOnBlur = saved;
+        applyPauseOnBlurUI();
+      }
+    }
+  } catch (e) {}
+  return on;
+}
 function pauseForFocusLoss() {
-  if (Meta.pauseOnBlur === false) return;
+  if (!pauseOnBlurEnabled()) return;
   if (Game.state !== "play") return;   // menus, picks, cutscenes and an existing pause stay put
   togglePause();
 }
 window.addEventListener("blur", pauseForFocusLoss);
 document.addEventListener("visibilitychange", () => { if (document.hidden) pauseForFocusLoss(); });
+/* every tab loads its own copy of Meta — if one flips the setting, mirror it
+   here so the label and the next lost-focus agree across tabs */
+window.addEventListener("storage", e => {
+  if (e.key !== SAVE_KEY || !e.newValue) return;
+  try {
+    const d = JSON.parse(e.newValue);
+    if (typeof d.pauseOnBlur === "boolean") { Meta.pauseOnBlur = d.pauseOnBlur; applyPauseOnBlurUI(); }
+  } catch (err) {}
+});
 applyPauseOnBlurUI();
 
 applyAdvancedNumbersUI();

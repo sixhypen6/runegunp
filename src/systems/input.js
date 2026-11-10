@@ -127,15 +127,10 @@ window.addEventListener("blur", () => {
   Input.moveX = Input.moveY = 0; Input.aiming = false;
 });
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden && Game.state === "play") {
-    /* a backgrounded GUEST can't pause its own sim (it has none) — it asks the
-       host to hold the world for both */
-    if (typeof Net !== "undefined" && Net.role === "guest") Net.sendR({ t: "pauseReq" });
-    else togglePause();
-  }
-  /* Park/unpark the audio hardware regardless of state — a menu or cutscene left
-     in the background must not keep the context running either. Not gated on
-     Game.state, unlike the pause above. */
+  /* Parking/unparking the audio hardware lives here, regardless of state — a menu
+     or cutscene left in the background must not keep the context running either.
+     The PAUSE decision is owned by Settings → SYSTEM → PAUSE WHEN UNFOCUSED
+     (ui/overlays.js), so with it off a backgrounded tab keeps its run live. */
   if (document.hidden) AudioFX.suspend(); else AudioFX.resume();
 });
 cv.addEventListener("mousemove", e => { Input.mouseX = e.clientX; Input.mouseY = e.clientY; });
