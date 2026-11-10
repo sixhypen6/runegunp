@@ -88,10 +88,7 @@ const SAL_ASKS = [
   { ask: "HOW DO I GET OUT?", lines: [
     "Down. Past a clock that stopped.",
     "Through glass that walks like you.",
-    "To the last living star. Then you choose.",
-    "", "", "", "", "", "", "", 
-    "Hm", 
-    "Are you going to stay here forever?",] },
+    "To the last living star. Then you choose.",] },
 ];
 const SAL_FIRST_ROUND = "House rule: first's on me. The rest are ten souls.";
 const SAL_BROKE = "Ten souls a round. Come back when you've got them.";
