@@ -2263,7 +2263,7 @@ function drawAfterWardens() {
     cx.save();
     cx.translate(W / 2, H * 0.36);
     const sc = 1 + (1 - inA) * 1.8;
-    cx.scale(sc, sc);
+    cx.scale(sc * ZOOM, sc * ZOOM);   // track the game's view zoom so the banner reads the same on phone and monitor
     cx.globalAlpha = inA * outA;
     cx.textAlign = "center";
     cx.font = "bold 52px monospace";
