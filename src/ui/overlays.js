@@ -161,6 +161,7 @@ function togglePause() {
 function openPausePanel() {
   renderHeld("gunLinePause", "heldGridPause", "petPause");
   syncVolumeUI(); applyAimMode();
+  if (typeof pvpPanelRefreshEntry === "function") pvpPanelRefreshEntry();
 }
 $("pauseBtn").addEventListener("click", () => { if (Game.state === "play" || Game.state === "pause") togglePause(); });
 /* routed through togglePause so a guest's RESUME asks the host instead of

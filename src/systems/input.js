@@ -72,6 +72,7 @@ function uiBack() {
      CONTROLS (z25), then the z20 panels. Closing settings while a transfer sits
      above it would silently strip the wrong screen. */
   if ($("ctrlEdit").classList.contains("on")) { closeCtrlEdit(true); return; }
+  if ($("pvpPanel") && $("pvpPanel").classList.contains("on") && typeof PvpPanel !== "undefined") { PvpPanel.close(); return; }
   if ($("chat") && $("chat").classList.contains("on")) { if (typeof Coop !== "undefined" && Coop.chatClose) Coop.chatClose(); return; }
   if ($("transfer") && $("transfer").classList.contains("on")) { ProgressTransfer.close(); return; }
   if ($("controls").classList.contains("on")) { closeControls(); return; }

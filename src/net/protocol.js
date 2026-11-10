@@ -285,7 +285,11 @@ const Protocol = {
     Game.flawless = g.flawless;
     Game.bloodfeast = g.bloodfeast || 0;
     /* ONLINE VERSUS rides the snapshot so the guest sees the same match state */
-    if (g.pvp !== undefined) Game.pvpMode = !!g.pvp;
+    if (g.pvp !== undefined) {
+      const wasPvp = Game.pvpMode;
+      Game.pvpMode = !!g.pvp;
+      if (Game.pvpMode && !wasPvp && typeof PvpPanel !== "undefined") PvpPanel.onMatchStart();
+    }
     if (g.pvpW !== undefined) Game.pvpWinner = g.pvpW < 0 ? null : g.pvpW;
     Game.pendingPickupBy = g.pickupBy;
     SEAL.state = g.seal;

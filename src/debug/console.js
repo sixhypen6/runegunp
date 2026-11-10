@@ -327,8 +327,8 @@ const RunegunConsole = {
     const p = this.currentPlayer();
     if (sub === undefined || sub === "points") {
       this.log(this.editTag(p) + "PVP POINTS " + pvpPointsLeft(p) + " / " + pvpBasePoints(p) +
-        (p.char === "necromancer" ? "  (no pack in versus · +" + (PVP_CHAR_BONUS_POINTS.necromancer || 0) + " compensation)" : "") +
-        "\nSPENT " + pvpSpent(p) + " · pvp list for prices · pvp buy/sell <rune> [n] · pvp reset");
+        (p.char === "necromancer" ? "  (four buffed thralls rise with the match)" : "") +
+        "\nSPENT " + pvpSpent(p) + " · pvp list for prices · pvp buy/sell <rune> [n] · pvp reset · or use the VERSUS LOADOUT panel in the pause menu");
       return;
     }
     if (sub === "list" || sub === "cost" || sub === "loadout") {
@@ -347,7 +347,7 @@ const RunegunConsole = {
       this.afterEdit();
       this.log(this.editTag(p) + (bought
         ? "BOUGHT " + RUNES[id].name + " ×" + bought + " · " + pvpPointsLeft(p) + " points left"
-        : "Not enough points for " + RUNES[id].name + " (needs " + pvpRuneCost(p, id, (p.runes[id] || 0) + 1) + ")."));
+        : "Not enough points for " + RUNES[id].name + " (needs " + pvpStackCost(p, id, (p.runes[id] || 0) + 1) + ")."));
       return;
     }
     if (sub === "sell" || sub === "remove") {
@@ -658,6 +658,7 @@ const RunegunConsole = {
       "  pvp points|list               show the loadout budget / every rune's point price",
       "  pvp buy|sell <rune> [n]       carve or refund rune stacks with points",
       "  pvp reset                     clear the target's loadout and refund every point",
+      "  (or open the VERSUS LOADOUT panel in the pause menu — named + saved loadouts)",
       "  list                          every carvable rune id",
       "  add <rune> [n]                carve n more stacks (default 1)",
       "  set <rune> <n>                set a rune to an exact stack count",

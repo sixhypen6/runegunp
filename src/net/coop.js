@@ -388,9 +388,9 @@ const Coop = {
   /* The console edits runes / the warden mid-descent, and snapshots do not
      carry either. The host sends this once after an edit so the guest's book
      (and its body) matches the world the host is actually simulating. */
-  resyncEdit() {
+  resyncEdit(silent) {
     if (!this.running || Net.role !== "host") return;
-    Net.sendR({ t: "edit", pl: players.map(p => ({
+    Net.sendR({ t: "edit", silent: !!silent, pl: players.map(p => ({
       char: p.char, skin: p.skin, gunSkin: p.gunSkin, pet: p.pet,
       runes: p.runes, lockedRunes: p.lockedRunes,
       hp: p.hp, maxHp: p.maxHp, rerolls: p.rerolls,
@@ -829,6 +829,9 @@ const Coop = {
       } break;
       /* a host console edit: new runes / warden, applied at once */
       case "edit": if (Net.role === "guest") this._applyEdit(m); break;
+      /* a guest's own versus loadout: validated and applied by the host, then
+         echoed back through resyncEdit so both screens agree on the build */
+      case "pvpLoadout": if (Net.role === "host") this._applyPvpLoadout(m); break;
       case "kill": if (Net.role === "guest") this._guestKill(m); break;
       case "chestOpen": if (Net.role === "guest") {
         AudioFX.chest(); AudioFX.pickup(); Game.shake = Math.max(Game.shake, 6);
@@ -1123,7 +1126,38 @@ const Coop = {
         equipPet(p, o.pet);
     }
     updateHp(); updateRerolls(); refreshRuneStrip();
-    toast("THE HOST REWRITES THE RUN");
+    if (!m.silent) toast("THE HOST REWRITES THE RUN");
+  },
+
+  /* A guest's versus loadout, relayed to the host. The host is the authority:
+     it rebuilds that seat from the wire only if the warden exists and the
+     spend still fits the budget, then echoes the result back. */
+  _applyPvpLoadout(m) {
+    if (!m || !Array.isArray(m.pl) || Game.pvpMode) return;
+    let changed = false;
+    for (const o of m.pl) {
+      const idx = o && (o.idx | 0);
+      if (!(idx > 0 && idx < players.length)) continue;
+      const p = players[idx];
+      const char = (typeof o.char === "string" && CHARS[o.char]) ? o.char : p.char;
+      const runes = {};
+      if (o.runes && typeof o.runes === "object") {
+        for (const id of RUNE_IDS) {
+          const n = o.runes[id] | 0;
+          if (n > 0) runes[id] = Math.min(99, n);
+        }
+      }
+      /* the same price list the panel uses — a hacked or laggy client cannot
+         buy past its budget */
+      if (pvpSpent({ char, runes }) > pvpBasePoints({ char })) continue;
+      p.char = char;
+      p.runes = runes;
+      p.lockedRunes = null;
+      recalc(p);
+      p.hp = p.maxHp;
+      changed = true;
+    }
+    if (changed) this.resyncEdit(true);
   },
 
   /* THE SINGULAR, co-op: rebuild the same room on the guest. The host's entry
