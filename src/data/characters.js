@@ -83,7 +83,7 @@ const CHARS = {
   sinner: { name: "WAYWARD PASSENGER", glyph: "ᚥ", color: "#9d6bff", cost: 50000,
     hidden: true, melee: true,
     desc: "A dimensional drifter. Purely melee — two tear-blades rip purple seams through the air with every swing. [R] WARP opens four rifts in an X around the nearest foe and shreds through them, cutting everything in the middle; walk into any rift to be thrown out of its twin, gaining speed and contact bite with each crossing. WARP stacks shorten the cooldown and deepen the rush.\nUNLOCK: Accumulate 35 WARP stacks in a single run.",
-    hp: 90, speed: 280, dashCd: 1.1, startRunes: 0, rerolls: 3, runeSlots: 5,
+    hp: 90, speed: 310, dashCd: 1.1, startRunes: 0, rerolls: 5, runeSlots: 6,
     startLoadout: ["warp"],
     weaponBase: { dmg: 24, rate: 3.2, size: 85, speed: 450, knock: 100 } },
   sancho: { name: "SANCHO", glyph: "ᚦ", color: "#cc0000", cost: 0,
@@ -101,8 +101,6 @@ const CHARS = {
     desc: "300 vitality of immovable steel. Slow on foot — hold SHIFT to engage the thrusters, building momentum that carries you after you let go. Bristles with three guns: a main cannon firing paired 12-damage rounds, and two side guns at 9 damage each. With a companion at your side, [E] sends it to break a distant seal.",
     hp: 300, speed: 170, dashCd: 1.4, startRunes: 0, rerolls: 3,
     weaponBase: { dmg: 12, rate: 2.5, size: 6, count: 2, spread: 0.08, knock: 100, pierce: 1 } },
-    // whats startRunes? 0 is the default for all characters, but the Unknown has a special rule: it starts with 0 runes, but every time you die, it gains one more rune slot. So if you die 3 times, it will have 3 rune slots on your next run.
-    //how is startRunes used in the code? It is used in the character selection screen to determine how many rune slots the character has at the start of the run. It is also used in the game logic to determine how many rune slots the character has when they die and respawn.
 };
 const charFor = id => CHARS[id] || CHARS.gunsmith;
 const charColorFor = id => CHARS[id] ? CHARS[id].color : "#e8e2d0";
@@ -132,7 +130,7 @@ const SKINS = {
   rainbow:   { name: "RAINBOW",    color: "#ffffff", cost: 50000, desc: "A shifting spectrum of colours that dances across the surface." },
 };
 
-//how does one make rainbow work :sob
+//rainbow when
 
 const skinFor = id => SKINS[id] || SKINS.bone;
 const skinColorById = id => SKINS[id] ? SKINS[id].color : "#e8e2d0";
