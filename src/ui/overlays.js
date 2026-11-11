@@ -780,24 +780,40 @@ let lbTab = "global", lbGroup = "global", lbMode = "normal", lbChar = "", lbMetr
    painting the view the player asked for */
 function lbViewKey() { return [lbTab, lbGroup, lbMode, lbChar, lbMetric].join("|"); }
 
-/* Build the warden selector once: ALL WARDENS + every playable warden. A newer
-   build's CHARS grows without any markup change. */
-function lbBuildCharTabs() {
-  const box = $("lbCharTabs");
-  if (!box || box.dataset.built === "1") return;
-  box.textContent = "";
-  const add = (id, label) => {
-    const b = document.createElement("button");
-    b.className = "menu-btn small gloss-tab" + (id === "" ? " on" : "");
-    b.dataset.char = id;
-    b.textContent = label;
-    b.addEventListener("click", () => lbShowChar(id));
-    box.appendChild(b);
-  };
-  add("", "ALL WARDENS");
-  if (typeof CHARS !== "undefined")
-    for (const id in CHARS) add(id, CHARS[id].name || String(id).toUpperCase());
-  box.dataset.built = "1";
+/* Two compact pickers replace the old group + mode + warden button rows. The
+   board list is rebuilt only when the supported set changes (a Play Games
+   fallback has no CLASSIC/CHAOS boards); the warden list is built once because
+   CHARS only grows. */
+function lbBuildSelectors() {
+  const boardSel = $("lbBoardSel"), charSel = $("lbCharSel");
+  if (!boardSel || !charSel) return;
+  const boards = [["global:normal", "GLOBAL · NORMAL"], ["global:hard", "GLOBAL · HARD"]];
+  if (Leaderboard.modeSupported("chaos")) boards.push(["global:chaos", "GLOBAL · CHAOS"]);
+  if (Leaderboard.modeSupported("classic")) boards.push(["classic:classic", "CLASSIC"]);
+  const sig = boards.map(b => b[0]).join("|");
+  if (boardSel.dataset.sig !== sig) {
+    boardSel.textContent = "";
+    for (const [value, label] of boards) {
+      const opt = document.createElement("option");
+      opt.value = value;
+      opt.textContent = label;
+      boardSel.appendChild(opt);
+    }
+    boardSel.dataset.sig = sig;
+  }
+  if (charSel.dataset.built !== "1") {
+    charSel.textContent = "";
+    const add = (id, label) => {
+      const opt = document.createElement("option");
+      opt.value = id;
+      opt.textContent = label;
+      charSel.appendChild(opt);
+    };
+    add("", "ALL WARDENS");
+    if (typeof CHARS !== "undefined")
+      for (const id in CHARS) add(id, CHARS[id].name || String(id).toUpperCase());
+    charSel.dataset.built = "1";
+  }
 }
 
 function lbEmptyText(isClear, mode, char) {
@@ -992,32 +1008,26 @@ async function renderLeaderboard() {
   }
 }
 
-/* repaint the group + mode + warden buttons (and the mode's skin), then refetch */
+/* repaint the board + warden pickers (and the mode's skin), then refetch */
 function lbSync() {
-  lbBuildCharTabs();
+  lbBuildSelectors();
   /* Play Games has no CLASSIC board, so that group only exists where it can pay off */
   if (lbGroup === "classic" && !Leaderboard.modeSupported("classic")) { lbGroup = "global"; lbMode = "normal"; }
   if (lbGroup === "global" && lbMode === "chaos" && !Leaderboard.modeSupported("chaos")) lbMode = "normal";
   /* warden boards are a Firebase feature; a Play Games fallback has no rows to
      filter, so the selector would only lie about what is on screen */
   const charBoards = Leaderboard.charSupported(lbMode);
+  const charSel = $("lbCharSel"), charWrap = $("lbCharWrap");
+  if (charSel && lbChar && ![...charSel.options].some(o => o.value === lbChar)) lbChar = "";
   if (!charBoards) lbChar = "";
-  const charTabRow = $("lbCharTabs");
-  if (charTabRow) charTabRow.style.display = charBoards ? "" : "none";
+  if (charWrap) charWrap.style.display = charBoards ? "" : "none";
+  if (charSel) { charSel.disabled = !charBoards; charSel.value = lbChar; }
   const group = lbGroup, mode = lbMode;
-  const classicGroup = $("lbGroupClassic");
-  if (classicGroup) classicGroup.style.display = Leaderboard.modeSupported("classic") ? "" : "none";
-  $("lbGroupGlobal").classList.toggle("on", group === "global");
-  if (classicGroup) classicGroup.classList.toggle("on", group === "classic");
-  const modeRow = $("lbModeRow");
-  if (modeRow) modeRow.style.display = group === "classic" ? "none" : "";
-  const chaosTab = $("lbModeChaos");
-  if (chaosTab) chaosTab.style.display = Leaderboard.modeSupported("chaos") ? "" : "none";
-  $("lbModeNormal").classList.toggle("on", group === "global" && mode === "normal");
-  $("lbModeHard").classList.toggle("on", group === "global" && mode === "hard");
-  if (chaosTab) chaosTab.classList.toggle("on", group === "global" && mode === "chaos");
-  const charTabs = $("lbCharTabs");
-  if (charTabs) for (const b of charTabs.children) b.classList.toggle("on", (b.dataset.char || "") === lbChar);
+  const boardSel = $("lbBoardSel");
+  if (boardSel) {
+    const want = group === "classic" ? "classic:classic" : "global:" + mode;
+    if ([...boardSel.options].some(o => o.value === want)) boardSel.value = want;
+  }
   $("lbMetricScore").classList.toggle("on", lbMetric === "score");
   $("lbMetricClear").classList.toggle("on", lbMetric === "clear");
   const list = $("lbList");
@@ -1036,18 +1046,6 @@ function lbSync() {
   renderLeaderboard();
 }
 function lbShowTab(tab) { lbTab = (tab === "nearby") ? "nearby" : "global"; lbSync(); }
-function lbSetGroup(g) {
-  lbGroup = g === "classic" ? "classic" : "global";
-  if (lbGroup === "classic") lbMode = "classic";
-  else if (lbMode === "classic") lbMode = "normal";
-  lbSync();
-}
-function lbShowMode(m) {
-  if (m === "classic") return lbSetGroup("classic");
-  lbGroup = "global";
-  lbMode = (m === "hard" || m === "chaos") ? m : "normal";
-  lbSync();
-}
 function lbShowChar(id) {
   lbChar = (id && typeof CHARS !== "undefined" && CHARS[id]) ? id : "";
   lbSync();
@@ -1097,11 +1095,13 @@ $("lbDisplayInput").addEventListener("keydown", e => { if (e.key === "Enter") { 
 
 $("lbTabGlobal").addEventListener("click", () => lbShowTab("global"));
 $("lbTabNearby").addEventListener("click", () => lbShowTab("nearby"));
-$("lbGroupGlobal").addEventListener("click", () => lbSetGroup("global"));
-$("lbGroupClassic").addEventListener("click", () => lbSetGroup("classic"));
-$("lbModeNormal").addEventListener("click", () => lbShowMode("normal"));
-$("lbModeHard").addEventListener("click", () => lbShowMode("hard"));
-$("lbModeChaos").addEventListener("click", () => lbShowMode("chaos"));
+$("lbBoardSel").addEventListener("change", e => {
+  const [g, m] = String(e.target.value).split(":");
+  lbGroup = g === "classic" ? "classic" : "global";
+  lbMode = lbGroup === "classic" ? "classic" : (m === "hard" || m === "chaos") ? m : "normal";
+  lbSync();
+});
+$("lbCharSel").addEventListener("change", e => lbShowChar(e.target.value));
 $("lbMetricScore").addEventListener("click", () => lbShowMetric("score"));
 $("lbMetricClear").addEventListener("click", () => lbShowMetric("clear"));
 $("lbNativeView").addEventListener("click", () => Leaderboard.show({ mode: lbMode }));

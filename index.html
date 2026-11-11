@@ -374,10 +374,18 @@
   .lb-empty{color:var(--dim);font-size:calc(11px * var(--text-scale, 1));text-align:center;padding:26px 8px;letter-spacing:.2em}
   /* hard-mode reckoning — runs red */
   .lb-mode-tabs{margin-bottom:8px}
-  /* the warden selector: one scrollable strip, so all thirteen wardens fit */
-  .lb-char-tabs{display:flex;gap:6px;margin:0 0 8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
-  .lb-char-tabs .gloss-tab{flex:0 0 auto;font-size:calc(9px * var(--text-scale, 1));padding:6px 10px;letter-spacing:.12em;text-indent:.12em}
-  .lb-char-tabs .gloss-tab.on{border-color:var(--gold);color:#fff;box-shadow:0 0 12px rgba(255,210,61,.3)}
+  /* board + warden pickers: two compact dropdowns instead of a wall of buttons */
+  .lb-select-row{display:flex;gap:8px;margin:0 0 8px}
+  .lb-select-wrap{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+  .lb-select-cap{font-size:calc(8px * var(--text-scale, 1));letter-spacing:.22em;text-indent:.22em;color:var(--dim)}
+  .lb-select{width:100%;font-family:inherit;font-size:calc(10px * var(--text-scale, 1));letter-spacing:.14em;
+    color:var(--bone);background-color:rgba(7,5,16,.55);border:1px solid var(--line);padding:9px 28px 9px 10px;
+    appearance:none;-webkit-appearance:none;cursor:pointer;text-overflow:ellipsis;
+    background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),linear-gradient(135deg,var(--dim) 50%,transparent 50%);
+    background-position:calc(100% - 14px) 50%,calc(100% - 9px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+  .lb-select:focus{outline:none;border-color:var(--arcane);box-shadow:0 0 12px rgba(157,107,255,.35)}
+  .lb-select option{background:#0b0714;color:var(--bone)}
+  .lb-select:disabled{opacity:.4;cursor:default}
   .gloss-tab.hard.on{border-color:var(--blood);color:#fff;box-shadow:0 0 16px rgba(255,77,94,.4)}
   .lb-list.hard .lb-row .lb-score{color:var(--blood)}
   .lb-list.hard .lb-row.me{border-color:var(--blood);box-shadow:0 0 14px rgba(255,77,94,.35);background:rgba(255,77,94,.08)}
@@ -967,16 +975,16 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
       <button class="menu-btn small" id="lbDisplaySave" style="margin:0;white-space:nowrap">SET NAME</button>
     </div>
     <div class="hint" id="lbDisplayHint" style="margin:-2px 0 10px;min-height:1.2em"></div>
-    <div class="glossary-tabs lb-mode-tabs">
-      <button class="menu-btn small gloss-tab on" id="lbGroupGlobal">GLOBAL</button>
-      <button class="menu-btn small gloss-tab classic" id="lbGroupClassic">CLASSIC</button>
+    <div class="lb-select-row">
+      <label class="lb-select-wrap">
+        <span class="lb-select-cap">BOARD</span>
+        <select class="lb-select" id="lbBoardSel" aria-label="Leaderboard board"></select>
+      </label>
+      <label class="lb-select-wrap" id="lbCharWrap">
+        <span class="lb-select-cap">WARDEN</span>
+        <select class="lb-select" id="lbCharSel" aria-label="Warden board"></select>
+      </label>
     </div>
-    <div class="glossary-tabs lb-mode-tabs" id="lbModeRow">
-      <button class="menu-btn small gloss-tab on" id="lbModeNormal">NORMAL</button>
-      <button class="menu-btn small gloss-tab hard" id="lbModeHard">HARD</button>
-      <button class="menu-btn small gloss-tab chaos" id="lbModeChaos">CHAOS</button>
-    </div>
-    <div class="glossary-tabs lb-char-tabs" id="lbCharTabs"></div>
     <div class="glossary-tabs lb-mode-tabs">
       <button class="menu-btn small gloss-tab on" id="lbMetricScore">BEST SOULS</button>
       <button class="menu-btn small gloss-tab clear" id="lbMetricClear">FASTEST CLEAR</button>
