@@ -171,6 +171,13 @@ function updatePlayer(p, inp, dt) {
   p.seekerCd = Math.max(0, (p.seekerCd || 0) - dt);
   p.kickT = Math.max(0, (p.kickT || 0) - dt);
   p.sanchoSlashT = Math.max(0, (p.sanchoSlashT || 0) - dt);
+  /* WARP: the rift clock, the rush it leaves, and the blades' afterglow */
+  p.warpCd = Math.max(0, (p.warpCd || 0) - dt);
+  p.warpSpeedT = Math.max(0, (p.warpSpeedT || 0) - dt);
+  if (p.warpSpeedT <= 0) p.warpSpeedStacks = 0;
+  p.warpPortalCd = Math.max(0, (p.warpPortalCd || 0) - dt);
+  p.sinnerSlashT = Math.max(0, (p.sinnerSlashT || 0) - dt);
+  p.sinnerSlash2T = Math.max(0, (p.sinnerSlash2T || 0) - dt);
   if (p.char === "sancho" && !p.downed) {
     p.hbTimer -= dt;
     if (p.hbTimer <= 0) {
@@ -183,6 +190,7 @@ function updatePlayer(p, inp, dt) {
     p.speed = CHARS.sancho.speed * p.mods.moveMul * (p.hp / p.maxHp < 0.3 ? 1.25 : 1);
   }
   if (isLocal && typeof updateSanchoCue === "function") updateSanchoCue(p);
+  if (isLocal && typeof updateWarpCue === "function") updateWarpCue(p);
   /* DOWNED: a slow crawl toward help — no dash, no gun, no interactions */
   if (p.downed) {
     p.x += mx * p.speed * 0.35 * dt;
@@ -210,6 +218,11 @@ function updatePlayer(p, inp, dt) {
     if (p.char === "sancho" && inp.surgeTap) sanchoManualSurge(p);
     reanimatorTick(p, dt);
   }
+  /* WARP — R tears four rifts around the nearest foe. The host runs a guest's
+     cast from the wire frame, so both wardens see the same shred. Reanimator
+     and Sancho keep R for their own abilities; a Passenger never shares it. */
+  if (inp.recallTap && typeof warpActivate === "function" && warpCanUse(p) &&
+      p.char !== "necromancer" && p.char !== "sancho" && warpAuthority()) warpActivate(p);
   /* SEEKER — local navigation marks. They are never world state: a guest marks
      their own screen, and the host never has to agree with it. */
   if (isLocal && p.pet === "seeker") {
@@ -223,6 +236,8 @@ function updatePlayer(p, inp, dt) {
     p.wasOverLava = false;
     p.mineTrailT = 0;   // DEMOLITIONIST: the first dash-mine drops immediately
     if (p.char === "sancho") p.dashHitSet = null;   // each pass gets one hit per horror
+    /* PHASE on the Passenger arms a crossed pair of slashes for mid-dash */
+    if (p.char === "sinner") p.sinnerPhaseDone = false;
     AudioFX.dash();
   }
   if (p.dashT > 0) {
@@ -231,6 +246,13 @@ function updatePlayer(p, inp, dt) {
     p.y += Math.sin(p.dashAng) * (p.dashSpeed || 720) * dt;
     particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, t: 0, life: 0.25, r: 9,
       color: p.mods.dashTrail ? phaseWakeColor(p, 0.55) : "rgba(94,230,255,0.5)" });
+    /* WAYWARD PASSENGER + PHASE/BLINKSTEP: halfway through the dash both
+       tear-blades sweep the line in a crossed pair of slashes (entities/warp.js) */
+    if (p.char === "sinner" && p.mods.dashTrail > 0 && !p.sinnerPhaseDone &&
+        p.dashT <= p.dashDur * 0.55 && typeof sinnerPhaseDash === "function") {
+      p.sinnerPhaseDone = true;
+      sinnerPhaseDash(p);
+    }
     /* SANCHO — the dash itself bites (entities/combat.js) */
     if (p.char === "sancho") sanchoDashHit(p);
     if (p.dashT <= 0 && p.char === "wraith") {
@@ -274,6 +296,9 @@ function updatePlayer(p, inp, dt) {
     /* RUNELESS: a rune box's short stride */
     const hasteMul = (p.hasteT || 0) > 0 ? RUNELESS_HASTE_MUL : 1;
     let mvx = mx * p.speed * weightMul * wadeMul * dm * hasteMul, mvy = my * p.speed * weightMul * wadeMul * dm * hasteMul;
+    /* WARP rush: every rift crossed leaves speed in the Passenger's heels */
+    const warpMul = typeof warpSpeedMul === "function" ? warpSpeedMul(p) : 1;
+    mvx *= warpMul; mvy *= warpMul;
     /* FORTRESS boost: holding SHIFT engages thrusters — the hull keeps its normal
        walk, and the thrusters add a second velocity that builds up slowly and
        coasts down after release, so a turn curves instead of snapping. inp.boost
@@ -330,6 +355,9 @@ function updatePlayer(p, inp, dt) {
     }
   }
   collideWorld(p);
+  /* WARP — the shred chain, standing rifts and the contact bite they leave.
+     Host/solo only; the guest's rifts arrive in the snapshot. */
+  if (typeof warpTick === "function") warpTick(p, dt);
   /* MEND: wounds knit closed when you go untouched */
   if (p.mods.regen && p.hp < p.maxHp && p.hp > 0) {
     p.regenT = (p.regenT || 0) + dt;
@@ -612,6 +640,8 @@ function update(dt) {
     updatePlayer(p, frames[p.idx], dt);
     if (Game.state !== "play") return;   // a thorns kill / veil kill can end the frame
   }
+  /* WARP — rifts and seams age once per frame; the guest mirrors them */
+  if (typeof warpWorldTick === "function") warpWorldTick(dt);
 
   /* --- revive: living hands close on a downed partner --- */
   for (const p of players) {

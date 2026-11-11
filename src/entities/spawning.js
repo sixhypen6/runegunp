@@ -18,6 +18,11 @@ function makePlayer(cfg, idx) {
     dashT: 0, dashCd: 0, dashCdBase: c.dashCd, dashDur: c.dashDur || 0.18, dashSpeed: c.dashSpeed || 720, dashAng: 0, puddleTick: 0, autoFire: false,
     sawT: 0, sawRot: 0, sawHitTarget: null,
     veilT: 0, veilCdBase: 0,
+    /* WAYWARD PASSENGER: the WARP clock, the open rifts and the rush they leave */
+    warpCd: 0, warpSeq: null, warpPortalSet: null, warpPortalCd: 0,
+    warpSpeedStacks: 0, warpSpeedT: 0, warpContactT: 0,
+    sinnerSlashT: 0, sinnerSlashAng: 0, sinnerSlashDir: 1,
+    sinnerSlash2T: 0, sinnerSlash2Ang: 0, sinnerSlash2Dir: -1,
     /* REANIMATOR: the pack's command mode ("ai" hunts, "cursor" follows the mark) */
     thrallMode: "ai", thrallCursor: null,
     curses: {}, brandTick: 0, shield: 0, shieldMax: 0, shieldT: 0,
@@ -91,10 +96,11 @@ function resetRun(cfgs) {
        ONE RUNE also makes an exception: her two defaults are innate, so she
        starts with both instead of a single carved rune. */
     const sanchoDefaults = p.char === "sancho";
-    const runelessSignature = runeless && (sanchoDefaults || p.char === "john");
+    const sinnerDefaults = p.char === "sinner";
+    const runelessSignature = runeless && (sanchoDefaults || sinnerDefaults || p.char === "john");
     if (!runeless || runelessSignature) {
       if (c.startLoadout) for (const id of c.startLoadout) {
-        if (runeless && !sanchoDefaults && id !== "runegun") continue;
+        if (runeless && !sanchoDefaults && !sinnerDefaults && id !== "runegun") continue;
         if (oneRune && started >= 1 && !sanchoDefaults) break;
         grantRune(p, id, true); started++;
       }
@@ -122,11 +128,17 @@ function setupFloor(first) {
   Game.bloodfeast = 0;
   enemies = []; bullets = []; ebullets = []; puddles = [];
   particles = []; chests = []; pickups = []; shockwaves = []; floaters = []; zaps = []; veils = []; healthBoxes = []; mines = []; shells = [];
+  warpPortals = []; warpSlashes = [];
   soulMotes = [];
   portal = null; rift = null;
   pets = [];
   /* the SEEKER's old marks belong to the floor that just ended */
   for (const p of players) { p.seekerMarkX = null; p.seekerMarkY = null; p.seekerCd = 0; }
+  /* a rift cannot follow you through a gate — the Passenger's tears close here */
+  for (const p of players) {
+    p.warpSeq = null; p.warpPortalSet = null; p.warpSpeedStacks = 0; p.warpSpeedT = 0;
+    p.warpContactT = 0; p.warpPortalCd = 0;
+  }
   for (const p of players) if (p.pet && PTYPES[p.pet]) pets.push(assignId(spawnPet(p.pet, p)));
   Game.ambush = null; Game.boss = null; Game.shake = 0;
   /* a floor change drops the streak silently — no cash-out sting for walking through a door */

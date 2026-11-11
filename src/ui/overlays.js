@@ -1368,6 +1368,33 @@ function cycleHiddenRunes() {
 }
 $("btnHiddenRunes").addEventListener("click", cycleHiddenRunes);
 
+/* ---------- rune-chest ambush priority: aim, abilities and WARP ---------- */
+const WARP_PICK_LABEL = { far: "WARP ANCHOR: FARTHEST", near: "WARP ANCHOR: NEAREST" };
+function applyAmbushUI() {
+  const b = $("btnAmbushPriority");
+  if (b) b.textContent = "AMBUSH PRIORITY: " + (Meta.ambushPriority ? "ON" : "OFF");
+  const n = $("ambushPriorityNote");
+  if (n) n.textContent = Meta.ambushPriority
+    ? "aim and abilities favour the foes a rune chest's ambush sends — WARP anchors on them before any other horror"
+    : "off — every attack picks the nearest foe like any other";
+  const w = $("btnWarpPick");
+  if (w) w.textContent = WARP_PICK_LABEL[Meta.warpPick] || WARP_PICK_LABEL.far;
+  const wn = $("warpPickNote");
+  if (wn) wn.textContent = Meta.warpPick === "near"
+    ? "among the ambush, WARP opens its first rift on the NEAREST foe"
+    : "among the ambush, WARP opens its first rift on the FARTHEST foe";
+}
+function cycleAmbushPriority() {
+  Meta.ambushPriority = !Meta.ambushPriority;
+  metaSave(); applyAmbushUI(); AudioFX.equip();
+}
+function cycleWarpPick() {
+  Meta.warpPick = Meta.warpPick === "near" ? "far" : "near";
+  metaSave(); applyAmbushUI(); AudioFX.equip();
+}
+$("btnAmbushPriority").addEventListener("click", cycleAmbushPriority);
+$("btnWarpPick").addEventListener("click", cycleWarpPick);
+
 /* ---------- speedrun timer: the HUD clock and its visibility ---------- */
 function applyRunTimerUI() {
   const b = $("btnRunTimer"); if (b) b.textContent = "RUN TIMER: " + (Meta.runTimer ? "ON" : "OFF");
@@ -1593,7 +1620,7 @@ $("ctrlEditReset").addEventListener("click", resetCtrlLayout);
 })();
 
 /* ---------- settings overlay ---------- */
-function openSettings() { if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings opened"); syncVolumeUI(); applyDeskMode(); applyAimMode(); applyBtnSizeUI(); applyCtrlSettingsUI(); applyHapticsUI(); applyShakeUI(); applyAdvancedNumbersUI(); applyRuneDescriptionSettingsUI(); applyVaultDescriptionSettingsUI(); applyTextSizeUI(); applyGlowUI(); applyJuiceUI(); applyHiddenRunesUI(); applyRunTimerUI(); applySpeedrunUI(); applyPauseOnBlurUI(); syncAutoPickUI(); syncPrivacyOptions(); $("btnReplayCutscene").style.display = (Game.state === "menu") ? "" : "none"; $("settings").classList.add("on"); }
+function openSettings() { if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings opened"); syncVolumeUI(); applyDeskMode(); applyAimMode(); applyBtnSizeUI(); applyCtrlSettingsUI(); applyHapticsUI(); applyShakeUI(); applyAdvancedNumbersUI(); applyRuneDescriptionSettingsUI(); applyVaultDescriptionSettingsUI(); applyTextSizeUI(); applyGlowUI(); applyJuiceUI(); applyHiddenRunesUI(); applyAmbushUI(); applyRunTimerUI(); applySpeedrunUI(); applyPauseOnBlurUI(); syncAutoPickUI(); syncPrivacyOptions(); $("btnReplayCutscene").style.display = (Game.state === "menu") ? "" : "none"; $("settings").classList.add("on"); }
 function closeSettings() { $("settings").classList.remove("on"); if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings closed"); }
 /* Google requires EEA/UK players to have a persistent way back to the consent
    choice. UMP tells us who needs one; everyone else never sees the button. */

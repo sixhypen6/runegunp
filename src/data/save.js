@@ -42,6 +42,8 @@ const Meta = {
   runePause: true,    // freeze the run while a rune is picked (off: the fight keeps moving)
   pauseOnBlur: true,  // auto-pause a live run when the window/app loses focus
   showHiddenRunes: false,     // easter-egg runes only appear for hidden wardens unless toggled on
+  ambushPriority: true,       // auto-aim and warden abilities favour the foes a rune chest's ambush sends
+  warpPick: "far",            // WARP's ambush anchor: "far" (farthest) · "near" (nearest)
   cheatSecret: false,         // the auth-code secret: secret runes always on, reprieve ×3, exterminate ×2, shredder + every pet unlocked
   glow: "full",       // neon halo budget: "full" (default — the intended look) · "half" · "off".
                       // Trades the glow for GPU raster load; see the glow lever in canvas.js.
@@ -198,6 +200,9 @@ function metaLoad() {
       Meta.juiceSet = !!d.juiceSet;
       /* hidden runes toggle — defaults off for returning saves */
       Meta.showHiddenRunes = d.showHiddenRunes === true;
+      /* ambush priority is on by default; WARP's anchor is the farthest one */
+      Meta.ambushPriority = d.ambushPriority !== false;
+      Meta.warpPick = d.warpPick === "near" ? "near" : "far";
       /* the auth-code secret — defaults off, toggled by the cheat command */
       Meta.cheatSecret = d.cheatSecret === true;
       /* speedrun clock — on for returning saves unless they explicitly hid it */

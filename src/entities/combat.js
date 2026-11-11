@@ -13,18 +13,32 @@ const FLAWLESS_MUL = 1;
 /* =========================================================
    COMBAT
    ========================================================= */
-/* auto-aim target: nearest live enemy, preferring ones with clear line of sight */
+/* auto-aim target: nearest live enemy, preferring ones with clear line of sight.
+   A rune chest's ambush is the fight that matters, so its foes pull the aim
+   from up to this much farther away (settings · AMBUSH PRIORITY). */
+const AMBUSH_AIM_BIAS = 2.0;
 function nearestEnemy(x, y) {
   let open = null, openD = Infinity, blocked = null, blockedD = Infinity;
+  let aOpen = null, aOpenD = Infinity, aBlocked = null, aBlockedD = Infinity;
   for (const e of enemies) {
     /* `untargetable`: still solid to a bullet, but the auto-aim looks away (THE REFLECTION) */
     if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p" || e.untargetable) continue;
     const d = dist2(x, y, e.x, e.y);
-    if (lineBlocked(x, y, e.x, e.y)) {
+    const cut = lineBlocked(x, y, e.x, e.y);
+    if (e.ambush) {
+      if (cut) { if (d < aBlockedD) { aBlockedD = d; aBlocked = e; } }
+      else if (d < aOpenD) { aOpenD = d; aOpen = e; }
+      continue;
+    }
+    if (cut) {
       if (d < blockedD) { blockedD = d; blocked = e; }
     } else if (d < openD) { openD = d; open = e; }
   }
-  return open || blocked;
+  const plain = open || blocked, plainD = open ? openD : blockedD;
+  const amb = aOpen || aBlocked, ambD = aOpen ? aOpenD : aBlockedD;
+  const wantAmbush = typeof Meta === "undefined" || Meta.ambushPriority !== false;
+  if (amb && wantAmbush && ambD <= plainD * AMBUSH_AIM_BIAS * AMBUSH_AIM_BIAS) return amb;
+  return plain || amb;
 }
 
 /* claw/body contact vs EVERY living warden — an enemy chasing one player still
@@ -254,6 +268,9 @@ function sanchoSurge(p) {
    with warden `p`'s mods. Shared by the gun and by VEIL BURST corpse-discharges. */
 function spawnShot(p, x, y, baseAim, skip) {
   const m = p.mods;
+  /* WAYWARD PASSENGER: no bullet ever leaves the blades — every "shot" is a
+     forward tear in space (entities/warp.js) */
+  if (p.char === "sinner") { sinnerSlash(p, x, y, baseAim); return; }
   const sanchoMelee = p.char === "sancho" && p.weaponMode !== "ranged";
   if (sanchoMelee) { sanchoSwing(p, x, y, baseAim); return; }
   /* the shredder's debris must live long enough to cross its saw's reach even

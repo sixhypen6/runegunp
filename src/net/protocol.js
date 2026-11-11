@@ -72,7 +72,10 @@ const PLAYER_FIELDS = ["x", "y", "vx", "vy", "hp", "maxHp", "shield", "shieldMax
   "fireT", "dashT", "dashAng", "dashCd", "dashCdBase", "veilT", "veilCdBase", "kickT", "iframes",
   "downed", "gone", "reviveT", "puddleTick", "thrallRecallT", "reprieveCd",
   "hardblood", "hbTimer", "hbStage", "weaponMode", "vampireExcess", "vampireMaxBonus",
-  "seekerCd", "seekerMarkX", "seekerMarkY"];
+  "seekerCd", "seekerMarkX", "seekerMarkY",
+  "warpCd", "warpSpeedStacks", "warpSpeedT",
+  "sinnerSlashT", "sinnerSlashAng", "sinnerSlashReach", "sinnerSlashDir",
+  "sinnerSlash2T", "sinnerSlash2Ang", "sinnerSlash2Dir"];
 
 const NUM3 = v => typeof v === "number" ? Math.round(v * 100) / 100 : v;
 const QI = v => Math.round(v) || 0;                       // whole pixels
@@ -157,6 +160,11 @@ const Protocol = {
       hb: healthBoxes.map(h => [h.id, h.state]),
       pk: pickups.map(k => [k.id, NUM3(k.x), NUM3(k.y)]),
       po: portal ? { x: portal.x, y: portal.y, t: NUM3(portal.t) } : null,
+      /* WAYWARD PASSENGER — the four rifts and the seams cut between them.
+         Host-authored, tiny (four rifts, a handful of live seams). */
+      wp: warpPortals.map(o => [o.id, QI(o.x), QI(o.y), Q2(o.t), Q2(o.life), o.twin,
+        Q2(o.rot || 0), o.owner && o.owner.idx !== undefined ? o.owner.idx : -1]),
+      ws: warpSlashes.map(s => [QI(s.x1), QI(s.y1), QI(s.x2), QI(s.y2), Q2(s.t), Q2(s.life)]),
       /* the final rift (only it exists in a shared run: floors I's small rift is solo) */
       rf: rift && rift.final ? { x: QI(rift.x), y: QI(rift.y), r: QI(rift.r), t: Q2(rift.t) } : null,
       /* floors VI–VIII weather + THE UNKNOWN's whole stage (host-authored) */
@@ -324,7 +332,8 @@ const Protocol = {
         else if (err > 4) { p.x = lerp(p.x, o.x, 0.08); p.y = lerp(p.y, o.y, 0.08); }
         for (const f of ["hp", "maxHp", "shield", "shieldMax", "iframes", "downed", "gone", "reviveT",
           "hardblood", "hbTimer", "hbStage", "weaponMode", "vampireExcess", "vampireMaxBonus",
-          "seekerCd", "seekerMarkX", "seekerMarkY"])
+          "seekerCd", "seekerMarkX", "seekerMarkY",
+          "warpCd", "warpSpeedStacks", "warpSpeedT"])
           if (o[f] !== undefined) p[f] = o[f];
       }
       p.curses = o.curses || {};
@@ -453,6 +462,14 @@ const Protocol = {
     for (let i = pickups.length - 1; i >= 0; i--) if (!pkSeen.has(pickups[i].id)) pickups.splice(i, 1);
     for (const [id, x, y] of s.pk) if (!pickups.find(k => k.id === id)) pickups.push({ id, x, y, r: 20, ids: null, t: 0 });
     portal = s.po ? Object.assign(portal || {}, { x: s.po.x, y: s.po.y, r: 46, t: s.po.t }) : null;
+    /* the Passenger's rifts: rebuilt wholesale — four objects, no per-field diffing */
+    warpPortals = (s.wp || []).map(o => ({
+      id: o[0], x: o[1], y: o[2], t: o[3], life: o[4], twin: o[5], rot: o[6],
+      owner: o[7] >= 0 ? players[o[7]] : null, nx: 0, ny: 0, seed: 0,
+    }));
+    warpSlashes = (s.ws || []).map(o => ({
+      x1: o[0], y1: o[1], x2: o[2], y2: o[3], t: o[4], life: o[5], owner: null,
+    }));
     /* the final rift: the guest sees (and is prompted by) the same tear in the dark */
     if (s.rf) rift = Object.assign(rift || {}, { x: s.rf.x, y: s.rf.y, r: s.rf.r, t: s.rf.t, final: true });
 

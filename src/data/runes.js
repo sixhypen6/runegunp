@@ -304,6 +304,9 @@ const RUNES = {
   vampire: { name: "VAMPIRE", glyph: "ᛔ", color: "#ff4d5e",
     desc: "Hits against bleeding enemies deal +30% damage and heal 0.25 vitality per stack. Excess healing can grow max vitality. Only appears while you hold BLEED.",
     mod: (m, n) => { m.vampire += n; } },
+  warp: { name: "WARP", glyph: "ᚥ", color: "#9d6bff",
+    desc: "The blade tears a door through space. [R] opens four rifts in an X around the nearest foe and shreds through them, cutting everything between. Stepping into a rift throws you out of its twin — each crossing grants a rush of speed and contact bite. Stacks shorten the cooldown and deepen the rush.",
+    mod: (m, n) => { m.warp += n; } },
     glasscannon: {
     name: "GLASS CANNON", glyph: "ᛥ", color: "#ffffff",
     desc: "Deal +15% damage per stack. Take +8% more damage per stack (caps at +64%). Grants explosive speed the closer you are to death (up to 2.5x velocity).",
@@ -489,9 +492,15 @@ const SAW_VENOM_RUNE = Object.assign({}, RUNES.venom, {
 const SNIPER_PUNCTURE_RUNE = Object.assign({}, RUNES.puncture, {
   desc: "The patient eye finds the gap every time. Each stack adds 20% — five stacks make every shot puncture, and the round that finds the gap strikes for ×2.5. Bosses bleed too.",
 });
+/* PHASE as the WAYWARD PASSENGER reads it: the dash cuts instead of trailing. */
+const SINNER_PHASE_RUNE = Object.assign({}, RUNES.phase, {
+  desc: "The Passenger's dash cuts twice: both tear-blades sweep the line in a crossing pair of slashes, each carrying PHASE's bleed and elemental wake. Stacks shorten the dash and sharpen the wake it leaves behind.",
+});
 function runeDefFor(p, id) {
   if (p.char === "sancho" && id === "phase")
     return Object.assign({}, RUNES.phase, { color: PHASE_SANCHO_COLOR });
+  /* the Passenger's dash is two blades, not a trailing cut */
+  if (p.char === "sinner" && id === "phase") return SINNER_PHASE_RUNE;
   /* the SHREDDER has no trigger to fire venom through, so its card has to
      describe what the blade does instead (see SAW_VENOM_RUNE) */
   if (p.char === "shredder" && id === "venom") return SAW_VENOM_RUNE;
@@ -623,7 +632,7 @@ function buildWeaponModsFrom(runes, p) {
     prey: 1, crit: 0, critMul: 2.2, wrath: 0, dr: 0, thorns: 0,
     regen: 0, regenDelay: 3, vortex: 0, fear: 0, fearDur: 0,
     timeField: 0, timeR: 0, timeMul: 0, prickle: 0, prickleR: 0, slime: 0,
-    bleed: 0, vampire: 0, scatterSplit: 1, sawDmg: 0, reprieveStacks: 0, wardStacks: 0,
+    bleed: 0, vampire: 0, warp: 0, scatterSplit: 1, sawDmg: 0, reprieveStacks: 0, wardStacks: 0,
     rangeDmg: 0, rangeStep: 100, rangeCap: 0 };
   /* a character may reshape the bare gun before any rune speaks (JUGGERNAUT's massive slow slug) */
   const wb = CHARS[p.char] && CHARS[p.char].weaponBase;

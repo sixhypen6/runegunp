@@ -210,6 +210,9 @@ function tickForgeMelt(dt) {
    predate co-op; sim code addresses players through the helpers below. */
 let players = [];
 let player, enemies, bullets, ebullets, puddles, particles, chests, pickups, shockwaves, floaters, zaps, portal, veils, healthBoxes, rift, pets, mines, shells;
+/* WAYWARD PASSENGER — the open rifts and the purple seams cut between them.
+   Portals are host-authored and mirrored to the guest in the snapshot. */
+let warpPortals = [], warpSlashes = [];
 /* soul motes ride in SCREEN space (they fly to a DOM counter), so they live apart
    from `particles` and are drawn after draw() restores the world transform */
 let soulMotes = [];

@@ -1170,6 +1170,7 @@ const Coop = {
     MAP.rocks = m.rocks;
     enemies = []; bullets = []; ebullets = []; puddles = [];
     particles = []; chests = []; pickups = []; shockwaves = []; floaters = []; zaps = []; veils = []; healthBoxes = []; mines = []; shells = [];
+    warpPortals = []; warpSlashes = [];
     soulMotes = [];
     Game.ambush = null; Game.boss = null; Game.shake = 0;
     Game.bossRocks.length = 0;
@@ -1215,6 +1216,7 @@ const Coop = {
     MAP.rocks = m.rocks;
     enemies = []; bullets = []; ebullets = []; puddles = [];
     particles = []; chests = []; pickups = []; shockwaves = []; floaters = []; zaps = []; veils = []; healthBoxes = []; mines = []; shells = [];
+    warpPortals = []; warpSlashes = [];
     soulMotes = [];
     portal = null; rift = null;
     Game.ambush = null; Game.boss = null; Game.shake = 0;
@@ -1262,6 +1264,7 @@ const Coop = {
     SEAL.state = m.seal; SEAL.pulse = 0;
     enemies = []; bullets = []; ebullets = []; puddles = [];
     particles = []; chests = []; pickups = []; shockwaves = []; floaters = []; zaps = []; veils = []; healthBoxes = []; mines = []; shells = [];
+    warpPortals = []; warpSlashes = [];
     soulMotes = [];
     portal = null; rift = null;
     Game.ambush = null; Game.boss = null; Game.shake = 0;

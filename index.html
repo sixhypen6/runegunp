@@ -76,6 +76,12 @@
     color:#bcd0ff;font-variant-numeric:tabular-nums;text-shadow:0 0 8px rgba(188,208,255,.4)}
   #reprieveCue.on{display:block}
   #reprieveCue.ready{color:#7dff5e;text-shadow:0 0 8px rgba(125,255,94,.45)}
+  /* the WAYWARD PASSENGER's WARP clock and the rush it leaves behind */
+  #warpCue{display:none;margin-top:6px;font-size:calc(10px * var(--text-scale, 1));letter-spacing:.16em;
+    color:#c9a8ff;font-variant-numeric:tabular-nums;text-shadow:0 0 8px rgba(157,107,255,.45)}
+  #warpCue.on{display:block}
+  #warpCue.ready{color:#f0dcff;text-shadow:0 0 10px rgba(200,107,255,.8)}
+  #warpCue.rush{color:#e6c8ff}
   /* the saloon's rounds — amber, with the sober clock draining below it */
   #drunkHud{display:none;margin-top:7px;max-width:min(320px,44vw);font-variant-numeric:tabular-nums}
   #drunkHud.on{display:block}
@@ -736,6 +742,7 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
     <div id="curseStrip"></div>
     <div id="thrallCue"></div>
     <div id="reprieveCue"></div>
+    <div id="warpCue"></div>
     <div id="drunkHud"><div id="drunkName"></div><div id="drunkBar"><div id="drunkFill"></div></div><div id="drunkTime"></div></div>
   </div>
   <div class="wave-wrap">
@@ -770,6 +777,7 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
 <div class="tbtns">
   <button class="tbtn" id="btnDash">DASH</button>
   <button class="tbtn" id="btnUse">SEAL</button>
+  <button class="tbtn" id="btnWarp" style="display:none;border-color:#c86bff;color:#f0dcff">WARP</button>
   <button class="tbtn" id="btnChat" style="display:none;border-color:var(--frost);color:var(--frost)">SAY</button>
   <button class="tbtn" id="btnThrall" style="display:none;border-color:var(--arcane);color:var(--arcane)">PACK</button>
 </div>
@@ -1285,6 +1293,13 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
           <button class="menu-btn small" id="btnHiddenRunes" style="border-color:var(--frost);color:var(--frost);margin-top:8px">HIDDEN WARDENS: OFF</button>
           <div class="aim-mode-note" id="hiddenRunesNote">off by default — reveal hidden wardens in THE VAULT and let them find their hidden runes</div>
         </div>
+        <div id="ambushRow" style="display:flex;flex-direction:column;align-items:center">
+          <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--dim)">RUNE CHESTS</label>
+          <button class="menu-btn small" id="btnAmbushPriority" style="border-color:var(--frost);color:var(--frost);margin-top:8px">AMBUSH PRIORITY: ON</button>
+          <div class="aim-mode-note" id="ambushPriorityNote">aim and abilities favour the foes a rune chest's ambush sends</div>
+          <button class="menu-btn small" id="btnWarpPick" style="border-color:#c86bff;color:#f0dcff;margin-top:8px">WARP ANCHOR: FARTHEST</button>
+          <div class="aim-mode-note" id="warpPickNote">among the ambush, WARP opens its first rift on the farthest foe</div>
+        </div>
       </div>
     </div>
 
@@ -1475,6 +1490,7 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
 <script src="src/entities/spawning.js"></script>
 <script src="src/entities/enemies.js"></script>
 <script src="src/entities/reanimator.js"></script>
+<script src="src/entities/warp.js"></script>
 <script src="src/entities/bosses.js"></script>
 <script src="src/entities/deep.js"></script>
 <script src="src/entities/unknown.js"></script>
