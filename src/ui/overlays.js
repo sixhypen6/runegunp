@@ -1550,10 +1550,11 @@ function cycleSpeedrun() {
 $("btnSpeedrun").addEventListener("click", cycleSpeedrun);
 
 /* ---------- AUTO PICK: per-character rune priorities ----------
-   Meta.autoPick[charId] = { on: bool, pri: { [runeId]: 0-3 } }
-   0 = off, 1 = low, 2 = mid, 3 = high. When any offered rune has priority > 0
-   (and auto-pick is on for that character), the highest-priority one is carved
-   automatically; ties keep the hand's order. */
+   Meta.autoPick[charId] = { on: bool, pri: { [runeId]: 0-4 } }
+   0 = off, 1 = low, 2 = mid, 3 = high, 4 = ALWAYS. When any offered rune has
+   priority > 0 (and auto-pick is on for that character), the highest-priority
+   one is carved automatically; a 4 beats every other tier, so that rune is
+   taken whenever it appears. Ties keep the hand's order. */
 function autoPickCfg(charId) {
   if (!Meta.autoPick) Meta.autoPick = {};
   if (!Meta.autoPick[charId]) Meta.autoPick[charId] = { on: false, reroll: false, rerollMax: 0, pri: {}, reqs: {} };
@@ -1601,8 +1602,8 @@ function renderAutoPickGrid() {
   const cfg = autoPickCfg(cid);
   const ids = (typeof RUNE_IDS !== "undefined" ? RUNE_IDS.slice() : []).concat(
     (typeof HIDDEN_RUNE_IDS !== "undefined" && Meta.showHiddenRunes) ? HIDDEN_RUNE_IDS : []);
-  const names = ["", "LOW", "MID", "HIGH"];
-  const cols = ["var(--dim)", "#5ee6ff", "#ffd23d", "#ff4d5e"];
+  const names = ["", "LOW", "MID", "HIGH", "ALWAYS"];
+  const cols = ["var(--dim)", "#5ee6ff", "#ffd23d", "#ff4d5e", "#ffffff"];
   for (const id of ids) {
     const R = (typeof RUNES !== "undefined" && RUNES[id]) || (typeof HIDDEN_RUNES !== "undefined" && HIDDEN_RUNES[id]);
     if (!R) continue;
@@ -1615,7 +1616,7 @@ function renderAutoPickGrid() {
     b.innerHTML = "<span style='font-size:14px'>" + R.glyph + "</span> <span style='font-size:9px;letter-spacing:.08em'>" + R.name + (p ? " · " + names[p] : "") + "</span>";
     b.addEventListener("click", () => {
       const c = autoPickCfg(cid);
-      c.pri[id] = ((c.pri[id] | 0) + 1) % 4;
+      c.pri[id] = ((c.pri[id] | 0) + 1) % 5;
       if (!c.pri[id]) delete c.pri[id];
       metaSave();
       renderAutoPickGrid();

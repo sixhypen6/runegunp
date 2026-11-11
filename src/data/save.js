@@ -61,7 +61,7 @@ const Meta = {
      SNIPER row shows a SNIPER run even when the player's overall mode best used
      another warden. Shape: mode → charId → record (same tag fields as bests*). */
   charBests: { normal: {}, hard: {}, classic: {}, chaos: {} },
-  autoPick: {},      // per-character: { [charId]: { on: bool, reroll: bool, rerollMax: number, pri: { [runeId]: 0-3 }, reqs: { [runeId]: "req" | ["req1","req2"] } } 0=off,1=low,2=mid,3=high; reqs block auto-pick until obtained this run
+  autoPick: {},      // per-character: { [charId]: { on: bool, reroll: bool, rerollMax: number, pri: { [runeId]: 0-4 }, reqs: { [runeId]: "req" | ["req1","req2"] } } 0=off,1=low,2=mid,3=high,4=ALWAYS; reqs block auto-pick until obtained this run
   bests: {            // personal records (local leaderboard — you vs your own past runs)
     score: 0,               // max Game.score
     survivedSec: 0,         // longest single run, floor(Game.time)
@@ -298,7 +298,7 @@ function metaLoad() {
         }
       }
       backfillCharBests();
-      /* AUTO PICK config — per character, rune priorities (0 off, 1 low, 2 mid, 3 high) */
+      /* AUTO PICK config — per character, rune priorities (0 off, 1 low, 2 mid, 3 high, 4 ALWAYS) */
       if (d.autoPick && typeof d.autoPick === "object") {
         for (const cid in d.autoPick) {
           if (typeof CHARS !== "undefined" && !CHARS[cid]) continue;
@@ -307,7 +307,7 @@ function metaLoad() {
           const pri = {};
           if (c.pri && typeof c.pri === "object") for (const rid in c.pri) {
             const v = c.pri[rid] | 0;
-            if (v >= 0 && v <= 3) pri[rid] = v;
+            if (v >= 0 && v <= 4) pri[rid] = v;
           }
           const rerollMax = (c.rerollMax | 0) > 0 ? Math.min(c.rerollMax | 0, 99) : 0;
           const reqs = {};
