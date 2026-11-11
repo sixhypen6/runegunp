@@ -32,6 +32,12 @@
      mode rows by their loadout tag and writes fail quietly; the next run end
      (or sign-in) re-posts every stored per-warden best once the rules land.
 
+     A row is born with the first result, never with sign-in: a death report
+     (submitScore) or a cleared boss (submitClearTime) creates it, seeded with
+     the name and the two zeroed mode fields the rules require on create.
+     Rows that older builds created empty are removed by their owner on the
+     next sign-in, so /scores holds accounts that actually played.
+
      Progress transfer uses two tiny side trees (see systems/transfer.js):
        /transfers/<CODE> = { v, owner, createdAt, expiresAt, payload }
          a one-time, ten-minute code holding the sender's save as JSON text
@@ -129,6 +135,8 @@ const FirebaseBoard = (() => {
   let initPromise = null;
   let lastError = null;
   let displayName = null;                 // mirrored into per-warden rows so both boards agree
+  let rowExists = false;                  // /scores/<uid> is born with the first real result, not sign-in
+  let pendingDisplay = null;              // handle chosen before that row exists; applied on creation
   let charTreeBlocked = false;            // deployed rules predate /charScores → tag-filter fallback
   const cache = {};                       // mode → { rows, at } (CACHE_MS reuse)
 
@@ -299,20 +307,68 @@ const FirebaseBoard = (() => {
 
   function rowRef() { return db.ref(SCORES + "/" + uid); }
 
+  /* ---- the row's life ----
+     Older builds wrote /scores/<uid> straight from signIn(), so merely opening
+     the game left an empty account on every board. A row is now created by the
+     first thing worth ranking — a death report (submitScore) or a cleared boss
+     (submitClearTime). Sign-in only reads: it adopts the stored callsign and
+     display, and deletes a legacy row that never ranked anything. */
+  function isEmptyRow(row) {
+    if (!row || typeof row !== "object") return false;
+    for (const mode in FIELDS) if ((Number(row[FIELDS[mode]]) || 0) > 0) return false;
+    for (const mode in CLEAR_FIELDS) if ((Number(row[CLEAR_FIELDS[mode]]) || 0) > 0) return false;
+    return true;
+  }
+  /* Is the row there right now? Cached true is trusted; a cached false is
+     re-read, because sign-in may have failed to fetch it. */
+  async function rowPresent() {
+    if (rowExists) return true;
+    try {
+      const snap = await guard(rowRef().get(), "row");
+      rowExists = !!(snap && snap.val && snap.val());
+      return rowExists;
+    } catch (e) {
+      return rowExists;
+    }
+  }
+  /* The rules require name + score + hardScore on create, so the first write
+     seeds the two zeroed mode fields alongside the real result. `create` is
+     true only when the read positively returned "no row" — seeding 0 into an
+     existing row would break the monotonic rule and lose the whole write. */
+  function creationFields(patch, create) {
+    if (!create) return patch;
+    patch.name = ensureCallsign();
+    if (!("score" in patch)) patch.score = 0;
+    if (!("hardScore" in patch)) patch.hardScore = 0;
+    const handle = pendingDisplay || displayName;
+    if (handle && !("display" in patch)) patch.display = handle;
+    return patch;
+  }
+
   async function ensureRow() {
-    const snap = await guard(rowRef().get(), "row");
-    const row = (snap && snap.val && snap.val()) || null;
-    displayName = (row && typeof row.display === "string" && row.display) || null;
-    if (row && typeof row.name === "string" && row.name) {
-      setCallsign(row.name.slice(0, 20));
-      return;
+    let row = null;
+    try {
+      const snap = await guard(rowRef().get(), "row");
+      row = (snap && snap.val && snap.val()) || null;
+    } catch (e) {
+      /* A failed read must not fail sign-in: the first qualifying write makes
+         the row, and its own read decides whether zero fields need seeding. */
     }
-    const name = ensureCallsign();
-    const patch = { name, updatedAt: stamp() };
-    if (!row) {
-      patch.score = 0; patch.hardScore = 0; patch.classicScore = 0; patch.chaosScore = 0;
-    }
-    await guard(rowRef().update(patch), "claim");
+    displayName = (row && typeof row.display === "string" && row.display) || displayName || null;
+    if (row && typeof row.name === "string" && row.name) setCallsign(row.name.slice(0, 20));
+    else ensureCallsign();
+    rowExists = !!row;
+    if (!row) return;
+    if (!isEmptyRow(row)) return;
+    /* Empty but existing: this account never ranked anything. Only its owner
+       may delete it, so each client clears its own leftover on next sign-in.
+       Any display handle is remembered and reattached when the row is born. */
+    pendingDisplay = pendingDisplay || displayName;
+    try {
+      await guard(rowRef().remove(), "row-cleanup");
+      rowExists = false;
+      clearBoardCaches();
+    } catch (e) {}
   }
 
   /* ---- per-warden writes ----
@@ -430,14 +486,19 @@ const FirebaseBoard = (() => {
     const amount = Math.floor(Number(totalScoreAmount) || 0);
     if (!(amount > 0) || amount > SCORE_CAP) return;
     const slot = slotOf(leaderboardID), key = field(slot);
-    let cur = 0;
+    /* One read decides both the current best and whether the row exists; a row
+       now appears on this, the first qualifying death, rather than at sign-in. */
+    let row = null, known = false;
     try {
-      const snap = await guard(rowRef().child(key).get(), "best");
-      cur = Number(snap && snap.val && snap.val()) || 0;
+      const snap = await guard(rowRef().get(), "row");
+      row = (snap && snap.val && snap.val()) || null;
+      rowExists = !!row;
+      known = true;
     } catch (e) {}
+    const cur = Number(row && row[key]) || 0;
     if (amount < cur) return;
 
-    const updatePayload = {};
+    const updatePayload = creationFields({}, known && !row);
     if (amount > cur) updatePayload[key] = amount;
     if (amount > cur) updatePayload.updatedAt = stamp();
     if (place) updatePayload.place = String(place).slice(0, 80);
@@ -446,6 +507,7 @@ const FirebaseBoard = (() => {
 
     if (Object.keys(updatePayload).length) {
       await guard(rowRef().update(updatePayload), "submit");
+      rowExists = true;
       cache[slot] = null;
       cache.allRows = null;
     }
@@ -469,16 +531,19 @@ const FirebaseBoard = (() => {
     const amount = Math.round(Number(timeMs) || 0);
     if (!(amount > 0) || amount > 86400000) return;
     const key = CLEAR_FIELDS[mode];
-    let cur = 0;
+    let row = null, known = false;
     try {
-      const snap = await guard(rowRef().child(key).get(), "clear-best");
-      cur = Number(snap && snap.val && snap.val()) || 0;
+      const snap = await guard(rowRef().get(), "row");
+      row = (snap && snap.val && snap.val()) || null;
+      rowExists = !!row;
+      known = true;
     } catch (e) {}
+    const cur = Number(row && row[key]) || 0;
     const better = !(cur > 0) || amount < cur;
     /* A tie is not a new record, but it IS the one chance an older mis-tagged
        row gets to be relabelled — so accept a supplied tag on an exact tie. */
     if (!better && !(cur > 0 && amount === cur && tag)) return;
-    const updatePayload = {};
+    const updatePayload = creationFields({}, known && !row);
     if (better) {
       updatePayload[key] = amount;
       updatePayload.updatedAt = stamp();
@@ -487,6 +552,7 @@ const FirebaseBoard = (() => {
     }
     if (Object.keys(updatePayload).length) {
       await guard(rowRef().update(updatePayload), "clear-submit");
+      rowExists = true;
       cache[mode + ":clear"] = null;
       cache.allRows = null;
     }
@@ -803,12 +869,23 @@ function toEntry(id, row, key, slot, isClearTime) {
     if (!signedIn || !uid) throw new Error("board-signed-out");
     const value = (display == null ? "" : String(display)).replace(/\s+/g, " ").trim().slice(0, 20);
     if (value) {
+      /* No row yet (nothing ranked): a display-only write would fail the rules
+         (name + score + hardScore are required on create) and would recreate
+         the empty account we just stopped creating. Hold it until the row is
+         born, then it is written with the first result. */
+      if (!(await rowPresent())) {
+        displayName = value;
+        pendingDisplay = value;
+        clearBoardCaches();
+        return value;
+      }
       await guard(rowRef().update({ display: value, updatedAt: stamp() }), "display");
       displayName = value;
       setCallsign(value); // local preferred handle for this session/device
     } else {
       await guard(rowRef().child("display").remove(), "display-clear");
       displayName = null;
+      pendingDisplay = null;
       try {
         const snap = await guard(rowRef().child("name").get(), "name");
         const n = snap && snap.val && typeof snap.val() === "string" ? snap.val() : "";
@@ -995,6 +1072,13 @@ function toEntry(id, row, key, slot, isClearTime) {
     if (!signedIn || !uid) return "";
     const value = String(name == null ? "" : name).trim();
     if (!validCallsign(value)) return "";
+    /* Nothing ranked yet: keep the callsign locally and let the row be born
+       with it rather than writing an empty account just to rename it. */
+    if (!(await rowPresent())) {
+      setCallsign(value);
+      clearBoardCaches();
+      return value;
+    }
     await guard(rowRef().update({ name: value, updatedAt: stamp() }), "rename");
     setCallsign(value);
     clearBoardCaches();
