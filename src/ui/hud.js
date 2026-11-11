@@ -242,10 +242,26 @@ function autoPickBest(chooser, ids) {
   if (!cfg || !cfg.on || !cfg.pri) return null;
   let best = null, bestP = 0;
   for (let i = 0; i < ids.length; i++) {
-    const p = cfg.pri[ids[i]] | 0;
-    if (p > bestP) { bestP = p; best = ids[i]; }
+    const id = ids[i];
+    if (!autoPickReqsMet(chooser, id)) continue; // rune-order: prereq not obtained — skip
+    const p = cfg.pri[id] | 0;
+    if (p > bestP) { bestP = p; best = id; }
   }
   return bestP > 0 ? { id: best, p: bestP } : null;
+}
+
+/* Rune-order prerequisite: is every required rune of `id` obtained (p.runes[req] > 0) this run? */
+function autoPickReqsMet(chooser, id) {
+  const cfg = Meta.autoPick && Meta.autoPick[chooser.char];
+  if (!cfg || !cfg.reqs) return true;
+  const req = cfg.reqs[id];
+  if (!req) return true;
+  const list = Array.isArray(req) ? req : [req];
+  const runes = chooser && chooser.runes;
+  for (const r of list) {
+    if (!(runes && runes[r] > 0)) return false;
+  }
+  return true;
 }
 
 /* Auto-pick (per character, configured in Settings). Returns the rune id to

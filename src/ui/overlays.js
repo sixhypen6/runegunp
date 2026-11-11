@@ -1556,12 +1556,37 @@ $("btnSpeedrun").addEventListener("click", cycleSpeedrun);
    automatically; ties keep the hand's order. */
 function autoPickCfg(charId) {
   if (!Meta.autoPick) Meta.autoPick = {};
-  if (!Meta.autoPick[charId]) Meta.autoPick[charId] = { on: false, reroll: false, rerollMax: 0, pri: {} };
+  if (!Meta.autoPick[charId]) Meta.autoPick[charId] = { on: false, reroll: false, rerollMax: 0, pri: {}, reqs: {} };
   const c = Meta.autoPick[charId];
   if (!c.pri || typeof c.pri !== "object") c.pri = {};
+  if (!c.reqs || typeof c.reqs !== "object") c.reqs = {};
   if (typeof c.reroll !== "boolean") c.reroll = !!c.reroll;
   if ((c.rerollMax | 0) < 0) c.rerollMax = 0;
   return c;
+}
+
+/* Rune-order prereqs: dep:req1,req2;dep2:req — don't auto-pick `dep` until
+   every req is obtained (p.runes[req] > 0) this run. */
+function parseReqs(text) {
+  const out = {};
+  if (!text) return out;
+  String(text).split(/[;\n]+/).forEach(e => {
+    const m = /^\s*([^:]+?)\s*:\s*(.+?)\s*$/.exec(e);
+    if (!m) return;
+    const dep = m[1].trim();
+    const reqs = m[2].split(/,\s*/).map(s => s.trim()).filter(Boolean);
+    if (dep && reqs.length) out[dep] = reqs.length === 1 ? reqs[0] : reqs;
+  });
+  return out;
+}
+function serializeReqs(reqs) {
+  if (!reqs || typeof reqs !== "object") return "";
+  const parts = [];
+  for (const dep in reqs) {
+    const list = Array.isArray(reqs[dep]) ? reqs[dep] : [reqs[dep]];
+    parts.push(dep + ":" + list.join(","));
+  }
+  return parts.join("; ");
 }
 function autoPickCharId() {
   const sel = $("autoPickChar");
@@ -1634,6 +1659,21 @@ function syncAutoPickUI() {
     };
     rmax.addEventListener("change", saveMax);
     rmax.addEventListener("blur", saveMax);
+  }
+  const rrq = $("autoPickReqsRow");
+  if (rrq) rrq.style.display = cfg.on ? "flex" : "none";
+  const rqs = $("autoPickReqs");
+  if (rqs && document.activeElement !== rqs) rqs.value = serializeReqs(cfg.reqs);
+  if (rqs && !rqs._bound) {
+    rqs._bound = true;
+    const saveReqs = () => {
+      const c = autoPickCfg(autoPickCharId());
+      c.reqs = parseReqs(rqs.value);
+      rqs.value = serializeReqs(c.reqs);
+      metaSave();
+    };
+    rqs.addEventListener("change", saveReqs);
+    rqs.addEventListener("blur", saveReqs);
   }
   if (cfg.on) renderAutoPickGrid();
 }

@@ -1305,6 +1305,11 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
               <input id="autoRerollMax" type="number" min="0" max="99" step="1" value="0" style="width:72px;background:#120d22;border:1px solid var(--gold);color:var(--bone);padding:6px 8px;font:inherit;text-align:center">
               <span class="aim-mode-note" style="margin:0">0 = all rerolls</span>
             </div>
+            <div id="autoPickReqsRow" style="display:none;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;margin-top:6px">
+              <label for="autoPickReqs" style="font-size:calc(9px * var(--text-scale, 1));letter-spacing:.2em;color:var(--dim)">RUNE ORDER / PREREQS</label>
+              <input id="autoPickReqs" type="text" placeholder="rapid:swift;venom:ember" style="width:min(60%,340px);background:#120d22;border:1px solid var(--gold);color:var(--bone);padding:6px 8px;font:inherit">
+              <span class="aim-mode-note" style="margin:0">dep:req — don't auto-pick dep until req obtained this run</span>
+            </div>
             <div class="aim-mode-note" style="margin-top:6px">tap a rune to cycle priority: OFF · LOW · MID · HIGH. AUTO REROLL: when a hand has only LOW — or none — of your runes, spend up to MAX rerolls to find MID/HIGH; if none appears, keep the LOW.</div>
             <div id="autoPickGrid" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:8px;max-height:220px;overflow:auto;padding:4px"></div>
           </div>

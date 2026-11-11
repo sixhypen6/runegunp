@@ -61,7 +61,7 @@ const Meta = {
      SNIPER row shows a SNIPER run even when the player's overall mode best used
      another warden. Shape: mode → charId → record (same tag fields as bests*). */
   charBests: { normal: {}, hard: {}, classic: {}, chaos: {} },
-  autoPick: {},      // per-character: { [charId]: { on: bool, reroll: bool, rerollMax: number, pri: { [runeId]: 0-3 } } } 0=off,1=low,2=mid,3=high
+  autoPick: {},      // per-character: { [charId]: { on: bool, reroll: bool, rerollMax: number, pri: { [runeId]: 0-3 }, reqs: { [runeId]: "req" | ["req1","req2"] } } 0=off,1=low,2=mid,3=high; reqs block auto-pick until obtained this run
   bests: {            // personal records (local leaderboard — you vs your own past runs)
     score: 0,               // max Game.score
     survivedSec: 0,         // longest single run, floor(Game.time)
@@ -310,7 +310,16 @@ function metaLoad() {
             if (v >= 0 && v <= 3) pri[rid] = v;
           }
           const rerollMax = (c.rerollMax | 0) > 0 ? Math.min(c.rerollMax | 0, 99) : 0;
-          Meta.autoPick[cid] = { on: !!c.on, reroll: !!c.reroll, rerollMax, pri };
+          const reqs = {};
+          if (c.reqs && typeof c.reqs === "object") {
+            for (const rid in c.reqs) {
+              const v = c.reqs[rid];
+              const list = Array.isArray(v) ? v : [v];
+              const clean = list.filter(x => typeof x === "string" && x);
+              if (clean.length) reqs[rid] = clean.length === 1 ? clean[0] : clean;
+            }
+          }
+          Meta.autoPick[cid] = { on: !!c.on, reroll: !!c.reroll, rerollMax, pri, reqs };
         }
       }
       /* v3 migration: THE DROWNED NAVE was wedged in before the void, pushing the
