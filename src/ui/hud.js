@@ -279,9 +279,11 @@ function autoRerollForRune(ch, pk, idx, paused) {
   };
   while (spent < maxSpend && ch.rerolls > 0) {
     const best = autoPickBest(ch, pk.ids);
-    if (!best) break;            // nothing prioritized offered
-    if (best.p >= 2) return true; // MID/HIGH found
-    if (!lowSeen) lowSeen = best.id; // remember first LOW encountered
+    if (best && best.p >= 2) return true; // MID/HIGH found
+    /* A LOW still beats nothing, so remember it — but keep looking. A hand with
+       NO prioritized rune is exactly when the roll must happen: otherwise the
+       setting silently does nothing and the choice screen just sits there. */
+    if (best && !lowSeen) lowSeen = best.id;
     ch.rerolls--; spent++; changed = true;
     if (!rollHand()) break;
   }

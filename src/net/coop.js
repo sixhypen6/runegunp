@@ -1052,11 +1052,12 @@ const Coop = {
         if (!entry._arrSpent) entry._arrSpent = 0;
         if (best && best.p === 1 && !entry._arrLow) entry._arrLow = best.id;
         if (best && best.p >= 2) return; // MID/HIGH found
-        if (best && best.p === 1) {
-          if (entry._arrSpent < maxSpend && (m.rerolls | 0) > 0) { entry._arrSpent++; Net.sendR({ t: "reroll", slot: 0, pickerIdx }); }
-          return; // keep LOW if limit/rerolls exhausted
+        /* A LOW or a hand with no prioritized rune both warrant a reroll; the
+           host owns the count, so cap our requests or we loop until they empty. */
+        if (entry._arrSpent < maxSpend && (m.rerolls | 0) > 0) {
+          entry._arrSpent++;
+          Net.sendR({ t: "reroll", slot: 0, pickerIdx });
         }
-        if (!best && (m.rerolls | 0) > 0) Net.sendR({ t: "reroll", slot: 0, pickerIdx });
       }
     } catch (e) {}
   },
