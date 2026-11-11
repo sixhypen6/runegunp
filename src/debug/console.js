@@ -685,7 +685,7 @@ const RunegunConsole = {
       "  cheat                         (legacy) toggle secret effects; same as 4th auth code sigma",
       "  unlock <key>                  unlock one vault entry (stackables to max)",
       "  unlock hard | chaos           open a descent without felling its warden",
-      "  unlock all                    unlock every vault entry and both descents",
+      "  unlock all                    unlock every vault entry, the glossary and both descents",
       "  unlock list                   every unlock key, by shelf",
       "  devtools [on|off]             show / hide TEST TOOLS (off by default)",
       "  auth <code>                   open the shared-run console (host only)",
@@ -846,7 +846,7 @@ const RunegunConsole = {
           }
           this.log("UNLOCK KEYS — bare ids also work when unambiguous\n" +
             groups.map(g => g.name + "\n  " + g.items.join("\n  ")).join("\n") +
-            "\nDESCENTS\n  hard · chaos   (both are also opened by unlock all)");
+            "\nDESCENTS\n  hard · chaos   (both are opened by unlock all, along with the full glossary)");
         } else if (what === "all") {
           let changed = 0;
           for (const item of catalog) {
@@ -863,11 +863,18 @@ const RunegunConsole = {
             if (Meta.slain[key]) continue;
             Meta.slain[key] = true; opened.push(name);
           }
+          /* the glossary is part of the record too: every beast felled and every
+             rune carved. Without this a fully unlocked save still showed a wall
+             of "— UNKNOWN —" on its bestiary and rune pages. */
+          let lore = 0;
+          for (const b of BESTIARY) if (!Meta.slain[b.key]) { Meta.slain[b.key] = true; lore++; }
+          for (const id of RUNE_IDS) if (!Meta.runesSeen[id]) { Meta.runesSeen[id] = true; lore++; }
           this.metaKeep();
           this.log((changed
             ? "UNLOCKED " + changed + " vault " + (changed === 1 ? "entry" : "entries") + " · the shelves are yours."
             : "Nothing was still locked — the whole Vault is already open.")
-            + (opened.length ? " DESCENTS OPEN: " + opened.join(" · ") + "." : ""));
+            + (opened.length ? " DESCENTS OPEN: " + opened.join(" · ") + "." : "")
+            + (lore ? " GLOSSARY COMPLETE: " + lore + " records filled." : ""));
         } else if (what === "hard" || what === "chaos") {
           const key = what === "hard" ? "boss:4" : "boss:" + UNK_KIND;
           const label = what === "hard" ? "HARD DESCENT" : "CHAOS DESCENT";
