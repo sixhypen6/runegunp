@@ -947,7 +947,7 @@ function draw() {
     cx.globalAlpha = (isLava ? 0.42 : 0.35) * a;
     cx.fillStyle = p.color;
     cx.beginPath(); cx.arc(p.x, p.y, p.r, 0, TAU); cx.fill();
-    if (!puLowFx) {
+    if (!puLowFx && (typeof Meta === "undefined" || Meta.zoneFx !== false)) {
       cx.globalAlpha = 0.7 * a;
       cx.strokeStyle = p.color; cx.lineWidth = 2;
       cx.beginPath(); cx.arc(p.x, p.y, p.r * (0.7 + 0.1 * Math.sin(p.t * 5)), 0, TAU); cx.stroke();

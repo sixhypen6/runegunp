@@ -47,6 +47,8 @@ const Meta = {
   cheatSecret: false,         // the auth-code secret: secret runes always on, reprieve ×3, exterminate ×2, shredder + every pet unlocked
   glow: "full",       // neon halo budget: "full" (default — the intended look) · "half" · "off".
                       // Trades the glow for GPU raster load; see the glow lever in canvas.js.
+  zoneFx: true,       // animated rings on pools (poison/lava/water/ice) and the Lapse's
+                      // stasis dial. Off skips those paths but keeps the hazard tint.
   juice: "full",      // kill-streak feedback: "full" · "lite" (no whole-screen effects) · "off".
                       // "lite" keeps every INFORMATIONAL element and drops every whole-screen
                       // one — the same axis serves low-end GPUs and photosensitivity.
@@ -202,6 +204,8 @@ function metaLoad() {
       /* likewise: saves from before the streak juice existed default to "full" */
       if (d.juice === "full" || d.juice === "lite" || d.juice === "off") Meta.juice = d.juice;
       Meta.juiceSet = !!d.juiceSet;
+      /* area rings were always drawn before this toggle — keep them on for old saves */
+      Meta.zoneFx = d.zoneFx !== false;
       /* hidden runes toggle — defaults off for returning saves */
       Meta.showHiddenRunes = d.showHiddenRunes === true;
       /* ambush priority is on by default; WARP's anchor is the farthest one */

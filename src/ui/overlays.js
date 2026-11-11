@@ -1398,6 +1398,7 @@ applyAdvancedNumbersUI();
 applyRuneDescriptionSettingsUI();
 applyVaultDescriptionSettingsUI();
 applyTextSizeUI();
+applyZoneFxUI();
 
 /* ---------- glow (neon halo budget — the lever itself lives in canvas.js) ----------
    Purely a performance/stability valve for weaker GPUs: "full" is the intended art and
@@ -1448,6 +1449,22 @@ function cycleJuice() {
   AudioFX.equip();
 }
 $("btnJuice").addEventListener("click", cycleJuice);
+
+/* ---------- area rings (pool rings + the Lapse's stasis dial) ----------
+   Off skips the decorative circle paths — a draw-work saving for weaker phones.
+   The hazard tint and the slow itself are untouched; the setting lives in
+   Meta.zoneFx and is read by render/draw.js and render/draw-deep.js. */
+function applyZoneFxUI() {
+  const b = $("btnZoneFx");
+  if (b) b.textContent = "GROUND FX: " + (Meta.zoneFx === false ? "OFF" : "ON");
+}
+function cycleZoneFx() {
+  Meta.zoneFx = Meta.zoneFx === false;
+  metaSave();
+  applyZoneFxUI();
+  AudioFX.equip();
+}
+$("btnZoneFx").addEventListener("click", cycleZoneFx);
 
 /* ---------- hidden wardens & runes (easter eggs) — off by default ---------- */
 const HIDDEN_RUNES_LABEL = { true: "HIDDEN WARDENS: ON", false: "HIDDEN WARDENS: OFF" };
@@ -1718,7 +1735,7 @@ $("ctrlEditReset").addEventListener("click", resetCtrlLayout);
 })();
 
 /* ---------- settings overlay ---------- */
-function openSettings() { if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings opened"); syncVolumeUI(); applyDeskMode(); applyAimMode(); applyBtnSizeUI(); applyCtrlSettingsUI(); applyHapticsUI(); applyShakeUI(); applyAdvancedNumbersUI(); applyRuneDescriptionSettingsUI(); applyVaultDescriptionSettingsUI(); applyTextSizeUI(); applyGlowUI(); applyJuiceUI(); applyHiddenRunesUI(); applyAmbushUI(); applyRunTimerUI(); applySpeedrunUI(); applyPauseOnBlurUI(); syncAutoPickUI(); syncPrivacyOptions(); $("btnReplayCutscene").style.display = (Game.state === "menu") ? "" : "none"; $("settings").classList.add("on"); }
+function openSettings() { if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings opened"); syncVolumeUI(); applyDeskMode(); applyAimMode(); applyBtnSizeUI(); applyCtrlSettingsUI(); applyHapticsUI(); applyShakeUI(); applyAdvancedNumbersUI(); applyRuneDescriptionSettingsUI(); applyVaultDescriptionSettingsUI(); applyTextSizeUI(); applyGlowUI(); applyJuiceUI(); applyZoneFxUI(); applyHiddenRunesUI(); applyAmbushUI(); applyRunTimerUI(); applySpeedrunUI(); applyPauseOnBlurUI(); syncAutoPickUI(); syncPrivacyOptions(); $("btnReplayCutscene").style.display = (Game.state === "menu") ? "" : "none"; $("settings").classList.add("on"); }
 function closeSettings() { $("settings").classList.remove("on"); if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings closed"); }
 /* Google requires EEA/UK players to have a persistent way back to the consent
    choice. UMP tells us who needs one; everyone else never sees the button. */

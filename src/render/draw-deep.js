@@ -80,7 +80,9 @@ function drawDeepUnder() {
     }
     cx.restore();
   }
-  /* stasis fields: a faint clock face ticking over the spilled moment */
+  /* stasis fields: a faint clock face ticking over the spilled moment.
+     GROUND FX off skips the dial entirely — the slow itself is unchanged. */
+  if (typeof Meta === "undefined" || Meta.zoneFx !== false)
   for (const pu of D.lapses) {
     cx.save(); cx.translate(pu.x, pu.y);
     cx.strokeStyle = "rgba(230,194,122,0.55)"; cx.lineWidth = 2;
