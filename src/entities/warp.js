@@ -28,7 +28,8 @@ const WARP_RUSH_SPEED = 0.12;      // +12% movement per rush stack
 const WARP_CONTACT_TICK = 0.22;    // contact bite cadence while rushing
 const WARP_CONTACT_BASE = 0.30;    // weapon damage × this per rush stack
 const WARP_CONTACT_PER_STACK = 0.06; // ...plus this much per carved WARP stack
-const WARP_CHAIN_MAX = 10;         // rifts the Passenger can keep open at once
+const WARP_LINK_MAX = 3;           // chain rifts standing at once — a pair, plus one spare
+const WARP_X_MAX = 4;              // the X only ever needs its four corners
 const WARP_HOP_GAP = 0.05;         // breath between one rift-pair and the next
 
 /* MELEE — the two blades. Short, wide, and purple. */
@@ -97,25 +98,35 @@ function warpNearestFoe(p, cx, cy) {
 /* ---------------------------------------------------------
    RIFTS
    --------------------------------------------------------- */
-function warpAddPortal(p, x, y, nx, ny) {
+function warpAddPortal(p, x, y, nx, ny, link) {
   const o = {
     id: Game.nextId++,
     x: clamp(x, 40, MAP.w - 40), y: clamp(y, 40, MAP.h - 40),
-    t: 0, life: WARP_PORTAL_LIFE, owner: p, twin: 0,
+    t: 0, life: WARP_PORTAL_LIFE, owner: p, twin: 0, link: !!link,
     nx: nx || 0, ny: ny || 0, rot: rnd(-0.32, 0.32), seed: rnd(0, TAU),
   };
   warpPortals.push(o);
-  /* a long chain leaves a trail — keep only the most recent rifts, and take
-     a dropped rift's twin with it so no rift is left holding a dead link */
-  const mine = warpPortals.filter(q => q.owner === p);
-  while (mine.length > WARP_CHAIN_MAX) {
+  /* keep the field thin: a chain leaves no more than a pair or so behind, and
+     the X never holds more than its four corners. Retiring a rift takes its
+     twin with it, so nothing is left holding a dead link. */
+  warpTrim(p, !!link);
+  return o;
+}
+function warpTrim(p, link) {
+  const cap = link ? WARP_LINK_MAX : WARP_X_MAX;
+  const mine = warpPortals.filter(q => q.owner === p && !!q.link === link);
+  while (mine.length > cap) {
     const old = mine.shift();
     const i = warpPortals.indexOf(old);
     if (i >= 0) warpPortals.splice(i, 1);
-    const j = warpPortals.findIndex(q => q.id === old.twin);
-    if (j >= 0) warpPortals.splice(j, 1);
+    const tw = warpPortals.find(q => q.id === old.twin);
+    if (tw && !!tw.link === link) {
+      const j = warpPortals.indexOf(tw);
+      if (j >= 0) warpPortals.splice(j, 1);
+      const k = mine.indexOf(tw);
+      if (k >= 0) mine.splice(k, 1);
+    }
   }
-  return o;
 }
 function warpOpenSet(p, cx, cy, keep) {
   /* the X closes over the one horror that would not fall; unless the chain is
@@ -125,7 +136,7 @@ function warpOpenSet(p, cx, cy, keep) {
   for (let i = 0; i < 4; i++) {
     const a = Math.PI / 4 + i * Math.PI / 2;   // the X: four diagonal corners
     const nx = Math.cos(a), ny = Math.sin(a);
-    set.push(warpAddPortal(p, cx + nx * WARP_ORBIT, cy + ny * WARP_ORBIT, nx, ny));
+    set.push(warpAddPortal(p, cx + nx * WARP_ORBIT, cy + ny * WARP_ORBIT, nx, ny, false));
   }
   set[0].twin = set[2].id; set[2].twin = set[0].id;
   set[1].twin = set[3].id; set[3].twin = set[1].id;
@@ -160,8 +171,8 @@ function warpLink(p, fromX, fromY, foe) {
   const dx = foe.x - fromX, dy = foe.y - fromY;
   const dl = Math.hypot(dx, dy) || 1;
   const ux = dx / dl, uy = dy / dl;
-  const entry = warpAddPortal(p, fromX, fromY, -ux, -uy);
-  const exit = warpAddPortal(p, foe.x + ux * WARP_ORBIT, foe.y + uy * WARP_ORBIT, ux, uy);
+  const entry = warpAddPortal(p, fromX, fromY, -ux, -uy, true);
+  const exit = warpAddPortal(p, foe.x + ux * WARP_ORBIT, foe.y + uy * WARP_ORBIT, ux, uy, true);
   entry.twin = exit.id; exit.twin = entry.id;
   entry.link = exit.link = true;
   return { entry, exit, ux, uy };
