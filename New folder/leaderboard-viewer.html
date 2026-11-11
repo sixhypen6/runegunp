@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RUNEGUN — Leaderboard Excavator</title>
+<style>
+  :root{
+    --bg:#07060c; --panel:#0f0c1a; --panel2:#141024; --line:rgba(255,210,120,.16);
+    --gold:#ffd27a; --gold2:#c9963f; --bone:#e9e2d0; --dim:#8f8778;
+    --cyan:#5ee6ff; --red:#ff5a6a; --green:#69f0ae; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--bone);font-family:var(--mono)}
+  body{
+    min-height:100vh;padding:28px 18px 64px;
+    background:
+      radial-gradient(900px 500px at 50% -10%, rgba(255,210,122,.09), transparent 60%),
+      radial-gradient(700px 400px at 100% 100%, rgba(94,230,255,.05), transparent 60%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,.018) 0 1px, transparent 1px 4px),
+      var(--bg);
+  }
+  .wrap{max-width:1040px;margin:0 auto}
+  .eyebrow{font-size:10px;letter-spacing:.42em;color:var(--gold2);text-transform:uppercase}
+  h1{font-size:clamp(22px,4.4vw,40px);letter-spacing:.08em;margin:8px 0 10px;font-weight:600;line-height:1.05}
+  h1 span{color:var(--gold)}
+  .sub{color:var(--dim);font-size:12.5px;line-height:1.65;max-width:760px;margin:0 0 22px}
+  .sub b{color:var(--bone);font-weight:500}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:18px}
+  .tab{
+    appearance:none;border:1px solid rgba(255,210,122,.22);background:transparent;color:var(--dim);
+    font:inherit;font-size:11px;letter-spacing:.16em;padding:9px 14px;cursor:pointer;border-radius:2px;
+  }
+  .tab:hover{color:var(--bone);border-color:rgba(255,210,122,.45)}
+  .tab.on{color:#1b1305;background:var(--gold);border-color:var(--gold);font-weight:700}
+  section{display:none}
+  section.on{display:block}
+  .panel{
+    border:1px solid var(--line);background:linear-gradient(180deg,rgba(20,16,36,.92),rgba(12,10,22,.92));
+    border-radius:4px;padding:16px;margin-bottom:14px;
+    box-shadow:0 0 0 1px rgba(0,0,0,.4) inset, 0 18px 50px rgba(0,0,0,.35);
+  }
+  .panel h2{font-size:13px;letter-spacing:.22em;color:var(--gold);margin:0 0 12px;font-weight:600;text-transform:uppercase}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  label.field{display:flex;flex-direction:column;gap:5px;font-size:9.5px;letter-spacing:.18em;color:var(--dim);text-transform:uppercase}
+  select,input[type=text],input[type=number]{
+    background:#0b0814;border:1px solid rgba(255,210,122,.3);color:var(--bone);
+    font:inherit;font-size:12px;padding:8px 9px;border-radius:2px;min-width:120px;
+  }
+  select:focus,input:focus{outline:1px solid var(--gold);border-color:var(--gold)}
+  input.wide{min-width:min(420px,100%)}
+  button{
+    appearance:none;font:inherit;font-size:11px;letter-spacing:.14em;cursor:pointer;
+    border:1px solid rgba(255,210,122,.35);background:#171128;color:var(--bone);
+    padding:9px 14px;border-radius:2px;text-transform:uppercase;
+  }
+  button:hover{border-color:var(--gold);color:var(--gold)}
+  button.primary{background:linear-gradient(180deg,var(--gold),var(--gold2));color:#1a1204;border-color:var(--gold);font-weight:700}
+  button.primary:hover{filter:brightness(1.08);color:#1a1204}
+  button.ghost{background:transparent;color:var(--dim)}
+  .status{font-size:11.5px;line-height:1.6;color:var(--dim);margin-top:12px;white-space:pre-wrap}
+  .status .ok{color:var(--green)} .status .bad{color:var(--red)} .status .warn{color:var(--gold)}
+  .hint{font-size:10.5px;line-height:1.6;color:var(--dim);border-left:2px solid var(--line);padding-left:10px;margin:12px 0 0}
+  .hint b{color:var(--bone)}
+  details.adv{margin-top:14px;border-top:1px dashed var(--line);padding-top:12px}
+  details.adv summary{cursor:pointer;font-size:10.5px;letter-spacing:.16em;color:var(--gold2);text-transform:uppercase}
+  details.adv .row{margin-top:12px}
+  .attempts{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+  .attempt{border:1px solid var(--line);border-radius:3px;padding:10px 12px;background:rgba(0,0,0,.22);font-size:11px;line-height:1.55}
+  .attempt .tag{font-size:9px;letter-spacing:.18em;color:var(--dim);text-transform:uppercase}
+  .attempt .code{font-weight:700}
+  .code.ok{color:var(--green)} .code.bad{color:var(--red)} .code.warn{color:var(--gold)}
+  .attempt .url{color:#6d665c;word-break:break-all;font-size:10px;margin-top:4px}
+  .attempt .msg{color:var(--bone);margin-top:5px}
+  pre.raw{
+    margin:14px 0 0;padding:12px;max-height:340px;overflow:auto;
+    background:#050409;border:1px solid var(--line);border-radius:3px;
+    font-size:10.5px;line-height:1.55;color:#b7d8c0;white-space:pre-wrap;word-break:break-word;
+  }
+  .tablewrap{overflow:auto;border:1px solid var(--line);border-radius:3px;margin-top:14px}
+  table{width:100%;border-collapse:collapse;font-size:11.5px;min-width:620px}
+  th{
+    text-align:left;font-size:9px;letter-spacing:.2em;color:var(--gold2);text-transform:uppercase;
+    padding:9px 10px;background:#120e20;border-bottom:1px solid var(--line);white-space:nowrap;font-weight:600;
+  }
+  td{padding:8px 10px;border-bottom:1px solid rgba(255,210,122,.07);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:rgba(255,210,122,.035)}
+  td.rank{color:var(--gold);font-weight:700;width:42px}
+  td.num{color:var(--bone);font-weight:700;white-space:nowrap}
+  td.sub{color:var(--dim);font-size:10px;line-height:1.5}
+  td.load{max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pill{display:inline-block;font-size:8.5px;letter-spacing:.12em;padding:2px 6px;border:1px solid var(--line);border-radius:10px;color:var(--dim);margin-left:6px;vertical-align:1px}
+  .empty{padding:22px 14px;text-align:center;color:var(--dim);font-size:11px}
+  .kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:12px}
+  .kv div{border:1px solid var(--line);background:rgba(0,0,0,.2);padding:10px 12px;border-radius:3px}
+  .kv .k{font-size:9px;letter-spacing:.18em;color:var(--dim);text-transform:uppercase}
+  .kv .v{font-size:12px;margin-top:5px;color:var(--bone);word-break:break-all}
+  ol.steps{margin:12px 0 0;padding-left:20px;font-size:12px;line-height:1.8;color:var(--dim)}
+  ol.steps b{color:var(--bone);font-weight:600}
+  code{background:rgba(255,210,122,.08);border:1px solid rgba(255,210,122,.14);padding:1px 5px;border-radius:2px;font-size:10.5px;color:var(--gold)}
+  a{color:var(--cyan)}
+  .footer{margin-top:26px;color:#5e594f;font-size:10px;line-height:1.7;text-align:center}
+  @media(max-width:620px){
+    body{padding:18px 10px 50px}
+    .panel{padding:12px}
+    input.wide{min-width:100%}
+    select,input[type=number]{min-width:0;flex:1}
+    label.field{flex:1 1 140px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">RUNEGUN · ARCHIVE TERMINAL</div>
+  <h1>LEADERBOARD <span>EXCAVATOR</span></h1>
+  <p class="sub">
+    A direct, <b>no-login</b> attempt at the retired <b>Google Play Games</b> scoreboards.
+    The page fires the real Play Games REST calls and prints exactly what Google answers, then
+    reads the live <b>Firebase</b> board that replaced them — no sign-in screen, no account picker.
+  </p>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab on" data-tab="pg" role="tab">PLAY GAMES</button>
+    <button class="tab" data-tab="fb" role="tab">FIREBASE MIRROR</button>
+    <button class="tab" data-tab="why" role="tab">WHY THIS FAILS</button>
+  </nav>
+
+  <!-- ======================= PLAY GAMES ======================= -->
+  <section id="tab-pg" class="on">
+    <div class="panel">
+      <h2>Legacy Play Games board — direct fetch</h2>
+      <div class="row">
+        <label class="field">Board
+          <select id="pgBoard">
+            <option value="CgkIqeTCoo4FEAIQAg">HIGHSCORE — normal</option>
+            <option value="CgkIqeTCoo4FEAIQAw">HARD HIGHSCORE — hard</option>
+          </select>
+        </label>
+        <label class="field">Collection
+          <select id="pgCollection">
+            <option value="PUBLIC">PUBLIC</option>
+            <option value="SOCIAL">SOCIAL</option>
+            <option value="FRIENDS">FRIENDS</option>
+          </select>
+        </label>
+        <label class="field">Max rows
+          <input id="pgMax" type="number" min="1" max="100" step="1" value="25">
+        </label>
+        <button id="pgFetch" class="primary">Direct fetch</button>
+      </div>
+
+      <div id="pgStatus" class="status">Ready. This sends the request without any credentials first, then once more with only an API key, so the refusal is visible.</div>
+      <div id="pgAttempts" class="attempts"></div>
+
+      <details class="adv">
+        <summary>Advanced — paste an OAuth access token</summary>
+        <div class="row">
+          <label class="field" style="flex:1 1 420px">Access token (scope: https://www.googleapis.com/auth/games)
+            <input id="pgToken" class="wide" type="text" placeholder="ya29...." autocomplete="off" spellcheck="false">
+          </label>
+          <button id="pgFetchToken">Fetch with token</button>
+        </div>
+        <p class="hint">
+          There is no public/API-key path for this data. If you can obtain a token with the
+          <code>games</code> scope (OAuth Playground, a signed-in Play Games client, or a debug build),
+          paste it here and the request will be sent exactly as an authorised client would send it.
+          The token is only kept in this page's memory.
+        </p>
+      </details>
+
+      <pre id="pgRaw" class="raw">// raw response will appear here</pre>
+    </div>
+  </section>
+
+  <!-- ======================= FIREBASE ======================= -->
+  <section id="tab-fb">
+    <div class="panel">
+      <h2>Live shared board — Firebase mirror</h2>
+      <div class="row">
+        <label class="field">Mode
+          <select id="fbMode">
+            <option value="normal">NORMAL</option>
+            <option value="hard">HARD</option>
+            <option value="classic">CLASSIC</option>
+            <option value="chaos">CHAOS</option>
+          </select>
+        </label>
+        <label class="field">Order by
+          <select id="fbOrder">
+            <option value="souls">SOULS (high → low)</option>
+            <option value="clear">CLEAR TIME (fast → slow)</option>
+          </select>
+        </label>
+        <label class="field">Warden board
+          <select id="fbWarden"><option value="">— all players —</option></select>
+        </label>
+        <button id="fbLoad" class="primary">Refresh</button>
+      </div>
+
+      <div id="fbStatus" class="status">Opening a silent anonymous session…</div>
+
+      <details class="adv">
+        <summary>Advanced — paste a Firebase ID token</summary>
+        <div class="row">
+          <label class="field" style="flex:1 1 420px">ID token
+            <input id="fbToken" class="wide" type="text" placeholder="eyJhbGciOiJSUzI1NiIs…" autocomplete="off" spellcheck="false">
+          </label>
+          <button id="fbUseToken">Use token</button>
+        </div>
+        <p class="hint">
+          The anonymous session is created automatically and is not a login. On the published site it
+          succeeds because the project's API key accepts that referrer. If you opened this file locally
+          and Google blocks the key's empty referrer, paste a Firebase ID token instead.
+        </p>
+      </details>
+
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Player</th>
+              <th id="fbColValue">Souls</th>
+              <th>Loadout</th>
+              <th>Logged</th>
+            </tr>
+          </thead>
+          <tbody id="fbBody">
+            <tr><td colspan="5" class="empty">No records loaded yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel" id="fbWardenPanel" style="display:none">
+      <h2>Warden board — <span id="fbWardenName" style="color:var(--bone)">—</span></h2>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Player</th>
+              <th id="fbWardenCol">Souls</th>
+              <th>Loadout</th>
+              <th>Logged</th>
+            </tr>
+          </thead>
+          <tbody id="fbWardenBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= WHY ======================= -->
+  <section id="tab-why">
+    <div class="panel">
+      <h2>Why “no login” cannot reach the old board</h2>
+      <ol class="steps">
+        <li><b>The scores live behind an account-scoped API.</b> Play Games Services exposes them at
+          <code>games/v1/leaderboards/{id}/scores/{collection}</code>, and every call requires an OAuth 2
+          access token that asserts a Google identity with the
+          <code>https://www.googleapis.com/auth/games</code> scope.</li>
+        <li><b>API keys are explicitly rejected.</b> Adding <code>?key=…</code> returns
+          <code>401 — “API keys are not supported by this API”</code>. There is no public read path and no
+          anonymous collection.</li>
+        <li><b>The board is not a web page.</b> Play Games never published leaderboards as crawlable HTML
+          or a public JSON feed, so there is nothing to scrape or index.</li>
+        <li><b>So this page tries anyway.</b> It sends the real request without credentials and shows the
+          exact 401. If you have a token, the advanced field lets the same request go through.</li>
+        <li><b>What is actually readable is the replacement board.</b> The game moved its scores to a
+          Firebase Realtime Database. This project's security rules require an authenticated principal, but
+          an <b>anonymous session</b> is issued silently — no user interaction, no login UI. The viewer opens
+          one and reads <code>/scores</code> directly.</li>
+      </ol>
+      <p class="hint">
+        The Play Games leaderboard IDs decode to app <code>175629185577</code>:
+        <code>CgkIqeTCoo4FEAIQAg</code> = board 2 (normal), <code>CgkIqeTCoo4FEAIQAw</code> = board 3 (hard).
+        Achievements from the same app also live under that ID prefix.
+      </p>
+      <div class="kv">
+        <div><div class="k">Play Games endpoint</div><div class="v">games.googleapis.com/games/v1/leaderboards/{id}/scores/{collection}</div></div>
+        <div><div class="k">Required credential</div><div class="v">OAuth 2 bearer · scope …/auth/games</div></div>
+        <div><div class="k">API key support</div><div class="v">No — returns 401</div></div>
+        <div><div class="k">Live board</div><div class="v">Firebase RTDB · /scores · anonymous principal</div></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="footer">
+    RUNEGUN archive tool · attempts are made directly from your browser · no credentials are stored on a server<br>
+    Play Games data remains the property of Google / the signed-in player.
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ */
+/* Shared config                                                       */
+/* ------------------------------------------------------------------ */
+const FIREBASE = {
+  apiKey: "AIzaSyAYNwA6RzUEbfyCWqbT3P27ti705QGfL2c",
+  databaseURL: "https://runegunp-default-rtdb.asia-southeast1.firebasedatabase.app",
+};
+const PG_BOARDS = {
+  CgkIqeTCoo4FEAIQAg: { label: "HIGHSCORE", app: 175629185577, board: 2 },
+  CgkIqeTCoo4FEAIQAw: { label: "HARD HIGHSCORE", app: 175629185577, board: 3 },
+};
+const MODES = {
+  normal:  { label: "NORMAL",  score: "score",        clear: "normalClearMs"  },
+  hard:    { label: "HARD",    score: "hardScore",    clear: "hardClearMs"    },
+  classic: { label: "CLASSIC", score: "classicScore", clear: "classicClearMs" },
+  chaos:   { label: "CHAOS",   score: "chaosScore",   clear: "chaosClearMs"   },
+};
+
+const $ = (id) => document.getElementById(id);
+
+/* ------------------------------------------------------------------ */
+/* Tabs                                                                */
+/* ------------------------------------------------------------------ */
+document.querySelectorAll(".tab").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("on", b === btn));
+    document.querySelectorAll("section").forEach((s) => s.classList.toggle("on", s.id === "tab-" + btn.dataset.tab));
+    if (btn.dataset.tab === "fb" && !fbLoaded) loadFirebase();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Play Games — direct attempts                                        */
+/* ------------------------------------------------------------------ */
+function pgBase() {
+  const board = $("pgBoard").value;
+  const collection = $("pgCollection").value;
+  const max = Math.max(1, Math.min(100, parseInt($("pgMax").value, 10) || 25));
+  return "https://games.googleapis.com/games/v1/leaderboards/" +
+    encodeURIComponent(board) + "/scores/" + encodeURIComponent(collection) +
+    "?maxResults=" + max;
+}
+
+async function pgCall(url, token) {
+  const headers = { "Accept": "application/json" };
+  if (token) headers["Authorization"] = "Bearer " + token;
+  try {
+    const res = await fetch(url, { headers, cache: "no-store" });
+    const text = await res.text();
+    let json = null;
+    try { json = JSON.parse(text); } catch (_) { /* HTML error page */ }
+    return { url, token: !!token, status: res.status, ok: res.ok, text, json };
+  } catch (err) {
+    return { url, token: !!token, status: 0, ok: false, text: String(err && err.message || err), json: null };
+  }
+}
+
+function pgMessage(r) {
+  if (r.status === 0) return "Network/CORS failure: " + r.text;
+  if (r.json && r.json.error) {
+    const e = r.json.error;
+    return (e.status || "ERROR") + " — " + (e.message || "unknown error");
+  }
+  if (r.json && Array.isArray(r.json.items)) {
+    return "OK — " + r.json.items.length + " score row(s) returned.";
+  }
+  if (r.ok) return "OK — response received.";
+  return (r.text || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 240) || ("HTTP " + r.status);
+}
+
+function pgStatusClass(r) {
+  if (r.ok) return "ok";
+  if (r.status === 401 || r.status === 403) return "bad";
+  return "warn";
+}
+
+function addAttempt(label, r) {
+  const box = document.createElement("div");
+  box.className = "attempt";
+
+  const tag = document.createElement("div");
+  tag.className = "tag";
+  tag.textContent = label;
+
+  const code = document.createElement("div");
+  code.className = "code " + pgStatusClass(r);
+  code.textContent = r.status ? ("HTTP " + r.status) : "NO RESPONSE";
+
+  const msg = document.createElement("div");
+  msg.className = "msg";
+  msg.textContent = pgMessage(r);
+
+  const url = document.createElement("div");
+  url.className = "url";
+  url.textContent = r.url;
+
+  box.append(tag, code, msg, url);
+  $("pgAttempts").appendChild(box);
+}
+
+function renderPgScores(json) {
+  if (!json || !Array.isArray(json.items) || !json.items.length) return;
+  const wrap = document.createElement("div");
+  wrap.className = "tablewrap";
+  const table = document.createElement("table");
+  table.innerHTML = "<thead><tr><th>#</th><th>Player</th><th>Score</th><th>Rank</th><th>Span</th></tr></thead>";
+  const tbody = document.createElement("tbody");
+  for (const it of json.items) {
+    const tr = document.createElement("tr");
+
+    const rank = document.createElement("td");
+    rank.className = "rank";
+    rank.textContent = it.rank != null ? it.rank : "—";
+
+    const player = document.createElement("td");
+    player.textContent = (it.player && (it.player.displayName || it.player.playerId)) || "—";
+
+    const score = document.createElement("td");
+    score.className = "num";
+    score.textContent = it.formattedScore != null
+      ? String(it.formattedScore)
+      : (it.scoreValue != null ? Number(it.scoreValue).toLocaleString() : "—");
+
+    const rk = document.createElement("td");
+    rk.className = "sub";
+    rk.textContent = it.formattedRank || "—";
+
+    const span = document.createElement("td");
+    span.className = "sub";
+    span.textContent = it.timeSpan || "—";
+
+    tr.append(rank, player, score, rk, span);
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  $("pgAttempts").appendChild(wrap);
+}
+
+async function runPlayGames(withToken) {
+  const url = pgBase();
+  const token = $("pgToken").value.trim();
+  const board = PG_BOARDS[$("pgBoard").value] || {};
+  $("pgAttempts").innerHTML = "";
+  $("pgRaw").textContent = "// fetching…";
+  $("pgStatus").textContent = "Calling Google with no credentials…";
+
+  const plain = await pgCall(url, "");
+  addAttempt("Attempt 1 · no credentials", plain);
+
+  const keyed = await pgCall(url + "&key=" + encodeURIComponent(FIREBASE.apiKey), "");
+  addAttempt("Attempt 2 · API key only", keyed);
+
+  let last = keyed;
+
+  if (withToken && token) {
+    $("pgStatus").textContent = "Calling Google with the pasted OAuth token…";
+    const tokened = await pgCall(url, token);
+    addAttempt("Attempt 3 · OAuth bearer token", tokened);
+    last = tokened;
+    renderPgScores(tokened.json);
+  } else if (plain.ok) {
+    renderPgScores(plain.json);
+  }
+
+  $("pgRaw").textContent = last && last.json
+    ? JSON.stringify(last.json, null, 2)
+    : (last ? last.text : "// no response");
+
+  const target = PG_BOARDS[$("pgBoard").value] || { label: "board", app: "?", board: "?" };
+  if (plain.ok) {
+    $("pgStatus").innerHTML = '<span class="ok">Unlocked.</span> Google returned scores without credentials for ' +
+      escapeHtml(target.label) + " (app " + target.app + ", board " + target.board + ").";
+  } else if (withToken && token && last.ok) {
+    $("pgStatus").innerHTML = '<span class="ok">Token accepted.</span> Scores rendered above. ' +
+      escapeHtml(target.label) + " · app " + target.app + " · board " + target.board + ".";
+  } else {
+    $("pgStatus").innerHTML = '<span class="bad">Blocked, as expected.</span> The board needs an OAuth principal, ' +
+      'not an API key. The exact refusal is preserved below and in the raw pane. ' +
+      escapeHtml(target.label) + " · app " + target.app + " · board " + target.board + ".";
+  }
+}
+
+$("pgFetch").addEventListener("click", () => runPlayGames(false));
+$("pgFetchToken").addEventListener("click", () => runPlayGames(true));
+
+/* ------------------------------------------------------------------ */
+/* Firebase — silent anonymous session + board reads                   */
+/* ------------------------------------------------------------------ */
+const FB_TOKEN_KEY = "runegun.archive.fbToken";
+let fbToken = "";
+let fbLoaded = false;
+let fbRows = null;
+let fbCharRows = null;
+let fbLastStatus = "";
+
+try { fbToken = sessionStorage.getItem(FB_TOKEN_KEY) || ""; } catch (_) { fbToken = ""; }
+
+function fbErrorText(json, status) {
+  if (!json) return "HTTP " + status;
+  if (typeof json === "string") return json;
+  if (json.error) return typeof json.error === "string" ? json.error : (json.error.message || JSON.stringify(json.error));
+  return "HTTP " + status;
+}
+
+async function getFbToken(force) {
+  if (fbToken && !force) return fbToken;
+  const res = await fetch(
+    "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=" + encodeURIComponent(FIREBASE.apiKey),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ returnSecureToken: true }),
+      cache: "no-store",
+    }
+  );
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json || !json.idToken) {
+    const msg = (json && json.error && json.error.message) || ("HTTP " + res.status);
+    const err = new Error(msg);
+    err.status = res.status;
+    err.reason = json && json.error && json.error.details && json.error.details[0] && json.error.details[0].reason;
+    throw err;
+  }
+  fbToken = json.idToken;
+  try { sessionStorage.setItem(FB_TOKEN_KEY, fbToken); } catch (_) { /* private mode */ }
+  return fbToken;
+}
+
+async function fbGet(path, token) {
+  const sep = path.indexOf("?") >= 0 ? "&" : "?";
+  const res = await fetch(FIREBASE.databaseURL + path + sep + "auth=" + encodeURIComponent(token), { cache: "no-store" });
+  const text = await res.text();
+  let json = null;
+  try { json = JSON.parse(text); } catch (_) { json = null; }
+  if (!res.ok) {
+    const err = new Error(fbErrorText(json, res.status));
+    err.status = res.status;
+    throw err;
+  }
+  return json;
+}
+
+async function readBoard(path) {
+  let token = await getFbToken(false);
+  try {
+    return { data: await fbGet(path, token), token };
+  } catch (err) {
+    if (err.status !== 401) throw err;
+    token = await getFbToken(true); // token expired — open a fresh silent session
+    return { data: await fbGet(path, token), token };
+  }
+}
+
+function fmtScore(n) {
+  return (typeof n === "number" && isFinite(n)) ? Math.round(n).toLocaleString() : "—";
+}
+
+function fmtTime(ms) {
+  if (typeof ms !== "number" || !isFinite(ms) || ms <= 0) return "—";
+  const total = Math.round(ms);
+  const h = Math.floor(total / 3600000);
+  const m = Math.floor((total % 3600000) / 60000);
+  const s = Math.floor((total % 60000) / 1000);
+  const cs = Math.floor((total % 1000) / 10);
+  const mm = String(m).padStart(2, "0");
+  const ss = String(s).padStart(2, "0");
+  const cc = String(cs).padStart(2, "0");
+  return h ? (h + ":" + mm + ":" + ss + "." + cc) : (mm + ":" + ss + "." + cc);
+}
+
+function fmtDate(ms) {
+  if (typeof ms !== "number" || !isFinite(ms) || ms <= 0) return "—";
+  try { return new Date(ms).toLocaleString(); } catch (_) { return "—"; }
+}
+
+function rowName(row) {
+  return (row && (row.display || row.name)) || "—";
+}
+
+function rowLoadout(row, mode, clear) {
+  const tag = row && row[clear ? mode + "Clear" : mode];
+  if (!tag || typeof tag !== "object") return "";
+  const bits = [];
+  if (tag.char) bits.push(tag.char);
+  if (tag.runes) bits.push(tag.runes);
+  if (tag.pet) bits.push("pet:" + tag.pet);
+  if (tag.challenge) bits.push(tag.challenge);
+  return bits.join(" · ");
+}
+
+function rowValue(row, mode, order) {
+  const m = MODES[mode] || MODES.normal;
+  if (order === "clear") return row && row[m.clear];
+  return row && row[m.score];
+}
+
+function sortRows(map, mode, order) {
+  const list = [];
+  for (const uid in (map || {})) {
+    const row = map[uid];
+    if (!row || typeof row !== "object") continue;
+    const v = rowValue(row, mode, order);
+    if (typeof v !== "number" || !isFinite(v) || v <= 0) continue;
+    list.push({ uid, row, v });
+  }
+  list.sort((a, b) => order === "clear" ? (a.v - b.v) : (b.v - a.v));
+  return list;
+}
+
+function fillTable(tbody, list, mode, order, startRank) {
+  tbody.innerHTML = "";
+  if (!list.length) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 5;
+    td.className = "empty";
+    td.textContent = "No records found on this board yet.";
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
+
+  list.forEach((entry, i) => {
+    const { row, v } = entry;
+    const tr = document.createElement("tr");
+
+    const rank = document.createElement("td");
+    rank.className = "rank";
+    rank.textContent = String((startRank || 1) + i);
+
+    const player = document.createElement("td");
+    player.textContent = rowName(row);
+    if (row.platform) {
+      const pill = document.createElement("span");
+      pill.className = "pill";
+      pill.textContent = row.platform;
+      player.appendChild(pill);
+    }
+
+    const value = document.createElement("td");
+    value.className = "num";
+    value.textContent = order === "clear" ? fmtTime(v) : fmtScore(v);
+
+    const load = document.createElement("td");
+    load.className = "sub load";
+    const loadText = rowLoadout(row, mode, order === "clear") || "—";
+    load.textContent = loadText;
+    if (loadText.length > 48) load.title = loadText;
+
+    const when = document.createElement("td");
+    when.className = "sub";
+    when.textContent = fmtDate(row.updatedAt);
+
+    tr.append(rank, player, value, load, when);
+    tbody.appendChild(tr);
+  });
+}
+
+function setFbStatus(html) {
+  fbLastStatus = html;
+  $("fbStatus").innerHTML = html;
+}
+
+function populateWardens(charData, mode) {
+  const sel = $("fbWarden");
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">— all players —</option>';
+  const ids = charData ? Object.keys(charData) : [];
+  ids.sort((a, b) => a.localeCompare(b));
+  for (const id of ids) {
+    if (!charData[id] || typeof charData[id] !== "object") continue;
+    const opt = document.createElement("option");
+    opt.value = id;
+    opt.textContent = id;
+    sel.appendChild(opt);
+  }
+  if (prev && ids.indexOf(prev) >= 0) sel.value = prev;
+  return ids;
+}
+
+function renderWardenBoard() {
+  const mode = $("fbMode").value;
+  const order = $("fbOrder").value;
+  const charId = $("fbWarden").value;
+  const panel = $("fbWardenPanel");
+  if (!charId || !fbCharRows || !fbCharRows[charId]) {
+    panel.style.display = "none";
+    return;
+  }
+  panel.style.display = "block";
+  $("fbWardenName").textContent = charId + " · " + MODES[mode].label;
+  $("fbWardenCol").textContent = order === "clear" ? "Clear time" : "Souls";
+  const list = sortRows(fbCharRows[charId], mode, order);
+  fillTable($("fbWardenBody"), list, mode, order, 1);
+}
+
+function renderFirebase() {
+  const mode = $("fbMode").value;
+  const order = $("fbOrder").value;
+  $("fbColValue").textContent = order === "clear" ? "Clear time" : "Souls";
+
+  if (!fbRows) {
+    $("fbBody").innerHTML = '<tr><td colspan="5" class="empty">No records loaded.</td></tr>';
+    return;
+  }
+
+  const list = sortRows(fbRows, mode, order);
+  fillTable($("fbBody"), list, mode, order, 1);
+
+  const total = Object.keys(fbRows).length;
+  const label = MODES[mode].label;
+  const top = list.length ? (order === "clear" ? fmtTime(list[0].v) : fmtScore(list[0].v)) : "—";
+
+  const parts = [];
+  parts.push('<span class="ok">Connected.</span> Silent anonymous session · reading <code>/scores</code>.');
+  parts.push("Board: <b>" + label + "</b> · " + list.length + " ranked row(s) · " + total + " total player(s) · top " +
+    (order === "clear" ? "clear" : "souls") + ": <b>" + top + "</b>");
+  if (order === "souls" && (mode === "classic" || mode === "chaos") && list.length === 0) {
+    parts.push('<span class="warn">This mode has no soul records yet — CLASSIC and CHAOS share the live tree but may be empty.</span>');
+  }
+  setFbStatus(parts.join("<br>"));
+
+  renderWardenBoard();
+}
+
+async function loadFirebase() {
+  fbLoaded = true;
+  setFbStatus("Opening a silent anonymous session…");
+  $("fbBody").innerHTML = '<tr><td colspan="5" class="empty">Reading…</td></tr>';
+
+  try {
+    const token = await getFbToken(false);
+    setFbStatus("Session opened. Reading <code>/scores</code> and <code>/charScores</code>…");
+
+    const scores = await readBoard("/scores.json");
+    fbRows = scores.data && typeof scores.data === "object" ? scores.data : {};
+
+    const mode = $("fbMode").value;
+    let chars = null;
+    try {
+      const charRes = await readBoard("/charScores/" + mode + ".json");
+      chars = charRes.data && typeof charRes.data === "object" ? charRes.data : {};
+    } catch (_) {
+      chars = {}; // older rules trees may not expose this branch
+    }
+    fbCharRows = chars;
+    populateWardens(chars, mode);
+
+    if (!Object.keys(fbRows).length) {
+      setFbStatus("Connected, but the board is empty.");
+    }
+    renderFirebase();
+  } catch (err) {
+    const reason = (err && err.reason) || "";
+    const status = (err && err.status) || "";
+    let html = '<span class="bad">Could not open the silent session.</span> ' + escapeHtml(String(err && err.message || err));
+    if (reason === "API_KEY_HTTP_REFERRER_BLOCKED" || /referer/i.test(String(err && err.message))) {
+      html += '<br><span class="warn">The project API key only accepts listed web origins.</span> ' +
+        'This works on the published page: ' +
+        '<a href="https://sixhypen6.github.io/runegunp/New%20folder/leaderboard-viewer.html" target="_blank" rel="noopener">sixhypen6.github.io/runegunp/New folder/leaderboard-viewer.html</a>. ' +
+        "When opened as a local file, the browser sends an empty referrer and Google blocks it. " +
+        "Use the token field above, or serve/copy the file to the published origin.";
+    } else if (status === 401 || status === 403 || /permission/i.test(String(err && err.message))) {
+      html += '<br><span class="warn">The database refused the read.</span> Paste a valid Firebase ID token above, or confirm the project rules and that Anonymous auth is enabled.';
+    }
+    setFbStatus(html);
+    $("fbBody").innerHTML = '<tr><td colspan="5" class="empty">Board unavailable.</td></tr>';
+  }
+}
+
+/* Mode / order / warden changes re-render from the cached snapshot. */
+$("fbMode").addEventListener("change", async () => {
+  if (!fbLoaded) return;
+  if (fbRows) {
+    renderFirebase();
+  }
+  try {
+    const charRes = await readBoard("/charScores/" + $("fbMode").value + ".json");
+    fbCharRows = charRes.data && typeof charRes.data === "object" ? charRes.data : {};
+    populateWardens(fbCharRows, $("fbMode").value);
+    renderWardenBoard();
+  } catch (_) {
+    fbCharRows = {};
+    populateWardens({}, $("fbMode").value);
+    $("fbWardenPanel").style.display = "none";
+  }
+});
+$("fbOrder").addEventListener("change", renderFirebase);
+$("fbWarden").addEventListener("change", renderWardenBoard);
+$("fbLoad").addEventListener("click", loadFirebase);
+
+$("fbUseToken").addEventListener("click", () => {
+  const v = $("fbToken").value.trim();
+  if (!v) {
+    setFbStatus('<span class="warn">Paste a Firebase ID token first.</span>');
+    return;
+  }
+  fbToken = v;
+  try { sessionStorage.setItem(FB_TOKEN_KEY, fbToken); } catch (_) { /* ignore */ }
+  loadFirebase();
+});
+
+/* ------------------------------------------------------------------ */
+/* Helpers                                                             */
+/* ------------------------------------------------------------------ */
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
+}
+
+/* Auto-run both paths: the Play Games refusal and the live archive appear
+   without pressing anything. On the published origin the silent session
+   succeeds, so the practical board is populated immediately. */
+runPlayGames(false);
+loadFirebase();
+</script>
+</body>
+</html>
