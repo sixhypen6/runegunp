@@ -55,6 +55,10 @@ const Meta = {
   runTimer: true,     // speedrun clock in the HUD — display only; records are kept either way
   speedrun: false,    // SPEEDRUN mode: guarantee WARD then SWIFT in the first two rune choices (independent of the clock)
   speedBests: {},     // fastest COMPLETED descent per warden id and mode, seconds (0/absent = never cleared)
+  /* per-warden online records — the RECKONING's warden boards read these, so a
+     SNIPER row shows a SNIPER run even when the player's overall mode best used
+     another warden. Shape: mode → charId → record (same tag fields as bests*). */
+  charBests: { normal: {}, hard: {}, classic: {}, chaos: {} },
   autoPick: {},      // per-character: { [charId]: { on: bool, reroll: bool, rerollMax: number, pri: { [runeId]: 0-3 } } } 0=off,1=low,2=mid,3=high
   bests: {            // personal records (local leaderboard — you vs your own past runs)
     score: 0,               // max Game.score
@@ -267,6 +271,29 @@ function metaLoad() {
       loadClearTag(d.bestsHard, Meta.bestsHard);
       loadClearTag(d.bestsClassic, Meta.bestsClassic);
       loadClearTag(d.bestsChaos, Meta.bestsChaos);
+      /* PER-WARDEN records — restored before the backfill below so an older
+         save's overall mode tag can seed the warden it was actually set with. */
+      if (d.charBests && typeof d.charBests === "object") {
+        for (const mode of ["normal", "hard", "classic", "chaos"]) {
+          const src = d.charBests[mode];
+          if (!src || typeof src !== "object") continue;
+          for (const cid in src) {
+            if (!CHARS[cid]) continue;
+            const r = src[cid];
+            if (!r || typeof r !== "object") continue;
+            const dst = charBestRecord(mode, cid);
+            if (typeof r.score === "number" && r.score > 0) dst.score = Math.min(r.score, 100000000);
+            if (typeof r.speedSec === "number" && r.speedSec > 0) dst.speedSec = r.speedSec;
+            if (typeof r.runes === "string") dst.runes = r.runes.slice(0, 96);
+            if (typeof r.pet === "string" && PTYPES[r.pet]) dst.pet = r.pet;
+            if (typeof r.challenge === "string") dst.challenge = r.challenge.slice(0, 24);
+            if (typeof r.clearRunes === "string") dst.clearRunes = r.clearRunes.slice(0, 96);
+            if (typeof r.clearPet === "string" && PTYPES[r.clearPet]) dst.clearPet = r.clearPet;
+            if (typeof r.clearChallenge === "string") dst.clearChallenge = r.clearChallenge.slice(0, 24);
+          }
+        }
+      }
+      backfillCharBests();
       /* AUTO PICK config — per character, rune priorities (0 off, 1 low, 2 mid, 3 high) */
       if (d.autoPick && typeof d.autoPick === "object") {
         for (const cid in d.autoPick) {
@@ -307,7 +334,60 @@ function metaLoad() {
    and returns a map of which keys improved (for the "NEW BEST!" highlight
    and to signal Phase-2 online submission). */
 /* the ledger this run's mode writes to (CHAOS and HARD never share a run) */
-const modeBests = () => Game.chaosMode ? Meta.bestsChaos : Game.classicMode ? Meta.bestsClassic : Game.hardMode ? Meta.bestsHard : Meta.bests;
+function runModeKey() {
+  return Game.chaosMode ? "chaos" : Game.classicMode ? "classic" : Game.hardMode ? "hard" : "normal";
+}
+const modeBests = () => {
+  const m = runModeKey();
+  return m === "chaos" ? Meta.bestsChaos : m === "classic" ? Meta.bestsClassic : m === "hard" ? Meta.bestsHard : Meta.bests;
+};
+/* Per-warden record bucket: Meta.charBests[mode][charId]. Created on demand so
+   a returning save can heal a missing bucket without a migration version. */
+function charBestRecord(mode, char) {
+  if (!Meta.charBests || typeof Meta.charBests !== "object") Meta.charBests = { normal: {}, hard: {}, classic: {}, chaos: {} };
+  const m = (mode === "hard" || mode === "classic" || mode === "chaos") ? mode : "normal";
+  if (!Meta.charBests[m] || typeof Meta.charBests[m] !== "object") Meta.charBests[m] = {};
+  const bucket = Meta.charBests[m];
+  if (!bucket[char] || typeof bucket[char] !== "object") bucket[char] = {};
+  return bucket[char];
+}
+/* Seed the per-warden ledgers from records that predate them: each mode's
+   overall tag names the warden that set it, and Meta.speedBests already keeps
+   a fastest clear per warden + mode. Never lowers an existing value. */
+function backfillCharBests() {
+  const ledgers = { normal: Meta.bests, hard: Meta.bestsHard, classic: Meta.bestsClassic, chaos: Meta.bestsChaos };
+  for (const mode in ledgers) {
+    const b = ledgers[mode];
+    if (!b) continue;
+    if (b.tag && b.char && typeof CHARS !== "undefined" && CHARS[b.char] && b.score > 0) {
+      const c = charBestRecord(mode, b.char);
+      if (!(c.score > 0) || b.score >= c.score) {
+        c.score = b.score;
+        c.runes = b.runes || c.runes || "";
+        c.pet = b.pet || c.pet || "";
+        c.challenge = b.challenge || c.challenge || "";
+      }
+    }
+    if (b.clearTag && b.clearChar && typeof CHARS !== "undefined" && CHARS[b.clearChar] && b.speedSec > 0) {
+      const c = charBestRecord(mode, b.clearChar);
+      if (!(c.speedSec > 0) || b.speedSec <= c.speedSec) {
+        c.speedSec = b.speedSec;
+        c.clearRunes = b.clearRunes || c.clearRunes || "";
+        c.clearPet = b.clearPet || c.clearPet || "";
+        c.clearChallenge = b.clearChallenge || c.clearChallenge || "";
+      }
+    }
+  }
+  if (Meta.speedBests)
+    for (const k in Meta.speedBests) {
+      const v = Meta.speedBests[k];
+      if (!(typeof v === "number" && v > 0)) continue;
+      const parts = String(k).split(":"), char = parts[0], mode = parts[1] || "normal";
+      if (typeof CHARS === "undefined" || !CHARS[char] || !Meta.charBests[mode]) continue;
+      const c = charBestRecord(mode, char);
+      if (!(c.speedSec > 0) || v < c.speedSec) c.speedSec = v;
+    }
+}
 /* The runes held at run end, as a short comma string for the online board.
    Ids only (the stack counts would double the length and tell a reader
    nothing); capped so a modded build can't stuff the row. */
@@ -346,6 +426,15 @@ function recordBests() {
     b.pet = (recordPlayer && recordPlayer.pet) || "";
     b.challenge = Game.challenge || "";
     b.tag = true;
+  }
+  /* the same record, filed under the warden that set it — the RECKONING's
+     warden boards read Meta.charBests, never the mode-wide number above */
+  const charRec = charBestRecord(runModeKey(), recordChar);
+  if (Game.score > (Number(charRec.score) || 0)) charRec.score = Game.score;
+  if (Game.score >= (Number(charRec.score) || 0)) {
+    charRec.runes = recordRunes;
+    charRec.pet = (recordPlayer && recordPlayer.pet) || "";
+    charRec.challenge = Game.challenge || "";
   }
   bump("survivedSec", survived,   survived   > b.survivedSec);
   bump("wave",        Game.wave,  Game.wave  > b.wave);

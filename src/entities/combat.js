@@ -186,6 +186,7 @@ function sanchoSwing(p, x, y, aim) {
       e.bleedDps = Math.max(e.bleedDps || 0, bleedDps(m.bleed));
       e.bleedBy = p;
     }
+    applyMeleeElements(p, e, m);
   }
   /* PVP: the sweep is tested against a rival warden in the same forward arc */
   if (Game.pvpMode) for (const foe of players) {
@@ -502,6 +503,31 @@ function dropVenomPool(x, y, venom, owner) {
   if (puddles.length < 140)
     puddles.push({ x, y, r: 26 + 14 * venom, t: 0, life: 4,
       team: "p", dmg: 3 + 2 * venom, color: "#7dff5e", tickMap: {}, owner });
+}
+
+/* =========================================================
+   MELEE ELEMENTS — the gun's elemental runes on a blade hit.
+   The bullet path applies EMBER / FROST / STORM / VENOM one by one in
+   game/update.js; a swing never passes through there, so a melee warden's
+   elementals used to be inert. This is the same reading, in one place, for
+   every arc (the Passenger's tear-blades, Sancho's swing, WARP's seams).
+   ========================================================= */
+function applyMeleeElements(p, e, m) {
+  if (!p || !e || e.dead || !m) return;
+  /* GUEST: damage is cosmetic there, so seeding pools / burns locally would
+     show a world the host never made (mirrors the saw's venom guard). */
+  if (typeof Net !== "undefined" && Net.role === "guest") return;
+  if (m.ember) {
+    e.burnT = Math.max(e.burnT || 0, 2 + m.ember);
+    e.burnDps = Math.max(e.burnDps || 0, 2 + 2 * m.ember);
+    e.burnBy = p;
+  }
+  if (m.frost) {
+    e.slowT = Math.max(e.slowT || 0, 1 + 0.7 * m.frost);
+    floatText(e.x, e.y - e.r - 12, "❄", "#5ee6ff");
+  }
+  if (m.storm && !e.dead) chainStorm(e, m.storm, new Set([e]), p);
+  if (m.venom && !e.dead) dropVenomPool(e.x, e.y, m.venom, p);
 }
 
 /* =========================================================

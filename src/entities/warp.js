@@ -211,7 +211,7 @@ function warpLineDamage(p, x1, y1, x2, y2, width, dmg) {
       e.bleedDps = Math.max(e.bleedDps || 0, bleedDps(m.bleed));
       e.bleedBy = p;
     }
-    if (!e.dead && m.venom > 0 && typeof dropVenomPool === "function") dropVenomPool(e.x, e.y, m.venom, p);
+    applyMeleeElements(p, e, m);
   }
   /* VERSUS: the seam cuts a rival warden caught across it */
   if (Game.pvpMode) for (const foe of players) {
@@ -245,6 +245,7 @@ function sinnerSlashArc(p, x, y, aim, halfArc, reach, dmg) {
       e.bleedDps = Math.max(e.bleedDps || 0, bleedDps(m.bleed));
       e.bleedBy = p;
     }
+    applyMeleeElements(p, e, m);
   }
   /* VERSUS: the same forward arc catches a rival warden */
   if (Game.pvpMode) for (const foe of players) {

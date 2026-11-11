@@ -67,6 +67,7 @@ const RunTimer = {
     let prev = 0, newBest = false;
     if (!Game.devRun && !runIsCoop()) {
       const mode = modeBests();
+      const boardMode = Game.chaosMode ? "chaos" : Game.classicMode ? "classic" : Game.hardMode ? "hard" : "normal";
       const clearTag = (typeof Leaderboard !== "undefined" && typeof Leaderboard.liveTag === "function")
         ? Leaderboard.liveTag() : null;
       prev = mode.speedSec || 0;
@@ -80,13 +81,24 @@ const RunTimer = {
         mode.clearChallenge = clearTag.challenge || "";
         mode.clearTag = true;
       }
+      /* the same clear times filed under the warden that set them */
+      const clearChar = (clearTag && clearTag.char) || Meta.char;
+      if (clearChar && typeof CHARS !== "undefined" && CHARS[clearChar]) {
+        const rec = charBestRecord(boardMode, clearChar);
+        const prevChar = Number(rec.speedSec) || 0;
+        if (!prevChar || stamp < prevChar) rec.speedSec = stamp;
+        if (clearTag && (!prevChar || stamp <= prevChar)) {
+          rec.clearRunes = clearTag.runes || "";
+          rec.clearPet = clearTag.pet || "";
+          rec.clearChallenge = clearTag.challenge || "";
+        }
+      }
       if (!Meta.speedBests) Meta.speedBests = {};
       const key = runSpeedKey(Meta.char);
       const per = Meta.speedBests[key] || 0;
       if (!per || stamp < per) { Meta.speedBests[key] = stamp; newBest = true; }
       metaSave();
       if (typeof Leaderboard !== "undefined" && typeof Leaderboard.submitClearTime === "function") {
-        const boardMode = Game.chaosMode ? "chaos" : Game.classicMode ? "classic" : Game.hardMode ? "hard" : "normal";
         Leaderboard.submitClearTime(boardMode, stamp, clearTag);
       }
     }

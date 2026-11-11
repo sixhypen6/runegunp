@@ -771,7 +771,41 @@ $("tabBestiary").addEventListener("click", () => glossShowPage("bestiary"));
 $("tabRunes").addEventListener("click", () => glossShowPage("runes"));
 
 /* ---------- the reckoning: custom in-game leaderboard ---------- */
-let lbTab = "global", lbMode = "normal", lbMetric = "score";   // scope × difficulty × record type
+/* scope × group × difficulty × warden × record type
+   group "global" holds NORMAL/HARD/CHAOS as separate boards; "classic" is its
+   own short descent. lbChar "" means the overall mode board (ALL WARDENS). */
+let lbTab = "global", lbGroup = "global", lbMode = "normal", lbChar = "", lbMetric = "score";
+
+/* one key for "which view is on screen", so a slow fetch can prove it is still
+   painting the view the player asked for */
+function lbViewKey() { return [lbTab, lbGroup, lbMode, lbChar, lbMetric].join("|"); }
+
+/* Build the warden selector once: ALL WARDENS + every playable warden. A newer
+   build's CHARS grows without any markup change. */
+function lbBuildCharTabs() {
+  const box = $("lbCharTabs");
+  if (!box || box.dataset.built === "1") return;
+  box.textContent = "";
+  const add = (id, label) => {
+    const b = document.createElement("button");
+    b.className = "menu-btn small gloss-tab" + (id === "" ? " on" : "");
+    b.dataset.char = id;
+    b.textContent = label;
+    b.addEventListener("click", () => lbShowChar(id));
+    box.appendChild(b);
+  };
+  add("", "ALL WARDENS");
+  if (typeof CHARS !== "undefined")
+    for (const id in CHARS) add(id, CHARS[id].name || String(id).toUpperCase());
+  box.dataset.built = "1";
+}
+
+function lbEmptyText(isClear, mode, char) {
+  const who = char ? lbCharName(char) : "";
+  if (isClear) return "NO FASTEST CLEAR RECORDED YET" + (who ? " FOR " + who : "");
+  const kind = mode === "chaos" ? "CHAOS " : mode === "classic" ? "CLASSIC " : "";
+  return "NO " + kind + "SOULS RECORDED YET" + (who ? " WITH " + who : "");
+}
 
 /* "gunsmith" → "GUNSMITH"; anything unknown is shown as-is (a row may carry a
    character from a newer build than this one). */
@@ -883,38 +917,44 @@ const LB_HINT_HIDDEN = "YOUR SCORE IS RECORDED, YET A VEIL HIDES IT FROM OTHER P
 
 async function renderLeaderboard() {
   const list = $("lbList");
-  const tab = lbTab, mode = lbMode, metric = lbMetric; // pin the view this request is for
+  const view = lbViewKey();
+  const tab = lbTab, mode = lbMode, char = lbChar, metric = lbMetric; // pin the view this request is for
   list.innerHTML = "<div class='lb-empty'>CONSULTING THE VOID…</div>";
   const isClear = metric === "clear";
-  const best = isClear ? 0 : Leaderboard.localBest(mode);   // local data, read at render time — keyed by the overlay's own mode toggle
-  const tag = Leaderboard.tagFor(mode);
+  /* local data, read at render time — keyed by the overlay's own mode + warden */
+  const best = isClear ? 0 : Leaderboard.localBest(mode, char);
+  const tag = Leaderboard.tagFor(mode, char);
   /* Fired alongside the entries fetch (never rejects, resolves false unless the
      score is provably recorded yet absent from the public view for good) so the
      pending hints below can say WHY the row still isn't on the board. */
   const hiddenReq = !isClear && best > 0 ? Leaderboard.isLikelyHidden({ mode }) : Promise.resolve(false);
   const res = isClear
-    ? (tab === "nearby" ? await Leaderboard.getNearbyClearTimes({ maxResults: 25, mode }) : await Leaderboard.getTopClearTimes({ maxResults: 25, mode }))
-    : (tab === "nearby" ? await Leaderboard.getNearbyScores({ maxResults: 25, mode }) : await Leaderboard.getTopScores({ maxResults: 25, mode }));
-  if (Game.state !== "leaderboard" || lbTab !== tab || lbMode !== mode || lbMetric !== metric) return;
+    ? (tab === "nearby"
+        ? await Leaderboard.getNearbyClearTimes({ maxResults: 25, mode, char })
+        : await Leaderboard.getTopClearTimes({ maxResults: 25, mode, char }))
+    : (tab === "nearby"
+        ? await Leaderboard.getNearbyScores({ maxResults: 25, mode, char })
+        : await Leaderboard.getTopScores({ maxResults: 25, mode, char }));
+  if (Game.state !== "leaderboard" || lbViewKey() !== view) return;
   if (!res.ok) { list.innerHTML = "<div class='lb-empty'>THE VOID DOES NOT ANSWER</div>"; return; }
   if (isClear) {
     list.innerHTML = "";
     if (!res.entries.length) {
-      list.innerHTML = "<div class='lb-empty'>NO FASTEST CLEAR RECORDED YET</div>";
+      list.innerHTML = "<div class='lb-empty'>" + lbEmptyText(true, mode, char) + "</div>";
       return;
     }
     res.entries.forEach(e => list.appendChild(lbRow(e, Leaderboard.isMine(e))));
     return;
   }
   const hintPending = (await hiddenReq) ? LB_HINT_HIDDEN : LB_HINT_PENDING;
-  if (Game.state !== "leaderboard" || lbTab !== tab || lbMode !== mode || lbMetric !== metric) return;
+  if (Game.state !== "leaderboard" || lbViewKey() !== view) return;
 
   /* An empty player-centered window is NOT proof of an empty board — a player
      whose first score hasn't been tallied yet has no ranked row to center on
      (exactly the lag this simulation covers). The top page can still place them. */
   if (tab === "nearby" && !res.entries.length && best > 0) {
-    const top = await Leaderboard.getTopScores({ maxResults: 25, mode });
-    if (Game.state !== "leaderboard" || lbTab !== tab || lbMode !== mode || lbMetric !== metric) return;
+    const top = await Leaderboard.getTopScores({ maxResults: 25, mode, char });
+    if (Game.state !== "leaderboard" || lbViewKey() !== view) return;
     list.innerHTML = "";
     if (top.ok) {
       const p = Leaderboard.computeProjection(top.entries, best);
@@ -933,8 +973,7 @@ async function renderLeaderboard() {
   const proj = Leaderboard.computeProjection(res.entries, best);
   list.innerHTML = "";
   if (!res.entries.length && proj.kind !== "insert") {
-    list.innerHTML = "<div class='lb-empty'>" +
-      (mode === "chaos" ? "NO CHAOS RECORDED YET" : mode === "classic" ? "NO CLASSIC SOULS RECORDED YET" : "NO SOULS RECORDED YET") + "</div>";
+    list.innerHTML = "<div class='lb-empty'>" + lbEmptyText(false, mode, char) + "</div>";
     return;
   }
   /* proj.rest = server rows with my stale row filtered out when a simulation is
@@ -943,7 +982,7 @@ async function renderLeaderboard() {
   proj.rest.forEach(e => list.appendChild(lbRow(e, Leaderboard.isMine(e))));
   if (proj.kind === "insert") {
     list.insertBefore(lbSimRow("≈" + proj.rank, best, tag), list.children[proj.index] || null);
-    lbHint(list, hintPENDING);
+    lbHint(list, hintPending);
   } else if (proj.kind === "beyond") {
     /* veiled beats "see around you" — a veiled player is unranked in the public
        collection, so the around-you tab would only show the same simulation */
@@ -953,20 +992,32 @@ async function renderLeaderboard() {
   }
 }
 
-/* repaint the scope + mode buttons (and the mode's skin), then refetch */
+/* repaint the group + mode + warden buttons (and the mode's skin), then refetch */
 function lbSync() {
-  const mode = lbMode;
-  /* Play Games has no CHAOS board, so the tab only exists where it can pay off */
+  lbBuildCharTabs();
+  /* Play Games has no CLASSIC board, so that group only exists where it can pay off */
+  if (lbGroup === "classic" && !Leaderboard.modeSupported("classic")) { lbGroup = "global"; lbMode = "normal"; }
+  if (lbGroup === "global" && lbMode === "chaos" && !Leaderboard.modeSupported("chaos")) lbMode = "normal";
+  /* warden boards are a Firebase feature; a Play Games fallback has no rows to
+     filter, so the selector would only lie about what is on screen */
+  const charBoards = Leaderboard.charSupported(lbMode);
+  if (!charBoards) lbChar = "";
+  const charTabRow = $("lbCharTabs");
+  if (charTabRow) charTabRow.style.display = charBoards ? "" : "none";
+  const group = lbGroup, mode = lbMode;
+  const classicGroup = $("lbGroupClassic");
+  if (classicGroup) classicGroup.style.display = Leaderboard.modeSupported("classic") ? "" : "none";
+  $("lbGroupGlobal").classList.toggle("on", group === "global");
+  if (classicGroup) classicGroup.classList.toggle("on", group === "classic");
+  const modeRow = $("lbModeRow");
+  if (modeRow) modeRow.style.display = group === "classic" ? "none" : "";
   const chaosTab = $("lbModeChaos");
   if (chaosTab) chaosTab.style.display = Leaderboard.modeSupported("chaos") ? "" : "none";
-  const classicTab = $("lbModeClassic");
-  if (classicTab) classicTab.style.display = Leaderboard.modeSupported("classic") ? "" : "none";
-  $("lbTabGlobal").classList.toggle("on", lbTab === "global");
-  $("lbTabNearby").classList.toggle("on", lbTab === "nearby");
-  $("lbModeNormal").classList.toggle("on", mode === "normal");
-  $("lbModeHard").classList.toggle("on", mode === "hard");
-  if (classicTab) classicTab.classList.toggle("on", mode === "classic");
-  if (chaosTab) chaosTab.classList.toggle("on", mode === "chaos");
+  $("lbModeNormal").classList.toggle("on", group === "global" && mode === "normal");
+  $("lbModeHard").classList.toggle("on", group === "global" && mode === "hard");
+  if (chaosTab) chaosTab.classList.toggle("on", group === "global" && mode === "chaos");
+  const charTabs = $("lbCharTabs");
+  if (charTabs) for (const b of charTabs.children) b.classList.toggle("on", (b.dataset.char || "") === lbChar);
   $("lbMetricScore").classList.toggle("on", lbMetric === "score");
   $("lbMetricClear").classList.toggle("on", lbMetric === "clear");
   const list = $("lbList");
@@ -975,15 +1026,32 @@ function lbSync() {
   list.classList.toggle("chaos", mode === "chaos");
   list.classList.toggle("clear", lbMetric === "clear");
   const sub = $("lbSubtitle");
-  const modeName = mode.toUpperCase();
-  sub.textContent = modeName + " · " + (lbMetric === "clear" ? "FASTEST CLEAR · " : "BEST SOULS · ") +
+  const groupName = group === "classic" ? "CLASSIC" : "GLOBAL · " + mode.toUpperCase();
+  const who = lbChar ? lbCharName(lbChar) : "ALL WARDENS";
+  sub.textContent = groupName + " · " + who + " · " +
+    (lbMetric === "clear" ? "FASTEST CLEAR · " : "BEST SOULS · ") +
     (lbTab === "nearby" ? "AROUND YOU" : "GLOBAL TOP");
   /* beats the inline gold style in the markup */
   sub.style.color = mode === "hard" ? "var(--blood)" : mode === "chaos" ? CHAOS_COLOR : mode === "classic" ? "#79d9ff" : "var(--gold)";
   renderLeaderboard();
 }
 function lbShowTab(tab) { lbTab = (tab === "nearby") ? "nearby" : "global"; lbSync(); }
-function lbShowMode(m) { lbMode = (m === "hard" || m === "classic" || m === "chaos") ? m : "normal"; lbSync(); }
+function lbSetGroup(g) {
+  lbGroup = g === "classic" ? "classic" : "global";
+  if (lbGroup === "classic") lbMode = "classic";
+  else if (lbMode === "classic") lbMode = "normal";
+  lbSync();
+}
+function lbShowMode(m) {
+  if (m === "classic") return lbSetGroup("classic");
+  lbGroup = "global";
+  lbMode = (m === "hard" || m === "chaos") ? m : "normal";
+  lbSync();
+}
+function lbShowChar(id) {
+  lbChar = (id && typeof CHARS !== "undefined" && CHARS[id]) ? id : "";
+  lbSync();
+}
 function lbShowMetric(m) { lbMetric = m === "clear" ? "clear" : "score"; lbSync(); }
 
 function openLeaderboard() {
@@ -1001,7 +1069,7 @@ function openLeaderboard() {
   const hint = $("lbDisplayHint"); if (hint) hint.textContent = "";
   setState("leaderboard");
   resetPanelScroll("leaderboardScreen");
-  lbTab = "global"; lbMode = "normal"; lbMetric = "score";    // always land on the normal global score view
+  lbTab = "global"; lbGroup = "global"; lbMode = "normal"; lbChar = ""; lbMetric = "score";    // always land on the normal global score view
   lbSync();
 }
 function closeLeaderboard() { refreshMenu(); setState("menu"); }
@@ -1029,9 +1097,10 @@ $("lbDisplayInput").addEventListener("keydown", e => { if (e.key === "Enter") { 
 
 $("lbTabGlobal").addEventListener("click", () => lbShowTab("global"));
 $("lbTabNearby").addEventListener("click", () => lbShowTab("nearby"));
+$("lbGroupGlobal").addEventListener("click", () => lbSetGroup("global"));
+$("lbGroupClassic").addEventListener("click", () => lbSetGroup("classic"));
 $("lbModeNormal").addEventListener("click", () => lbShowMode("normal"));
 $("lbModeHard").addEventListener("click", () => lbShowMode("hard"));
-$("lbModeClassic").addEventListener("click", () => lbShowMode("classic"));
 $("lbModeChaos").addEventListener("click", () => lbShowMode("chaos"));
 $("lbMetricScore").addEventListener("click", () => lbShowMetric("score"));
 $("lbMetricClear").addEventListener("click", () => lbShowMetric("clear"));

@@ -23,8 +23,16 @@
        chaosClear:  { char, runes },
      }
 
-     Progress transfer uses two tiny side trees (see systems/transfer.js):
+     Per-warden boards live at /charScores/<mode>/<charId>/<auth.uid>:
+       { name, display, place, platform, updatedAt,
+         score, runes, pet, challenge,          // the warden's best souls
+         clearMs, clearRunes, clearPet, clearChallenge }  // their fastest clear
+     The warden is in the path, so each player has one row per warden per mode.
+     If the deployed rules predate this tree, reads fall back to filtering the
+     mode rows by their loadout tag and writes fail quietly; the next run end
+     (or sign-in) re-posts every stored per-warden best once the rules land.
 
+     Progress transfer uses two tiny side trees (see systems/transfer.js):
        /transfers/<CODE> = { v, owner, createdAt, expiresAt, payload }
          a one-time, ten-minute code holding the sender's save as JSON text
 
@@ -54,8 +62,9 @@
         (Already enabled on runegunp.)
      2. Realtime Database → Rules → paste firebase.rules.json (repo root).
         That file is the complete tree: the co-op `rooms` block, the `scores`
-        block, and the `progress` / `transfers` blocks used by progress
-        transfer. Nothing else in the database is used by this game.
+        block, the per-warden `charScores` block, and the `progress` /
+        `transfers` blocks used by progress transfer. Nothing else in the
+        database is used by this game.
      3. Nothing else: the database already backs co-op signaling.
 
    A second NAMED app instance is used on purpose. Co-op calls goOffline()
@@ -69,6 +78,10 @@
 const FirebaseBoard = (() => {
   const APP_NAME = "runegun-scores";      // named app → its own DB connection (see header)
   const SCORES = "scores";
+  /* per-warden boards live in their own tree so the mode boards above stay
+     untouched: /charScores/<mode>/<charId>/<uid> */
+  const CHAR_SCORES = "charScores";
+  const CHAR_MODES = { normal: 1, hard: 1, classic: 1, chaos: 1 };
   const SCORE_CAP = 100000000;            // mirrors the rule; a forged number never leaves the device
   const OP_TIMEOUT_MS = 12000;            // RTDB never fails fast — see the guard below
   const CACHE_MS = 20000;                 // board snapshot reuse across tab taps
@@ -115,6 +128,8 @@ const FirebaseBoard = (() => {
   let signedIn = false;
   let initPromise = null;
   let lastError = null;
+  let displayName = null;                 // mirrored into per-warden rows so both boards agree
+  let charTreeBlocked = false;            // deployed rules predate /charScores → tag-filter fallback
   const cache = {};                       // mode → { rows, at } (CACHE_MS reuse)
 
   function sdk() {
@@ -240,11 +255,54 @@ const FirebaseBoard = (() => {
     return out;
   }
 
+  /* ---- per-warden boards ---- */
+  function charSlot(mode) {
+    const m = slotOf(mode);
+    return CHAR_MODES[m] ? m : null;
+  }
+  function validCharKey(char) {
+    /* RTDB keys cannot contain . # $ [ ] / — reject anything else outright */
+    return typeof char === "string" && /^[A-Za-z0-9_-]{1,24}$/.test(char);
+  }
+  function charRef(mode, char) {
+    return db.ref(CHAR_SCORES + "/" + charSlot(mode) + "/" + char);
+  }
+  function charRowRef(mode, char) { return charRef(mode, char).child(uid); }
+  /* flat loadout fields: the warden is already in the path, so it is not
+     duplicated in the row */
+  function cleanCharTag(tag) {
+    return {
+      runes: (tag && typeof tag.runes === "string") ? tag.runes.slice(0, 96) : "",
+      pet: (tag && typeof tag.pet === "string") ? tag.pet.slice(0, 24) : "",
+      challenge: (tag && typeof tag.challenge === "string") ? tag.challenge.slice(0, 24) : "",
+    };
+  }
+  function cleanClearTag(tag) {
+    return {
+      clearRunes: (tag && typeof tag.runes === "string") ? tag.runes.slice(0, 96) : "",
+      clearPet: (tag && typeof tag.pet === "string") ? tag.pet.slice(0, 24) : "",
+      clearChallenge: (tag && typeof tag.challenge === "string") ? tag.challenge.slice(0, 24) : "",
+    };
+  }
+  function isRulesDenied(e) {
+    const s = String((e && (e.code || e.message)) || e).toLowerCase();
+    return s.indexOf("permission") >= 0 || s.indexOf("denied") >= 0 || s.indexOf("401") >= 0 || s.indexOf("403") >= 0;
+  }
+  function clearCharCache(mode, char) {
+    const slot = charSlot(mode);
+    if (!slot) return;
+    delete cache["char:" + slot + ":" + char];
+    delete cache["char:" + slot + ":" + char + ":clear"];
+    delete cache["charAll:" + slot + ":" + char];
+    delete cache["charAll:" + slot + ":" + char + ":clear"];
+  }
+
   function rowRef() { return db.ref(SCORES + "/" + uid); }
 
   async function ensureRow() {
     const snap = await guard(rowRef().get(), "row");
     const row = (snap && snap.val && snap.val()) || null;
+    displayName = (row && typeof row.display === "string" && row.display) || null;
     if (row && typeof row.name === "string" && row.name) {
       setCallsign(row.name.slice(0, 20));
       return;
@@ -255,6 +313,89 @@ const FirebaseBoard = (() => {
       patch.score = 0; patch.hardScore = 0; patch.classicScore = 0; patch.chaosScore = 0;
     }
     await guard(rowRef().update(patch), "claim");
+  }
+
+  /* ---- per-warden writes ----
+     Same monotonic contract as /scores: a score never decreases, a clear time
+     never increases. The loadout lives in flat fields (runes/pet/challenge for
+     the souls best, clear* for the fastest clear) because the warden is in the
+     path. A rejected write (rules not deployed yet) is swallowed by the caller;
+     the next run end re-posts every stored per-warden best. */
+  async function submitCharScore(mode, char, totalScoreAmount, tag, place, platform) {
+    const slot = charSlot(mode);
+    if (!signedIn || !uid || !slot || !validCharKey(char)) return;
+    const amount = Math.floor(Number(totalScoreAmount) || 0);
+    if (!(amount > 0) || amount > SCORE_CAP) return;
+    const ref = charRowRef(slot, char);
+    let cur = 0;
+    try {
+      const snap = await guard(ref.child("score").get(), "char-best");
+      cur = Number(snap && snap.val && snap.val()) || 0;
+    } catch (e) {}
+    if (amount < cur) return;
+    const patch = { name: ensureCallsign() };
+    if (displayName) patch.display = displayName;
+    if (amount > cur) { patch.score = amount; patch.updatedAt = stamp(); }
+    if (place) patch.place = String(place).slice(0, 80);
+    if (platform) patch.platform = String(platform).slice(0, 40);
+    try {
+      await guard(ref.update(patch), "char-submit");
+      clearCharCache(slot, char);
+    } catch (e) {
+      if (typeof console !== "undefined" && console.warn)
+        console.warn("[runegun] per-warden score was rejected; deploy the charScores rules", (e && e.message) || e);
+      return;
+    }
+    if (tag) {
+      try {
+        await guard(ref.update(cleanCharTag(tag)), "char-tag");
+        clearCharCache(slot, char);
+      } catch (e) {
+        if (typeof console !== "undefined" && console.warn)
+          console.warn("[runegun] per-warden loadout tag was rejected; verify the deployed Firebase rules allow /charScores", (e && e.message) || e);
+      }
+    }
+  }
+
+  async function submitCharClearTime(mode, char, timeMs, place, platform, tag) {
+    const slot = charSlot(mode);
+    if (!signedIn || !uid || !slot || !validCharKey(char)) return;
+    const amount = Math.round(Number(timeMs) || 0);
+    if (!(amount > 0) || amount > 86400000) return;
+    const ref = charRowRef(slot, char);
+    let cur = 0;
+    try {
+      const snap = await guard(ref.child("clearMs").get(), "char-clear-best");
+      cur = Number(snap && snap.val && snap.val()) || 0;
+    } catch (e) {}
+    const better = !(cur > 0) || amount < cur;
+    /* an exact tie can still claim the label on a row that predates clear tags */
+    if (!better && !(cur > 0 && amount === cur && tag)) return;
+    const patch = { name: ensureCallsign() };
+    if (displayName) patch.display = displayName;
+    if (better) {
+      patch.clearMs = amount;
+      patch.updatedAt = stamp();
+      if (place) patch.place = String(place).slice(0, 80);
+      if (platform) patch.platform = String(platform).slice(0, 40);
+    }
+    try {
+      await guard(ref.update(patch), "char-clear-submit");
+      clearCharCache(slot, char);
+    } catch (e) {
+      if (typeof console !== "undefined" && console.warn)
+        console.warn("[runegun] per-warden clear time was rejected; deploy the charScores rules", (e && e.message) || e);
+      return;
+    }
+    if (tag) {
+      try {
+        await guard(ref.update(cleanClearTag(tag)), "char-clear-tag");
+        clearCharCache(slot, char);
+      } catch (e) {
+        if (typeof console !== "undefined" && console.warn)
+          console.warn("[runegun] per-warden clear-time loadout was rejected; verify the deployed Firebase rules allow /charScores", (e && e.message) || e);
+      }
+    }
   }
 
   /* ---- plugin-shaped API ---- */
@@ -281,8 +422,11 @@ const FirebaseBoard = (() => {
   }
 
   /* Accepts optional `place`, `platform` and manual `display` fields during score submission */
-  async function submitScore({ leaderboardID, totalScoreAmount, tag, place, platform, display } = {}) {
+  async function submitScore({ leaderboardID, totalScoreAmount, tag, place, platform, display, char } = {}) {
     if (!signedIn || !uid) return;
+    /* a supplied warden routes the write to /charScores; the overall mode board
+       is posted separately by leaderboard.js */
+    if (char) { await submitCharScore(leaderboardID, char, totalScoreAmount, tag, place, platform); return; }
     const amount = Math.floor(Number(totalScoreAmount) || 0);
     if (!(amount > 0) || amount > SCORE_CAP) return;
     const slot = slotOf(leaderboardID), key = field(slot);
@@ -318,8 +462,10 @@ const FirebaseBoard = (() => {
     }
   }
 
-  async function submitClearTime(mode, timeMs, place, platform, tag) {
-    if (!signedIn || !uid || !CLEAR_FIELDS[mode]) return;
+  async function submitClearTime(mode, timeMs, place, platform, tag, char) {
+    if (!signedIn || !uid) return;
+    if (char) return submitCharClearTime(mode, char, timeMs, place, platform, tag);
+    if (!CLEAR_FIELDS[mode]) return;
     const amount = Math.round(Number(timeMs) || 0);
     if (!(amount > 0) || amount > 86400000) return;
     const key = CLEAR_FIELDS[mode];
@@ -391,6 +537,28 @@ function toEntry(id, row, key, slot, isClearTime) {
     return m + ":" + (s < 10 ? "0" : "") + s.toFixed(3);
   }
 
+  /* a normalized row from the per-warden tree (flat tag fields) */
+  function toCharEntry(id, row, char, isClearTime) {
+    const raw = Math.max(0, Math.floor(Number(row && (isClearTime ? row.clearMs : row.score)) || 0));
+    const preferredName = (row && typeof row.display === "string" && row.display)
+      || (row && typeof row.name === "string" && row.name)
+      || "WARDEN";
+    return {
+      rank: 0,
+      displayName: preferredName,
+      name: preferredName,
+      displayScore: isClearTime ? fmtClearMs(raw) : "",
+      rawScore: raw,
+      playerId: id,
+      place: (row && typeof row.place === "string") ? row.place : "unknown",
+      platform: (row && typeof row.platform === "string") ? row.platform : "",
+      char: char,
+      pet: ((isClearTime ? row && row.clearPet : row && row.pet) || ""),
+      runes: ((isClearTime ? row && row.clearRunes : row && row.runes) || ""),
+      challenge: ((isClearTime ? row && row.clearChallenge : row && row.challenge) || ""),
+    };
+  }
+
   function rankRows(rows, isClearTime) {
     rows.sort((a, b) => (isClearTime ? a.rawScore - b.rawScore : b.rawScore - a.rawScore) ||
       (a.displayName < b.displayName ? -1 : a.displayName > b.displayName ? 1 : 0));
@@ -436,7 +604,75 @@ function toEntry(id, row, key, slot, isClearTime) {
       .filter(row => row.rawScore > 0);
   }
 
-  async function centeredRows(mode, isClearTime, maxResults, targetValue) {
+  /* Per-warden top rows. Rules are deployed asynchronously by a human, so a
+     missing /charScores block (permission denied) must not blank the board:
+     fall back to the legacy mode rows and keep only those whose loadout tag
+     names this warden. A later reload with the new rules uses the real tree. */
+  async function charRowsFor(mode, char, isClearTime = false) {
+    const slot = charSlot(mode);
+    if (!slot || !validCharKey(char)) return [];
+    const key = isClearTime ? "clearMs" : "score";
+    const cacheKey = "char:" + slot + ":" + char + (isClearTime ? ":clear" : "");
+    const now = Date.now();
+    const hit = cache[cacheKey];
+    if (hit && now - hit.at < CACHE_MS) return hit.rows;
+    if (!charTreeBlocked) {
+      try {
+        let query = db.ref(CHAR_SCORES + "/" + slot + "/" + char).orderByChild(key);
+        if (isClearTime) query = query.startAt(1);
+        const snap = await guard((isClearTime ? query.limitToFirst(SCAN_CAP) : query.limitToLast(SCAN_CAP)).get(), "char-top");
+        const val = (snap && snap.val && snap.val()) || {};
+        const rows = Object.keys(val)
+          .map(id => toCharEntry(id, val[id], char, isClearTime))
+          .filter(r => r.rawScore > 0);
+        const ranked = rankRows(rows, isClearTime);
+        cache[cacheKey] = { rows: ranked, at: now };
+        return ranked;
+      } catch (e) {
+        if (!isRulesDenied(e)) throw e;
+        charTreeBlocked = true;
+        if (typeof console !== "undefined" && console.warn)
+          console.warn("[runegun] /charScores is unreadable (rules not deployed?) — per-warden boards fall back to /scores tags");
+      }
+    }
+    const rows = (await allRowsFor(slot, isClearTime))
+      .filter(r => r.char === char)
+      .map(r => ({ ...r }));
+    const ranked = rankRows(rows, isClearTime);
+    cache[cacheKey] = { rows: ranked, at: now };
+    return ranked;
+  }
+
+  async function allCharRowsFor(mode, char, isClearTime = false) {
+    const slot = charSlot(mode);
+    if (!slot || !validCharKey(char)) return [];
+    const cacheKey = "charAll:" + slot + ":" + char + (isClearTime ? ":clear" : "");
+    const hit = cache[cacheKey];
+    if (hit && Date.now() - hit.at < CACHE_MS) return hit.rows;
+    if (!charTreeBlocked) {
+      try {
+        const snap = await guard(charRef(slot, char).get(), "char-around");
+        const value = (snap && snap.val && snap.val()) || {};
+        const rows = Object.keys(value)
+          .map(id => toCharEntry(id, value[id], char, isClearTime))
+          .filter(r => r.rawScore > 0);
+        cache[cacheKey] = { rows, at: Date.now() };
+        return rows;
+      } catch (e) {
+        if (!isRulesDenied(e)) throw e;
+        charTreeBlocked = true;
+        if (typeof console !== "undefined" && console.warn)
+          console.warn("[runegun] /charScores is unreadable (rules not deployed?) — per-warden boards fall back to /scores tags");
+      }
+    }
+    const rows = (await allRowsFor(slot, isClearTime))
+      .filter(r => r.char === char)
+      .map(r => ({ ...r }));
+    cache[cacheKey] = { rows, at: Date.now() };
+    return rows;
+  }
+
+  async function centeredRows(mode, isClearTime, maxResults, targetValue, tag) {
     if (!signedIn || !uid) throw new Error("board-signed-out");
     const slot = slotOf(mode), key = isClearTime ? CLEAR_FIELDS[slot] : field(slot);
     const rows = (await allRowsFor(slot, isClearTime)).map(row => ({ ...row }));
@@ -454,6 +690,11 @@ function toEntry(id, row, key, slot, isClearTime) {
         name: (current && current.name) || callsign || "WARDEN",
         [key]: target,
       };
+      if (current && current.displayName) rowData.display = current.displayName;
+      if (tag) {
+        if (isClearTime) rowData[CLEAR_TAG_FIELDS[slot]] = cleanTag(tag);
+        else rowData[slot] = cleanTag(tag);
+      }
       const virtual = toEntry(uid, rowData, key, slot, isClearTime);
       virtual.pending = true;
       const index = rows.findIndex(row => row.playerId === uid);
@@ -468,29 +709,76 @@ function toEntry(id, row, key, slot, isClearTime) {
     return ranked.slice(Math.max(0, center - half), Math.min(ranked.length, center + half + 1));
   }
 
-  async function loadTopScores({ leaderboardID, maxResults = 25 } = {}) {
-    if (!signedIn) throw new Error("board-signed-out");
-    const rows = await rowsFor(leaderboardID);
-    return { entries: rows.slice(0, Math.max(1, maxResults)).map(r => ({ ...r })) };
-  }
-
-  async function loadTopClearTimes({ leaderboardID, maxResults = 25 } = {}) {
-    if (!signedIn) throw new Error("board-signed-out");
-    const rows = await rowsFor(leaderboardID, true);
-    return { entries: rows.slice(0, Math.max(1, maxResults)).map(r => ({ ...r })) };
-  }
-
-  async function loadPlayerCenteredScores({ leaderboardID, maxResults = 25, targetScore = 0 } = {}) {
-    return { entries: await centeredRows(leaderboardID, false, maxResults, targetScore) };
-  }
-
-  async function loadPlayerCenteredClearTimes({ leaderboardID, maxResults = 25, targetTimeMs = 0 } = {}) {
-    return { entries: await centeredRows(leaderboardID, true, maxResults, targetTimeMs) };
-  }
-
-  async function getUserTotalScore({ leaderboardID } = {}) {
+  async function centeredCharRows(mode, char, isClearTime, maxResults, targetValue, tag) {
     if (!signedIn || !uid) throw new Error("board-signed-out");
-    const snap = await guard(rowRef().child(field(leaderboardID)).get(), "mine");
+    const slot = charSlot(mode);
+    if (!slot || !validCharKey(char)) return [];
+    const rows = (await allCharRowsFor(slot, char, isClearTime)).map(row => ({ ...row }));
+    const current = rows.find(row => row.playerId === uid);
+    const target = Math.round(Number(targetValue) || 0);
+    const better = isClearTime
+      ? target > 0 && (!current || target < current.rawScore)
+      : target > 0 && (!current || target > current.rawScore);
+    if (better && target <= (isClearTime ? 86400000 : SCORE_CAP)) {
+      const rowData = {
+        name: (current && current.name) || callsign || "WARDEN",
+        ...(isClearTime ? { clearMs: target } : { score: target }),
+      };
+      if (current && current.displayName) rowData.display = current.displayName;
+      if (displayName) rowData.display = displayName;
+      if (tag) {
+        const flat = cleanCharTag(tag);
+        if (isClearTime) {
+          rowData.clearRunes = flat.runes; rowData.clearPet = flat.pet; rowData.clearChallenge = flat.challenge;
+        } else {
+          rowData.runes = flat.runes; rowData.pet = flat.pet; rowData.challenge = flat.challenge;
+        }
+      }
+      const virtual = toCharEntry(uid, rowData, char, isClearTime);
+      virtual.pending = true;
+      const index = rows.findIndex(row => row.playerId === uid);
+      if (index >= 0) rows.splice(index, 1);
+      rows.push(virtual);
+    }
+    const ranked = rankRows(rows, isClearTime);
+    const center = ranked.findIndex(row => row.playerId === uid);
+    if (center < 0) return [];
+    const half = Math.max(3, Math.floor((Math.max(1, maxResults) - 1) / 2));
+    return ranked.slice(Math.max(0, center - half), Math.min(ranked.length, center + half + 1));
+  }
+
+  async function loadTopScores({ leaderboardID, maxResults = 25, char } = {}) {
+    if (!signedIn) throw new Error("board-signed-out");
+    const rows = char ? await charRowsFor(leaderboardID, char) : await rowsFor(leaderboardID);
+    return { entries: rows.slice(0, Math.max(1, maxResults)).map(r => ({ ...r })) };
+  }
+
+  async function loadTopClearTimes({ leaderboardID, maxResults = 25, char } = {}) {
+    if (!signedIn) throw new Error("board-signed-out");
+    const rows = char ? await charRowsFor(leaderboardID, char, true) : await rowsFor(leaderboardID, true);
+    return { entries: rows.slice(0, Math.max(1, maxResults)).map(r => ({ ...r })) };
+  }
+
+  async function loadPlayerCenteredScores({ leaderboardID, maxResults = 25, targetScore = 0, tag, char } = {}) {
+    const entries = char
+      ? await centeredCharRows(leaderboardID, char, false, maxResults, targetScore, tag)
+      : await centeredRows(leaderboardID, false, maxResults, targetScore, tag);
+    return { entries };
+  }
+
+  async function loadPlayerCenteredClearTimes({ leaderboardID, maxResults = 25, targetTimeMs = 0, tag, char } = {}) {
+    const entries = char
+      ? await centeredCharRows(leaderboardID, char, true, maxResults, targetTimeMs, tag)
+      : await centeredRows(leaderboardID, true, maxResults, targetTimeMs, tag);
+    return { entries };
+  }
+
+  async function getUserTotalScore({ leaderboardID, char } = {}) {
+    if (!signedIn || !uid) throw new Error("board-signed-out");
+    const ref = char && charSlot(leaderboardID) && validCharKey(char)
+      ? charRowRef(leaderboardID, char).child("score")
+      : rowRef().child(field(leaderboardID));
+    const snap = await guard(ref.get(), "mine");
     return { player_score: Number(snap && snap.val && snap.val()) || 0 };
   }
 
@@ -516,17 +804,18 @@ function toEntry(id, row, key, slot, isClearTime) {
     const value = (display == null ? "" : String(display)).replace(/\s+/g, " ").trim().slice(0, 20);
     if (value) {
       await guard(rowRef().update({ display: value, updatedAt: stamp() }), "display");
+      displayName = value;
       setCallsign(value); // local preferred handle for this session/device
     } else {
       await guard(rowRef().child("display").remove(), "display-clear");
+      displayName = null;
       try {
         const snap = await guard(rowRef().child("name").get(), "name");
         const n = snap && snap.val && typeof snap.val() === "string" ? snap.val() : "";
         if (n) setCallsign(n);
       } catch (e) {}
     }
-    cache.allRows = null;
-    for (const k of ["normal", "hard", "classic", "chaos", "normal:clear", "hard:clear", "classic:clear", "chaos:clear"]) cache[k] = null;
+    clearBoardCaches();
     return value;
   }
 
@@ -559,8 +848,7 @@ function toEntry(id, row, key, slot, isClearTime) {
   }
   function progressRef(id) { return db.ref(PROGRESS + "/" + id); }
   function clearBoardCaches() {
-    for (const k of ["normal", "hard", "classic", "chaos", "normal:clear", "hard:clear", "classic:clear", "chaos:clear"]) cache[k] = null;
-    cache.allRows = null;
+    for (const k in cache) delete cache[k];
   }
 
   /* The ledger is created on first contact. Every later write only touches

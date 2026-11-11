@@ -108,6 +108,10 @@ const Leaderboard = (() => {
   }
   /* True only when Google's own leaderboard overlay can actually be opened. */
   function nativeUI() { return !!pg() && nativeSignedIn; }
+  /* Per-warden boards exist only on the shared online board. */
+  function charSupported(mode) {
+    return !!(fb() && board() === fb() && modeSupported(mode));
+  }
 
   /* ---- Submit stamps: when was THIS best first handed to Play Games? ----
      submitRun re-posts the all-time best at every run end, so a naive "time of
@@ -163,9 +167,10 @@ const Leaderboard = (() => {
     return mobile ? "mobile web" : "web";
   }
 
-  async function submit(id, amount, tag) {
+  async function submit(id, amount, tag, char) {
     const p = board();
     if (!p || !signedIn || !id || !(amount > 0)) return;
+    if (char && p !== fb()) return;   // Play Games has no per-warden boards
     /* Tally-age is a Play Games concept (Google ranks the public collection
         minutes to hours after the write). The Firebase board is live, so its
         rows are never "pending" and need no stamp. */
@@ -179,16 +184,24 @@ const Leaderboard = (() => {
         totalScoreAmount: amount,
         tag,
         place: placeVal, // Automatically submits the environment place
-        platform: submissionPlatform()
+        platform: submissionPlatform(),
+        char: char || null,
       });
     } catch (e) {}
   }
 
-  function submitClearTime(mode, seconds, tag) {
+  function submitClearTime(mode, seconds, tag, char, onlyChar) {
     const provider = fb();
     const timeMs = Math.round(Number(seconds) * 1000);
     if (!provider || board() !== provider || !signedIn || !modeSupported(mode) || !(timeMs > 0)) return;
-    provider.submitClearTime(modeOf(mode), timeMs, submissionPlace(), submissionPlatform(), tag || null).catch(() => {});
+    const place = submissionPlace(), platform = submissionPlatform();
+    /* the overall mode board always gets the time … */
+    if (!onlyChar)
+      provider.submitClearTime(modeOf(mode), timeMs, place, platform, tag || null, null).catch(() => {});
+    /* … and the warden that set it gets its own row */
+    const who = char || (tag && tag.char) || "";
+    if (who && charSupported(mode))
+      provider.submitClearTime(modeOf(mode), timeMs, place, platform, tag || null, who).catch(() => {});
   }
   
   /* Re-post the stored bests the moment sign-in succeeds. A best earned while
@@ -202,6 +215,16 @@ const Leaderboard = (() => {
       const b = bestsFor(mode);
       if (b && b.score > 0) submit(boardId(mode), b.score, tagFor(mode));
       if (b && b.speedSec > 0) submitClearTime(mode, b.speedSec, clearTagFor(mode));
+      /* one row per warden — a signed-out SNIPER best must reach the warden
+         board without waiting for another SNIPER run */
+      const bucket = (Meta.charBests && Meta.charBests[mode]) || null;
+      if (!bucket || !charSupported(mode)) return;
+      for (const char in bucket) {
+        const c = bucket[char];
+        if (!c) continue;
+        if (c.score > 0) submit(boardId(mode), c.score, tagFor(mode, char), char);
+        if (c.speedSec > 0) submitClearTime(mode, c.speedSec, clearTagFor(mode, char), char, true);
+      }
     });
   }
 
@@ -319,6 +342,14 @@ const Leaderboard = (() => {
     const mode = runMode();                    // still holds the run's mode at every run-end sink
     const id = boardId(mode);
     if (id) submit(id, Math.max(Game.score, localBest(mode)), tagFor(mode));
+    /* the same run, on its warden's own board — filed under the warden that
+       actually played, never under the mode-wide record's warden */
+    const live = liveTag();
+    const who = live && live.char;
+    if (who && charSupported(mode)) {
+      const amount = Math.max(Game.score, localBest(mode, who));
+      if (amount > 0) submit(id, amount, tagFor(mode, who) || live, who);
+    }
     syncAchievements();
   }
 
@@ -379,49 +410,64 @@ const Leaderboard = (() => {
     return true;
   }
 
-  /* Global top-N for one mode. */
+  /* A requested warden is honoured only where per-warden boards exist. */
+  function charOpt(opts, mode) {
+    const c = (opts && typeof opts.char === "string") ? opts.char : "";
+    return (c && charSupported(mode)) ? c : "";
+  }
+
+  /* Global top-N for one mode (or one warden's board). */
   async function getTopScores(opts = {}) {
-    const mode = modeOf(opts), maxResults = opts.maxResults || 25;
+    const mode = modeOf(opts), maxResults = opts.maxResults || 25, char = charOpt(opts, mode);
     const p = board(), id = boardId(mode);
     if (!p || !signedIn || !id || typeof p.loadTopScores !== "function") return { ok: false, entries: [] };
-    const key = "top:" + mode;
+    const key = "top:" + mode + (char ? ":" + char : "");
     const forceReload = wantFresh(key);
-    try { return { ok: true, entries: normalizeEntries(await p.loadTopScores({ leaderboardID: id, maxResults, forceReload })) }; }
+    try { return { ok: true, entries: normalizeEntries(await p.loadTopScores({ leaderboardID: id, maxResults, forceReload, char })) }; }
     catch (e) { if (forceReload) lastFresh[key] = -1; return { ok: false, entries: [] }; }
   }
 
   /* Player-centered — your rank plus the neighbours above/below you. */
   async function getNearbyScores(opts = {}) {
-    const mode = modeOf(opts), maxResults = opts.maxResults || 25;
+    const mode = modeOf(opts), maxResults = opts.maxResults || 25, char = charOpt(opts, mode);
     const p = board(), id = boardId(mode);
     if (!p || !signedIn || !id || typeof p.loadPlayerCenteredScores !== "function") return { ok: false, entries: [] };
-    const key = "nearby:" + mode;
+    const key = "nearby:" + mode + (char ? ":" + char : "");
     const forceReload = wantFresh(key);
-    try { return { ok: true, entries: normalizeEntries(await p.loadPlayerCenteredScores({ leaderboardID: id, maxResults, forceReload, targetScore: localBest(mode) })) }; }
+    try {
+      return { ok: true, entries: normalizeEntries(await p.loadPlayerCenteredScores({
+        leaderboardID: id, maxResults, forceReload,
+        targetScore: localBest(mode, char),
+        tag: tagFor(mode, char),
+        char,
+      })) };
+    }
     catch (e) { if (forceReload) lastFresh[key] = -1; return { ok: false, entries: [] }; }
   }
 
   async function getTopClearTimes(opts = {}) {
-    const mode = modeOf(opts), p = board();
+    const mode = modeOf(opts), char = charOpt(opts, mode), p = board();
     if (!p || !signedIn || !modeSupported(mode) || typeof p.loadTopClearTimes !== "function") return { ok: false, entries: [] };
     try {
-      const res = await p.loadTopClearTimes({ leaderboardID: mode, maxResults: opts.maxResults || 25 });
+      const res = await p.loadTopClearTimes({ leaderboardID: mode, maxResults: opts.maxResults || 25, char });
       return { ok: true, entries: normalizeEntries(res) };
     } catch (e) { return { ok: false, entries: [] }; }
   }
 
   async function getNearbyClearTimes(opts = {}) {
-    const mode = modeOf(opts), p = board();
+    const mode = modeOf(opts), char = charOpt(opts, mode), p = board();
     if (!p || !signedIn || !modeSupported(mode) || typeof p.loadPlayerCenteredClearTimes !== "function") return { ok: false, entries: [] };
     try {
-      const best = bestsFor(mode);
+      const best = char ? charBest(mode, char) : bestsFor(mode);
       const targetTimeMs = best && best.speedSec > 0 ? Math.round(best.speedSec * 1000) : 0;
-      const res = await p.loadPlayerCenteredClearTimes({ leaderboardID: mode, maxResults: opts.maxResults || 25, targetTimeMs });
+      const tag = clearTagFor(mode, char);
+      const res = await p.loadPlayerCenteredClearTimes({
+        leaderboardID: mode, maxResults: opts.maxResults || 25, targetTimeMs, tag, char,
+      });
       const entries = normalizeEntries(res);
       /* a local clear that has not reached the server yet is synthesized by the
          provider without a loadout; label it from the saved clear record so the
          pending row does not appear blank */
-      const tag = clearTagFor(mode);
       if (tag) entries.forEach(e => {
         if (!e.pending) return;
         e.char = tag.char; e.pet = tag.pet; e.runes = tag.runes; e.challenge = tag.challenge;
@@ -495,29 +541,52 @@ const Leaderboard = (() => {
     if (m === "classic") return Meta.bestsClassic || null;
     return m === "hard" ? (Meta.bestsHard || null) : (Meta.bests || null);
   }
-  function localBest(mode) {
+  /* The per-warden record for one mode, or null when that warden has none. */
+  function charBest(mode, char) {
+    const m = modeOf(mode);
+    if (!char || typeof Meta === "undefined" || !Meta || !Meta.charBests) return null;
+    const bucket = Meta.charBests[m];
+    return (bucket && bucket[char]) || null;
+  }
+  function localBest(mode, char) {
+    if (char) {
+      const c = charBest(mode, char);
+      return (c && c.score) || 0;
+    }
     const b = bestsFor(mode);
     return (b && b.score) || 0;
   }
   /* The warden + runes (+ pet) behind that record, as captured by recordBests().
      Null when the record predates that capture: the stored char is only the
      default, and labelling an old run with it would be a lie. */
-  function tagFor(mode) {
+  function tagFor(mode, char) {
+    if (char) {
+      const c = charBest(mode, char);
+      if (!c || !(c.score > 0)) return null;
+      const pet = (typeof PTYPES !== "undefined" && PTYPES[c.pet]) ? c.pet : "";
+      return { char, pet, runes: (c.runes || "").slice(0, 96), challenge: (c.challenge || "").slice(0, 24) };
+    }
     const b = bestsFor(mode);
     if (!b || !b.tag) return null;
-    const char = (typeof CHARS !== "undefined" && CHARS[b.char]) ? b.char : (Meta && Meta.char) || "gunsmith";
+    const id = (typeof CHARS !== "undefined" && CHARS[b.char]) ? b.char : (Meta && Meta.char) || "gunsmith";
     const pet = (typeof PTYPES !== "undefined" && PTYPES[b.pet]) ? b.pet : "";
-    return { char, pet, runes: (b.runes || "").slice(0, 96), challenge: (b.challenge || "").slice(0, 24) };
+    return { char: id, pet, runes: (b.runes || "").slice(0, 96), challenge: (b.challenge || "").slice(0, 24) };
   }
   /* The loadout behind the fastest clear — a different record from the souls
      best, and captured in its own fields so the two can never borrow each
      other's warden. Null when that clear predates this capture. */
-  function clearTagFor(mode) {
+  function clearTagFor(mode, char) {
+    if (char) {
+      const c = charBest(mode, char);
+      if (!c || !(c.speedSec > 0)) return null;
+      const pet = (typeof PTYPES !== "undefined" && PTYPES[c.clearPet]) ? c.clearPet : "";
+      return { char, pet, runes: (c.clearRunes || "").slice(0, 96), challenge: (c.clearChallenge || "").slice(0, 24) };
+    }
     const b = bestsFor(mode);
     if (!b || !b.clearTag) return null;
-    const char = (typeof CHARS !== "undefined" && CHARS[b.clearChar]) ? b.clearChar : (Meta && Meta.char) || "gunsmith";
+    const id = (typeof CHARS !== "undefined" && CHARS[b.clearChar]) ? b.clearChar : (Meta && Meta.char) || "gunsmith";
     const pet = (typeof PTYPES !== "undefined" && PTYPES[b.clearPet]) ? b.clearPet : "";
-    return { char, pet, runes: (b.clearRunes || "").slice(0, 96), challenge: (b.clearChallenge || "").slice(0, 24) };
+    return { char: id, pet, runes: (b.clearRunes || "").slice(0, 96), challenge: (b.clearChallenge || "").slice(0, 24) };
   }
   /* The live loadout, read at the instant a descent is completed. Submitted with
      the time so the clear row names the warden that actually set it. */
@@ -707,7 +776,7 @@ const Leaderboard = (() => {
 
   return { available, init, submitRun, submitClearTime, setDisplayName, show, syncMenuButton, syncAchievements,
            getTopScores, getNearbyScores, getTopClearTimes, getNearbyClearTimes, myPlayerId, myName,
-           localBest, tagFor, clearTagFor, liveTag, isMine, computeProjection, getProjectedRank, getProjectedClearRank,
+           localBest, charBest, charSupported, tagFor, clearTagFor, liveTag, isMine, computeProjection, getProjectedRank, getProjectedClearRank,
            getMyServerScore, isLikelyHidden, modeSupported,
            transferAvailable, createTransfer, fetchTransfer, consumeTransfer, redeemTransfer, transferStatus, adoptCallsign,
            nativeUI, submissionPlace, submissionPlatform, backend: () => BOARD_BACKEND };

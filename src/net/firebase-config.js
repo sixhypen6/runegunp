@@ -8,8 +8,8 @@
    1. Build → Realtime Database → Rules → paste firebase.rules.json (repo root).
       That file is the complete tree: the co-op `rooms` block, the public
       `open` gate board the BROWSE view reads, the leaderboard `scores`
-      block, and the `console/coop` digest the host-only console gate
-      reads. Nothing else in the database is used.
+      block, the per-warden `charScores` block, and the `console/coop` digest
+      the host-only console gate reads. Nothing else in the database is used.
    2. Build → Authentication → Sign-in method → Anonymous → Enable.
       Without it sign-in fails with CONFIGURATION_NOT_FOUND and the
       LEADERBOARDS button simply never appears (everything else works).
