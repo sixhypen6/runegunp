@@ -37,6 +37,8 @@ const SINNER_REACH_BASE = 78;
 const SINNER_HALF_ARC = 1.05;
 const SINNER_SLASH_LIFE = 0.24;    // one swing, from the first cut to the last spark
 const SINNER_SWEEP_SHARE = 0.45;   // share of the swing spent travelling left → right
+const MELEE_TWIN_GAP = 34;          // px between the Passenger's parallel cut lanes
+const MELEE_TWIN_HALF = 0.22;       // how narrow each twin lane's cut is (radians)
 
 function warpAuthority() {
   return typeof reanimatorAuthority === "function" ? reanimatorAuthority()
@@ -224,8 +226,9 @@ function warpLineDamage(p, x1, y1, x2, y2, width, dmg) {
    MELEE — two tear-blades; called from spawnShot
    --------------------------------------------------------- */
 /* one blade's cut: a short forward arc, tested against the horde (and a rival) */
-function sinnerSlashArc(p, x, y, aim, halfArc, reach) {
+function sinnerSlashArc(p, x, y, aim, halfArc, reach, dmg) {
   const m = p.mods;
+  const bite = dmg === undefined ? meleeBite(m) : dmg;
   for (const e of enemies) {
     if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p") continue;
     const dx = e.x - x, dy = e.y - y;
@@ -234,7 +237,7 @@ function sinnerSlashArc(p, x, y, aim, halfArc, reach) {
     delta = Math.atan2(Math.sin(delta), Math.cos(delta));
     if (Math.abs(delta) > halfArc) continue;
     const crit = m.crit > 0 && Math.random() < m.crit;
-    damageEnemy(e, m.dmg * (crit ? m.critMul : 1), {
+    damageEnemy(e, bite * (crit ? m.critMul : 1), {
       owner: p, x, y, knock: m.knock, melee: true, critHit: crit,
     });
     if (!e.dead && m.bleed > 0) {
@@ -252,7 +255,7 @@ function sinnerSlashArc(p, x, y, aim, halfArc, reach) {
     delta = Math.atan2(Math.sin(delta), Math.cos(delta));
     if (Math.abs(delta) > halfArc) continue;
     const crit = m.crit > 0 && Math.random() < m.crit;
-    hurtPlayer(foe, m.dmg * (crit ? m.critMul : 1), { x, y, knock: m.knock });
+    hurtPlayer(foe, bite * (crit ? m.critMul : 1), { x, y, knock: m.knock });
   }
 }
 /* the sweep's bite is purple violence; the trail is thrown along the cut */
@@ -268,15 +271,64 @@ function sinnerSlashTrail(x, y, aim, reach, amount) {
 }
 function sinnerSlash(p, x, y, aim) {
   const m = p.mods;
+  const bite = meleeBite(m);
   const reach = SINNER_REACH_BASE + Math.max(0, (m.size || 4) - 4) * 0.75;
+  const arcs = Math.max(1, m.meleeArcs || 1);
+  const twin = Math.max(0, m.meleeTwin || 0);
+  const mirror = Math.max(0, m.meleeMirror || 0);
+  /* SCATTER widens the whole sweep; the wedges tile that wider arc */
+  const totalHalf = SINNER_HALF_ARC + Math.max(0, m.meleeSpread || 0);
+  const wedge = totalHalf / arcs;
   p.sinnerSlashT = SINNER_SLASH_LIFE;
   p.sinnerSlashAng = aim;
   p.sinnerSlashReach = reach;
   /* two arms: the pair sweeps left → right on one swing, right → left on the next */
   p.sinnerSlashDir = Math.random() < 0.5 ? -1 : 1;
   p.sinnerSlash2T = 0;
-  sinnerSlashArc(p, x, y, aim, SINNER_HALF_ARC, reach);
-  sinnerSlashTrail(x, y, aim, reach, 9);
+  p.sinnerSlashLanes = null;
+  const dir = p.sinnerSlashDir;
+  /* the base sweep: one cut, or a fan of wedges under SCATTER */
+  for (let i = 0; i < arcs; i++) {
+    const a = arcs === 1 ? aim : aim + (-totalHalf + wedge * (2 * i + 1));
+    sinnerSlashArc(p, x, y, a, arcs === 1 ? totalHalf : wedge, reach, bite);
+  }
+  sinnerSlashTrail(x, y, aim, reach, arcs === 1 ? 9 : Math.min(9, 4 + arcs));
+  /* extra cuts need their own crescents; the plain swing keeps its old two-arm look */
+  if (arcs > 1 || twin || mirror) {
+    p.sinnerSlashLanes = [];
+    for (let i = 0; i < arcs; i++) {
+      const a = arcs === 1 ? aim : aim + (-totalHalf + wedge * (2 * i + 1));
+      p.sinnerSlashLanes.push({
+        dx: 0, dy: 0, ang: a, scale: (arcs === 1 ? totalHalf : wedge) / SINNER_HALF_ARC,
+        delay: i * 0.012, alpha: 1, dir,
+      });
+    }
+    /* TWIN: parallel cut lanes, offset to either side. Full bite each; the lanes
+       are narrow, so a small foe only crosses the lane it actually stands in. */
+    const perpX = Math.cos(aim + Math.PI / 2), perpY = Math.sin(aim + Math.PI / 2);
+    for (let i = 0; i < twin; i++) {
+      const side = i % 2 === 0 ? 1 : -1;
+      const off = MELEE_TWIN_GAP * (Math.floor(i / 2) + 1) * side;
+      const ox = x + perpX * off, oy = y + perpY * off;
+      sinnerSlashArc(p, ox, oy, aim, MELEE_TWIN_HALF, reach, bite);
+      p.sinnerSlashLanes.push({
+        dx: perpX * off, dy: perpY * off, ang: aim,
+        scale: MELEE_TWIN_HALF / SINNER_HALF_ARC, delay: 0.02 + i * 0.012,
+        alpha: 0.75, dir, cheap: true,
+      });
+      sinnerSlashTrail(ox, oy, aim, reach, 4);
+    }
+    /* MIRROR: the second blade cuts behind you */
+    const backHalf = SINNER_HALF_ARC * 0.8;
+    for (let i = 0; i < mirror; i++) {
+      sinnerSlashArc(p, x, y, aim + Math.PI, backHalf, reach * 0.9, bite * (m.mirrorDmg || 1));
+      p.sinnerSlashLanes.push({
+        dx: 0, dy: 0, ang: aim + Math.PI, scale: backHalf / SINNER_HALF_ARC,
+        delay: 0.03 + i * 0.012, alpha: 0.7, dir: -dir, cheap: true,
+      });
+      sinnerSlashTrail(x, y, aim + Math.PI, reach * 0.9, 4);
+    }
+  }
   return true;
 }
 /* PHASE / BLINKSTEP on the Passenger: the dash cuts twice — both tear-blades
@@ -285,6 +337,7 @@ function sinnerPhaseDash(p) {
   if (!p || p.char !== "sinner" || !p.mods || !(p.mods.dashTrail > 0)) return false;
   const m = p.mods;
   const aim = p.dashAng;
+  const bite = meleeBite(m);
   const reach = SINNER_REACH_BASE + Math.max(0, (m.size || 4) - 4) * 0.75;
   const spread = 0.42;
   const halfArc = SINNER_HALF_ARC * 0.72;
@@ -292,9 +345,10 @@ function sinnerPhaseDash(p) {
   p.sinnerSlashDir = 1;
   p.sinnerSlash2T = SINNER_SLASH_LIFE; p.sinnerSlash2Ang = aim + spread;
   p.sinnerSlash2Dir = -1;
+  p.sinnerSlashLanes = null;   // the crossed pair owns this swing
   /* each blade cuts once, so a horror held in the crossing takes both */
-  sinnerSlashArc(p, p.x, p.y, aim - spread, halfArc, reach);
-  sinnerSlashArc(p, p.x, p.y, aim + spread, halfArc, reach);
+  sinnerSlashArc(p, p.x, p.y, aim - spread, halfArc, reach, bite);
+  sinnerSlashArc(p, p.x, p.y, aim + spread, halfArc, reach, bite);
   sinnerSlashTrail(p.x, p.y, aim - spread, reach, 7);
   sinnerSlashTrail(p.x, p.y, aim + spread, reach, 7);
   Game.shake = Math.max(Game.shake, 3);
@@ -369,7 +423,7 @@ function warpShredStep(p, dt) {
     /* the seam is cut between the two rift CENTRES, straight through the foe */
     warpSlash(hop.entry.x, hop.entry.y, hop.exit.x, hop.exit.y, p);
     warpLineDamage(p, hop.entry.x, hop.entry.y, hop.exit.x, hop.exit.y,
-      WARP_SLASH_WIDTH, m.dmg * WARP_SLASH_MUL);
+      WARP_SLASH_WIDTH, meleeBite(m) * WARP_SLASH_MUL);
     warpCutSparks(hop.entry, hop.exit);
     Game.shake = Math.max(Game.shake, 5);
     AudioFX.hit();
@@ -406,7 +460,7 @@ function warpShredStep(p, dt) {
   p.warpPortalCd = 0.5;
   warpGrantRush(p, 1);
   warpSlash(a.x, a.y, b.x, b.y, p);
-  warpLineDamage(p, a.x, a.y, b.x, b.y, WARP_SLASH_WIDTH, m.dmg * WARP_SLASH_MUL);
+  warpLineDamage(p, a.x, a.y, b.x, b.y, WARP_SLASH_WIDTH, meleeBite(m) * WARP_SLASH_MUL);
   warpCutSparks(a, b);
   Game.shake = Math.max(Game.shake, 5);
   AudioFX.hit();
@@ -450,7 +504,7 @@ function warpRide(p) {
     p.warpPortalCd = 0.5;
     warpGrantRush(p, 1);
     warpSlash(o.x, o.y, twin.x, twin.y, p);
-    warpLineDamage(p, twin.x, twin.y, twin.x, twin.y, 44, p.mods.dmg * 0.9);
+    warpLineDamage(p, twin.x, twin.y, twin.x, twin.y, 44, meleeBite(p.mods) * 0.9);
     Game.shake = Math.max(Game.shake, 3);
     AudioFX.dash();
     break;
@@ -464,7 +518,7 @@ function warpContact(p, dt) {
   if (p.warpContactT > 0) return;
   p.warpContactT = WARP_CONTACT_TICK;
   const m = p.mods;
-  const dmg = m.dmg * (WARP_CONTACT_BASE + WARP_CONTACT_PER_STACK * warpStacks(p)) * p.warpSpeedStacks;
+  const dmg = meleeBite(m) * (WARP_CONTACT_BASE + WARP_CONTACT_PER_STACK * warpStacks(p)) * p.warpSpeedStacks;
   warpLineDamage(p, p.x, p.y, p.x, p.y, p.r + 22, dmg);
 }
 
@@ -676,20 +730,37 @@ function drawWarpSlashes() {
    for one arm, right to left for the other — so the blade clears air in front
    of the Passenger instead of blooming there all at once.
    `k` runs 0 → 1 across the cut's life; `dir` is +1 (left → right) or -1. */
-function drawSinnerSlashArc(px, py, ang, reach, k, alpha, dir) {
-  const span = SINNER_HALF_ARC * 0.85;
+function drawSinnerSlashArc(px, py, ang, reach, k, alpha, dir, arcScale, cheap) {
+  const scale = arcScale || 1;
+  const span = SINNER_HALF_ARC * 0.85 * scale;
   const sweepT = SINNER_SWEEP_SHARE;
   const prog = k < sweepT ? k / sweepT : 1;
   const d = dir < 0 ? -1 : 1;
   const start = d > 0 ? -span : span;
   const end = -start;
   const head = start + (end - start) * prog;
-  const trail = 1.7 * (1 - 0.35 * prog);
+  const trail = 1.7 * scale * (1 - 0.35 * prog);
   const tail = d > 0 ? Math.max(start, head - trail) : Math.min(start, head + trail);
   const linger = k < sweepT ? 1 : 1 - (k - sweepT) / (1 - sweepT);
   const fade = alpha * Math.pow(Math.max(0, linger), 0.75);
   if (fade <= 0.01 || Math.abs(head - tail) < 0.02) return;
   const R = reach * (0.9 + 0.1 * prog);
+  /* the extra lanes only need a bright stroke — the full layered crescent is
+     reserved for the main sweep, so a six-TWIN swing stays cheap to draw */
+  if (cheap) {
+    cx.save();
+    cx.translate(px, py);
+    cx.rotate(ang);
+    cx.globalAlpha = fade * 0.9;
+    cx.strokeStyle = "#e2b6ff";
+    cx.lineWidth = 2.4;
+    cx.shadowColor = "#c86bff"; cx.shadowBlur = 9;
+    cx.beginPath();
+    cx.arc(0, 0, R, Math.min(head, tail), Math.max(head, tail));
+    cx.stroke();
+    cx.restore();
+    return;
+  }
   const SEG = 9;
   cx.save();
   cx.translate(px, py);
@@ -818,10 +889,18 @@ function drawSinnerWarden(P, px, py, aim, col, tint, hpFrac) {
   /* the swing — a crescent of light that travels across the facing */
   const reach = P.sinnerSlashReach || SINNER_REACH_BASE;
   if (P.sinnerSlashT > 0) {
-    const k = clamp(1 - P.sinnerSlashT / SINNER_SLASH_LIFE, 0, 1);
     const dir = P.sinnerSlashDir < 0 ? -1 : 1;
-    drawSinnerSlashArc(px, py, P.sinnerSlashAng - 0.24, reach, k, 1, dir);
-    drawSinnerSlashArc(px, py, P.sinnerSlashAng + 0.24, reach, Math.max(0, k - 0.07), 0.8, dir);
+    if (P.sinnerSlashLanes && P.sinnerSlashLanes.length) {
+      for (const L of P.sinnerSlashLanes) {
+        const k = clamp(1 - (P.sinnerSlashT - (L.delay || 0)) / SINNER_SLASH_LIFE, 0, 1);
+        drawSinnerSlashArc(px + (L.dx || 0), py + (L.dy || 0), L.ang, reach, k,
+          L.alpha == null ? 1 : L.alpha, L.dir == null ? dir : L.dir, L.scale || 1, !!L.cheap);
+      }
+    } else {
+      const k = clamp(1 - P.sinnerSlashT / SINNER_SLASH_LIFE, 0, 1);
+      drawSinnerSlashArc(px, py, P.sinnerSlashAng - 0.24, reach, k, 1, dir);
+      drawSinnerSlashArc(px, py, P.sinnerSlashAng + 0.24, reach, Math.max(0, k - 0.07), 0.8, dir);
+    }
   }
   if (P.sinnerSlash2T > 0) {
     const k = clamp(1 - P.sinnerSlash2T / SINNER_SLASH_LIFE, 0, 1);

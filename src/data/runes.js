@@ -496,11 +496,27 @@ const SNIPER_PUNCTURE_RUNE = Object.assign({}, RUNES.puncture, {
 const SINNER_PHASE_RUNE = Object.assign({}, RUNES.phase, {
   desc: "The Passenger's dash cuts twice: both tear-blades sweep the line in a crossing pair of slashes, each carrying PHASE's bleed and elemental wake. Stacks shorten the dash and sharpen the wake it leaves behind.",
 });
+/* SCATTER / TWIN / MIRROR as a blade reads them (meleeWeaponMods). */
+const SINNER_SCATTER_RUNE = Object.assign({}, RUNES.scatter, {
+  desc: "The sweep widens and splits into a fan of cuts. Each cut carries the blade's full bite — the fan covers more of the room without ever softening the edge.",
+});
+const SINNER_TWIN_RUNE = Object.assign({}, RUNES.twin, {
+  desc: "One more parallel cut per stack, sweeping beside the first. Each lane strikes at full bite; a small foe only crosses the lane it lines up with, while a pack or a flanker can eat several at once.",
+});
+const SINNER_MIRROR_RUNE = Object.assign({}, RUNES.mirror, {
+  desc: "The second blade cuts behind you — one rear sweep per stack, at full bite, for whatever thought it had your back.",
+});
 function runeDefFor(p, id) {
   if (p.char === "sancho" && id === "phase")
     return Object.assign({}, RUNES.phase, { color: PHASE_SANCHO_COLOR });
   /* the Passenger's dash is two blades, not a trailing cut */
   if (p.char === "sinner" && id === "phase") return SINNER_PHASE_RUNE;
+  /* a blade answers the projectile runes with cuts, not pellets */
+  if (usesMeleeRuneRemap(p)) {
+    if (id === "scatter") return SINNER_SCATTER_RUNE;
+    if (id === "twin") return SINNER_TWIN_RUNE;
+    if (id === "mirror") return SINNER_MIRROR_RUNE;
+  }
   /* the SHREDDER has no trigger to fire venom through, so its card has to
      describe what the blade does instead (see SAW_VENOM_RUNE) */
   if (p.char === "shredder" && id === "venom") return SAW_VENOM_RUNE;
@@ -526,6 +542,10 @@ function runePool(p) {
   if (p.char !== "john") ids = ids.filter(id => id !== "runegun");
   /* the SNIPER's whole kit is the single patient shot — the fan would undo it */
   if (p.char === "sniper") ids = ids.filter(id => id !== "scatter");
+  /* a cut already reaches every body in its arc and cannot bounce or home —
+     these three have no blade reading, so a melee warden is never offered them */
+  if (usesMeleeRuneRemap(p))
+    ids = ids.filter(id => id !== "pierce" && id !== "ricochet" && id !== "seeker");
   if (!(p.runes && p.runes.bleed > 0)) ids = ids.filter(id => id !== "vampire");
   return ids;
 }
@@ -623,6 +643,47 @@ function checkRuneLock(p) {
 /* Sancho's bow fires a tight pair, not a fan — a narrow arc keeps both arrows
    on the horror she is actually aiming at. */
 const SANCHO_BOW_SPREAD = 0.018;
+
+/* ---- melee rune remap ----
+   A blade swing is one blow that covers a cone, not a bullet that may miss.
+   The projectile runes still answer, but in the blade's own terms: SCATTER fans
+   the sweep into more cuts, TWIN adds parallel cut lanes, MIRROR cuts behind.
+   PIERCE / RICOCHET / SEEKER have no honest reading on a swing (the arc already
+   reaches every body in it and cannot bounce or home), so they are kept out of a
+   melee warden's offers in runePool(). */
+const MELEE_SCATTER_CAP = 5;   // most wedges one swing can read before it turns to mush
+const MELEE_TWIN_CAP = 6;      // same parallel ceiling as the gun
+const MELEE_MIRROR_CAP = 3;    // rear cuts stay a flourish, not a second gun
+function usesMeleeRuneRemap(p) {
+  if (!p) return false;
+  const c = CHARS[p.char];
+  if (!c || !c.melee) return false;
+  /* SANCHO may take up the bow; her cards must keep the gun reading so one
+     build still makes sense in both stances. Pure melee wardens (and future
+     ones carrying `melee: true`) inherit the remap. */
+  return p.char !== "sancho";
+}
+/* the blade's undivided bite — SCATTER's per-pellet softener is a projectile
+   concern and must never weaken the edge (cf. the SHREDDER's sawDmg). */
+function meleeBite(m) {
+  return m && m.meleeDmg !== undefined ? m.meleeDmg : (m ? m.dmg : 0);
+}
+function meleeWeaponMods(m, runes, p, baseSpread) {
+  m.meleeDmg = m.dmg / (m.scatterSplit || 1);
+  /* SCATTER: each pellet becomes a wedge in a wider sweep. Past the readable
+     cap the extra cuts fold back into the blade, so deep stacks still pay. */
+  const arcs = Math.max(1, Math.round(m.count || 1));
+  m.meleeArcs = Math.min(arcs, MELEE_SCATTER_CAP);
+  /* only spread the RUNES added widens the sweep — the gun's resting spread is
+     already part of the base arc and must not read as a bonus */
+  m.meleeSpread = Math.min(0.5, Math.max(0, (m.spread || 0) - (baseSpread == null ? 0.055 : baseSpread)) * 0.8);
+  const extra = Math.max(0, arcs - m.meleeArcs);
+  if (extra) m.meleeDmg *= 1 + extra * 0.06;
+  /* TWIN: one parallel cut lane per stack, each at full bite */
+  m.meleeTwin = Math.min(Math.round(m.twin || 0), MELEE_TWIN_CAP);
+  /* MIRROR: one rear cut per stack, sharing the gun's curved damage once it piles up */
+  m.meleeMirror = Math.min(Math.round(m.mirror || 0), MELEE_MIRROR_CAP);
+}
 function buildWeaponModsFrom(runes, p) {
   const m = { dmg: 10, rate: 4.5, spread: 0.055, speed: 540, size: 4, count: 1,
     pierce: 0, bounce: 0, homing: 0, knock: 60, twin: 0, mirror: 0, mirrorDmg: 1,
@@ -649,6 +710,9 @@ function buildWeaponModsFrom(runes, p) {
     else if (stage === 2) Object.assign(m, { dmg: 18, rate: 5.2, size: 20, speed: 400, knock: 100 });
     else Object.assign(m, { dmg: 12 + (p.sanchoBonusDmg || 0), rate: 4.5, size: 16, speed: 400, knock: 80 });
   }
+  /* the weapon's resting spread before any rune speaks — a melee remap measures
+     its sweep bonus from here (see meleeWeaponMods) */
+  const baseSpread = m.spread;
   for (const id in runes) {
     const n = runes[id];
     if (n > 0) { const rd = runeDefFor(p, id); if (rd) rd.mod(m, n, p); }
@@ -697,6 +761,8 @@ function buildWeaponModsFrom(runes, p) {
        the undivided figure. */
     m.sawDmg = m.dmg / (m.scatterSplit || 1);
   }
+  /* blades read the projectile runes in their own terms (see meleeWeaponMods) */
+  if (usesMeleeRuneRemap(p)) meleeWeaponMods(m, runes, p, baseSpread);
   return m;
 }
 
@@ -711,19 +777,29 @@ function runeStatLines(p, id) {
   const L = [];
   const mul = r => (r >= 1 ? "+" : "\u2212") + Math.round(Math.abs(r - 1) * 100) + "%";
   const di = (a, b) => Math.round(a - b);
-  if (Math.abs(full.dmg / w.dmg - 1) > 0.005) L.push("DAMAGE " + mul(full.dmg / w.dmg));
+  const melee = usesMeleeRuneRemap(p);
+  const bite = o => melee ? meleeBite(o) : o.dmg;
+  if (Math.abs(bite(full) / bite(w) - 1) > 0.005) L.push((melee ? "BLADE " : "") + "DAMAGE " + mul(bite(full) / bite(w)));
   if (Math.abs(full.rate / w.rate - 1) > 0.005) L.push("FIRE RATE " + mul(full.rate / w.rate));
-  if (full.count !== w.count) L.push("+" + di(full.count, w.count) + " BULLETS PER SHOT");
-  if (full.twin !== w.twin) L.push("+" + di(full.twin, w.twin) + " PARALLEL SHOT");
-  if (full.mirror !== w.mirror) L.push("+" + di(full.mirror, w.mirror) + " REAR SHOT" +
-    (full.mirrorDmg < 0.995 ? " AT " + Math.round(full.mirrorDmg * 100) + "% DMG" : ""));
-  if (Math.abs(full.spread - w.spread) > 0.001) L.push("SPREAD +" + Math.round((full.spread - w.spread) * 57) + "\u00b0");
-  if (Math.abs(full.size / w.size - 1) > 0.005) L.push("BULLET SIZE " + mul(full.size / w.size));
-  if (Math.abs(full.speed / w.speed - 1) > 0.005) L.push("BULLET SPEED " + mul(full.speed / w.speed));
-  if (full.pierce !== w.pierce) L.push("+" + di(full.pierce, w.pierce) + " PIERCE");
-  if (full.bounce !== w.bounce) L.push("+" + di(full.bounce, w.bounce) + " BOUNCE");
+  if (melee) {
+    if (full.meleeArcs !== w.meleeArcs) L.push("+" + di(full.meleeArcs, w.meleeArcs) + " CUTS IN THE SWEEP");
+    if (full.meleeTwin !== w.meleeTwin) L.push("+" + di(full.meleeTwin, w.meleeTwin) + " PARALLEL CUT");
+    if (full.meleeMirror !== w.meleeMirror) L.push("+" + di(full.meleeMirror, w.meleeMirror) + " REAR CUT" +
+      (full.mirrorDmg < 0.995 ? " AT " + Math.round(full.mirrorDmg * 100) + "% DMG" : ""));
+    if (Math.abs(full.meleeSpread - w.meleeSpread) > 0.001) L.push("SWEEP +" + Math.round((full.meleeSpread - w.meleeSpread) * 57) + "\u00b0");
+  } else {
+    if (full.count !== w.count) L.push("+" + di(full.count, w.count) + " BULLETS PER SHOT");
+    if (full.twin !== w.twin) L.push("+" + di(full.twin, w.twin) + " PARALLEL SHOT");
+    if (full.mirror !== w.mirror) L.push("+" + di(full.mirror, w.mirror) + " REAR SHOT" +
+      (full.mirrorDmg < 0.995 ? " AT " + Math.round(full.mirrorDmg * 100) + "% DMG" : ""));
+    if (Math.abs(full.spread - w.spread) > 0.001) L.push("SPREAD +" + Math.round((full.spread - w.spread) * 57) + "\u00b0");
+  }
+  if (Math.abs(full.size / w.size - 1) > 0.005) L.push((melee ? "REACH " : "BULLET SIZE ") + mul(full.size / w.size));
+  if (!melee && Math.abs(full.speed / w.speed - 1) > 0.005) L.push("BULLET SPEED " + mul(full.speed / w.speed));
+  if (!melee && full.pierce !== w.pierce) L.push("+" + di(full.pierce, w.pierce) + " PIERCE");
+  if (!melee && full.bounce !== w.bounce) L.push("+" + di(full.bounce, w.bounce) + " BOUNCE");
   if (Math.abs(full.knock / w.knock - 1) > 0.005) L.push("KNOCKBACK " + mul(full.knock / w.knock));
-  if (full.homing !== w.homing) L.push("HOMING PULL " + full.homing.toFixed(1));
+  if (!melee && full.homing !== w.homing) L.push("HOMING PULL " + full.homing.toFixed(1));
   /* the SHREDDER's blade reads the same runes differently — show what they do to the saw */
   if (full.sawReach !== undefined && Math.abs(full.sawReach - w.sawReach) > 0.05) {
     const sd = full.sawReach - w.sawReach;

@@ -18,11 +18,17 @@ function resetPanelScroll(id) {
 function renderHeld(gunEl = "gunLine", gridEl = "heldGrid", petEl = null) {
   const p = localPlayer();
   const m = buildWeaponModsFrom(p.runes, p);
+  const melee = usesMeleeRuneRemap(p);
+  const cuts = (m.meleeArcs || 1) + (m.meleeTwin || 0) + (m.meleeMirror || 0);
   const basicLine =
-    "DMG <span>" + Math.round(m.dmg) + "</span> · RATE <span>" + m.rate.toFixed(1) + "/s</span>" +
-    " · SHOT <span>×" + (m.count * (1 + m.twin) * (1 + m.mirror)) + "</span> · SPREAD <span>" + Math.round(m.spread * 57) + "°</span>" +
-    (m.pierce ? " · PIERCE <span>" + m.pierce + "</span>" : "") +
-    (m.bounce ? " · BOUNCE <span>" + m.bounce + "</span>" : "") +
+    (melee
+      ? "DMG <span>" + Math.round(meleeBite(m)) + "</span> · RATE <span>" + m.rate.toFixed(1) + "/s</span>" +
+        " · CUTS <span>×" + cuts + "</span>" +
+        (m.meleeSpread > 0 ? " · SWEEP <span>+" + Math.round(m.meleeSpread * 57) + "°</span>" : "")
+      : "DMG <span>" + Math.round(m.dmg) + "</span> · RATE <span>" + m.rate.toFixed(1) + "/s</span>" +
+        " · SHOT <span>×" + (m.count * (1 + m.twin) * (1 + m.mirror)) + "</span> · SPREAD <span>" + Math.round(m.spread * 57) + "°</span>") +
+    (!melee && m.pierce ? " · PIERCE <span>" + m.pierce + "</span>" : "") +
+    (!melee && m.bounce ? " · BOUNCE <span>" + m.bounce + "</span>" : "") +
     (m.sawDmg ? " · SAW <span>" + Math.round(m.sawDmg * (m.rate / 5) * (m.shredDmgMul || 1)) + "</span>" : "") +
     (m.moveMul > 1 ? " · SPEED <span>+" + Math.round((m.moveMul - 1) * 100) + "%</span>" : "") +
     (m.shieldMax ? " · SHIELD <span>" + m.shieldMax + "× / " + m.shieldDmg + "</span>" : "") +
@@ -37,10 +43,13 @@ function renderHeld(gunEl = "gunLine", gridEl = "heldGrid", petEl = null) {
     ? "<br><span class='advanced-stat-line'>" + c.name + " · HP " + c.hp + " → " + p.maxHp +
       " · MOVE " + c.speed.toFixed(2) + " → " + p.speed.toFixed(2) + " px/s · DASH " + p.dashCdBase.toFixed(3) +
       "s / " + p.dashDur.toFixed(3) + "s / " + p.dashSpeed.toFixed(1) + " px/s" +
-      "<br>GUN · DMG " + m.dmg.toFixed(3) + " · RATE " + m.rate.toFixed(3) + "/s · BULLETS " +
-      (m.count * (1 + m.twin) * (1 + m.mirror)).toFixed(2) + " · SPREAD " + (m.spread * 180 / Math.PI).toFixed(3) +
-      "° · SIZE " + m.size.toFixed(3) + " · SHOT SPEED " + m.speed.toFixed(2) + " px/s" +
-      (m.pierce ? " · PIERCE " + m.pierce : "") + (m.bounce ? " · BOUNCE " + m.bounce : "") +
+      "<br>" + (melee
+        ? "BLADE · DMG " + meleeBite(m).toFixed(3) + " · RATE " + m.rate.toFixed(3) + "/s · CUTS " + cuts +
+          " · REACH " + m.size.toFixed(2) + " · SWEEP +" + (m.meleeSpread * 180 / Math.PI).toFixed(1) + "°"
+        : "GUN · DMG " + m.dmg.toFixed(3) + " · RATE " + m.rate.toFixed(3) + "/s · BULLETS " +
+          (m.count * (1 + m.twin) * (1 + m.mirror)).toFixed(2) + " · SPREAD " + (m.spread * 180 / Math.PI).toFixed(3) +
+          "° · SIZE " + m.size.toFixed(3) + " · SHOT SPEED " + m.speed.toFixed(2) + " px/s" +
+          (m.pierce ? " · PIERCE " + m.pierce : "") + (m.bounce ? " · BOUNCE " + m.bounce : "")) +
       (m.sawReach ? " · SAW REACH " + m.sawReach.toFixed(2) : "") + "</span>"
     : "";
   $(gunEl).innerHTML = basicLine + exactLine;
@@ -85,10 +94,21 @@ function advancedRuneLines(p, id) {
       lines.push(label + " " + before.toFixed(digits) + " → " + after.toFixed(digits) + " (Δ " +
         (after - before >= 0 ? "+" : "") + (after - before).toFixed(digits) + unit + ")");
   };
-  diff("DAMAGE", "dmg"); diff("FIRE RATE", "rate", 3, "/s");
-  diff("BULLETS/SHOT", "count", 2); diff("PARALLEL SHOTS", "twin", 0);
-  diff("SPREAD", "spread", 4, " rad"); diff("BULLET SIZE", "size"); diff("SHOT SPEED", "speed", 2, " px/s");
-  diff("PIERCE", "pierce", 0); diff("BOUNCE", "bounce", 0); diff("HOMING", "homing");
+  const melee = usesMeleeRuneRemap(p);
+  if (melee) {
+    diff("BLADE DAMAGE", "meleeDmg");
+    diff("FIRE RATE", "rate", 3, "/s");
+    diff("CUTS IN THE SWEEP", "meleeArcs", 0);
+    diff("PARALLEL CUTS", "meleeTwin", 0);
+    diff("REAR CUTS", "meleeMirror", 0);
+    diff("SWEEP BONUS", "meleeSpread", 4, " rad");
+    diff("REACH (SIZE)", "size");
+  } else {
+    diff("DAMAGE", "dmg"); diff("FIRE RATE", "rate", 3, "/s");
+    diff("BULLETS/SHOT", "count", 2); diff("PARALLEL SHOTS", "twin", 0);
+    diff("SPREAD", "spread", 4, " rad"); diff("BULLET SIZE", "size"); diff("SHOT SPEED", "speed", 2, " px/s");
+    diff("PIERCE", "pierce", 0); diff("BOUNCE", "bounce", 0); diff("HOMING", "homing");
+  }
   diff("MOVE MULTIPLIER", "moveMul", 4, "×"); diff("MAX HP BONUS", "hpBonus", 2);
   diff("DASH COOLDOWN MULTIPLIER", "dashCdMul", 4, "×"); diff("DASH TRAIL", "dashTrail", 3);
   diff("POISON", "venom", 3); diff("BURN", "ember", 3); diff("CHILL", "frost", 3);
@@ -110,6 +130,15 @@ function advancedRunePreview(p, id) {
   const signed = (a, b) => (b - a >= 0 ? "+" : "") + fmt(b - a);
   const shots = m => m.count * (1 + m.twin) * (1 + m.mirror);
   const dashSpeed = m => clamp((c.dashSpeed || 720) * m.moveMul, 240, 1600);
+  if (usesMeleeRuneRemap(p)) {
+    const cuts = m => (m.meleeArcs || 1) + (m.meleeTwin || 0) + (m.meleeMirror || 0);
+    return [
+      "DMG " + fmt(meleeBite(next)) + " (" + signed(meleeBite(current), meleeBite(next)) + ") · RATE " +
+        fmt(next.rate) + "/s · CUTS ×" + fmt(cuts(next)) + " · REACH " + fmt(next.size),
+      "MOVE " + fmt(c.speed * next.moveMul) + " · DASH " + fmt(dashSpeed(next)) + " · CD " +
+        fmt(c.dashCd * next.dashCdMul) + "s · SWEEP +" + fmt(next.meleeSpread * 180 / Math.PI) + "°",
+    ];
+  }
   return [
     "DMG " + fmt(next.dmg) + " (" + signed(current.dmg, next.dmg) + ") · RATE " + fmt(next.rate) + "/s · SHOT ×" + fmt(shots(next)) + " · BULLET " + fmt(next.speed),
     "MOVE " + fmt(c.speed * next.moveMul) + " · DASH " + fmt(dashSpeed(next)) + " · CD " + fmt(c.dashCd * next.dashCdMul) + "s · SPR " + fmt(next.spread * 180 / Math.PI) + "° · P" + next.pierce + " B" + next.bounce,
