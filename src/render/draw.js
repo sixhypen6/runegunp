@@ -1993,9 +1993,10 @@ function drawWarden(P) {
           cx.restore();
         }
 
-        /* A short-lived sweep flash follows every cut she makes; the runes add
-           lanes, so each lane carries its own crescent. */
-        if (P.sanchoSlashT > 0 && isMelee) {
+        /* A short-lived sweep flash follows every CUT she makes; the fists
+           (stage 1) throw no edge, so they carry no slash. The runes add lanes,
+           so each lane carries its own crescent. */
+        if (P.sanchoSlashT > 0 && isMelee && (P.sanchoSlashStage || 1) >= 2) {
           const stage = P.sanchoSlashStage || 1;
           const radius = P.sanchoSlashReach || SANCHO_REACH[stage] || SANCHO_REACH[1];
           const half = SANCHO_HALF_ARC[stage] || SANCHO_HALF_ARC[1];

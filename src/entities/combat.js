@@ -269,6 +269,8 @@ function sanchoSwing(p, x, y, aim) {
   else if (dual) bite *= SANCHO_S2_DUAL_DMG;
   const dir = p.sanchoSlashDir;
   const lanes = [];
+  /* fists throw no edge: stage 1 lands its blows without crescent or spray */
+  const bladed = stage >= 2;
   /* the base cut — one sword, or the pair's two when the roll says so */
   const sides = dual ? [-SANCHO_S2_DUAL_SEP, SANCHO_S2_DUAL_SEP] : [0];
   for (const off of sides) {
@@ -276,10 +278,12 @@ function sanchoSwing(p, x, y, aim) {
       const a = (arcs === 1 ? aim : aim + (-totalHalf + wedge * (2 * i + 1))) + off;
       const half = arcs === 1 ? totalHalf : wedge;
       sanchoSlashArc(p, x, y, a, half, reach, bite);
-      lanes.push({ dx: 0, dy: 0, ang: a, scale: half / baseHalf,
-        delay: (off === 0 ? 0 : 0.012) + i * 0.012,
-        alpha: off === 0 ? 1 : 0.85, dir, cheap: arcs > 1 || dual });
-      sanchoSlashTrail(x, y, a, reach, arcs === 1 ? 9 : Math.min(9, 4 + arcs));
+      if (bladed) {
+        lanes.push({ dx: 0, dy: 0, ang: a, scale: half / baseHalf,
+          delay: (off === 0 ? 0 : 0.012) + i * 0.012,
+          alpha: off === 0 ? 1 : 0.85, dir, cheap: arcs > 1 || dual });
+        sanchoSlashTrail(x, y, a, reach, arcs === 1 ? 9 : Math.min(9, 4 + arcs));
+      }
     }
   }
   /* TWIN: parallel cut lanes, offset to either side. Full bite each; the lanes
@@ -291,10 +295,12 @@ function sanchoSwing(p, x, y, aim) {
       const off = SANCHO_TWIN_GAP * (Math.floor(i / 2) + 1) * side;
       const ox = x + perpX * off, oy = y + perpY * off;
       sanchoSlashArc(p, ox, oy, aim, SANCHO_TWIN_HALF, reach, bite);
-      lanes.push({ dx: perpX * off, dy: perpY * off, ang: aim,
-        scale: SANCHO_TWIN_HALF / baseHalf, delay: 0.02 + i * 0.012,
-        alpha: 0.75, dir, cheap: true });
-      sanchoSlashTrail(ox, oy, aim, reach, 4);
+      if (bladed) {
+        lanes.push({ dx: perpX * off, dy: perpY * off, ang: aim,
+          scale: SANCHO_TWIN_HALF / baseHalf, delay: 0.02 + i * 0.012,
+          alpha: 0.75, dir, cheap: true });
+        sanchoSlashTrail(ox, oy, aim, reach, 4);
+      }
     }
   }
   /* MIRROR: the second blade cuts behind you */
@@ -302,12 +308,14 @@ function sanchoSwing(p, x, y, aim) {
     const backHalf = baseHalf * 0.8;
     for (let i = 0; i < mirror; i++) {
       sanchoSlashArc(p, x, y, aim + Math.PI, backHalf, reach * 0.9, bite * (m.mirrorDmg || 1));
-      lanes.push({ dx: 0, dy: 0, ang: aim + Math.PI, scale: backHalf / baseHalf,
-        delay: 0.03 + i * 0.012, alpha: 0.7, dir: -dir, cheap: true });
-      sanchoSlashTrail(x, y, aim + Math.PI, reach * 0.9, 4);
+      if (bladed) {
+        lanes.push({ dx: 0, dy: 0, ang: aim + Math.PI, scale: backHalf / baseHalf,
+          delay: 0.03 + i * 0.012, alpha: 0.7, dir: -dir, cheap: true });
+        sanchoSlashTrail(x, y, aim + Math.PI, reach * 0.9, 4);
+      }
     }
   }
-  p.sanchoSlashLanes = lanes.length > 1 ? lanes : null;
+  p.sanchoSlashLanes = bladed && lanes.length > 1 ? lanes : null;
   return true;
 }
 
