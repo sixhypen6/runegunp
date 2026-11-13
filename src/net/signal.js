@@ -341,6 +341,9 @@ const Signal = {
     this._wake();
     const row = {
       v: PROTOCOL_VERSION,
+      /* "coop" (the default, and what every older row means) or "pvp" — the
+         two boards share /open but never show each other's gates */
+      kind: info && info.kind === "pvp" ? "pvp" : "coop",
       mode: (info && info.mode) || "normal",
       char: (info && info.char) || "",
       skin: (info && info.skin) || "",
@@ -394,6 +397,7 @@ const Signal = {
     return {
       code: ch.key,
       at: v.at,
+      kind: v.kind === "pvp" ? "pvp" : "coop",
       mode: typeof v.mode === "string" ? v.mode : "normal",
       char: typeof v.char === "string" ? v.char : "",
       skin: typeof v.skin === "string" ? v.skin : "",

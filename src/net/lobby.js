@@ -129,6 +129,8 @@ const Lobby = {
   renderOpen(rows) {
     const box = $("coopOpenList");
     if (!box) return;
+    /* versus pubs share the public board but are not co-op gates */
+    rows = (rows || []).filter(r => r.kind !== "pvp");
     box.innerHTML = "";
     if (!rows || !rows.length) {
       $("coopBrowseStatus").textContent =
