@@ -1,10 +1,14 @@
 /* =========================================================
-   RUNEGUN · VERSUS LOADOUT (test build)
+   RUNEGUN · VERSUS LOADOUT / MATCHMAKING (test build)
    The simple front door to game/pvp.js: each warden picks their own character
    and spends the point pool on runes, using the TEST TOOLS rune grid. Named
    loadouts cover the usual play-styles; a player can also save their own.
-   The host starts the match; a guest's picks are validated by the host
-   (net/coop.js).
+   Two modes:
+     live  — the pause menu's loadout editor inside a shared descent; the host
+             starts the match and a guest's picks are validated by the host
+             (net/coop.js).
+     draft — net/pvp-match.js opens this before any descent exists, edits a
+             standalone draft, then FIND MATCH pairs two drafts automatically.
    ========================================================= */
 "use strict";
 
@@ -35,7 +39,12 @@ function pvpCustomSave(list) {
 
 const PvpPanel = {
   built: false,
+  mode: "live",            // "live" = pause-menu editor; "draft" = matchmaking
   _p: null,
+  _draft: null,            // draft mode: { char, skin, ..., runes } — no live player yet
+  locked: false,           // draft: a rival was found, edits sealed
+  busy: false,             // draft: searching / crossing, FIND MATCH disabled
+  _onQueue: null, _onClose: null, _onCancel: null, _onDraft: null,
 
   /* ---------- construction ---------- */
   build() {
@@ -56,6 +65,9 @@ const PvpPanel = {
     #pvpPanel .pv-btn:disabled{opacity:.4;cursor:default}
     #pvpPanel .pv-btn.warn{border-color:#5e2230;color:var(--blood)}
     #pvpPanel .pv-close{margin-left:auto}
+    #pvpPanel .pv-queuebar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px;padding:8px 10px;border:1px solid var(--line);background:rgba(20,18,38,.55)}
+    #pvpPanel .pv-queue{flex:1;min-width:0;font-size:9px;letter-spacing:.14em;color:var(--gold);line-height:1.65}
+    #pvpPanel .pv-queue small{display:block;color:var(--dim);letter-spacing:.1em}
     #pvpPanel .pv-bar{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;padding:12px 0 2px}
     #pvpPanel .pv-points{font-size:22px;letter-spacing:.08em;color:var(--gold)}
     #pvpPanel .pv-points.low{color:var(--blood)}
@@ -98,13 +110,17 @@ const PvpPanel = {
     el.innerHTML = `
     <div class="pv-box">
       <div class="pv-head">
-        <span class="pv-title">VERSUS LOADOUT</span>
+        <span class="pv-title" id="pvTitle">VERSUS LOADOUT</span>
         <span class="pv-note" id="pvNote">each warden picks on their own screen · the host starts the match</span>
         <button class="pv-btn pv-close" id="pvClose">CLOSE ✕</button>
       </div>
       <div class="pv-bar">
         <span class="pv-points" id="pvPoints">18 / 18</span>
         <span class="pv-meta" id="pvMeta">POINTS LEFT</span>
+      </div>
+      <div class="pv-queuebar" id="pvQueueBar" style="display:none">
+        <span class="pv-queue" id="pvQueue">READY</span>
+        <button class="pv-btn" id="pvCancel" style="display:none">CANCEL</button>
       </div>
       <h4>WARDEN <span style="color:var(--dim)" id="pvWardenName"></span></h4>
       <div class="pv-chars" id="pvChars"></div>
@@ -164,6 +180,7 @@ const PvpPanel = {
     }
 
     $("pvClose").addEventListener("click", () => PvpPanel.close());
+    $("pvCancel").addEventListener("click", () => PvpPanel.cancel());
     $("pvClear").addEventListener("click", () => PvpPanel.clear());
     $("pvRandom").addEventListener("click", () => PvpPanel.random());
     $("pvStart").addEventListener("click", () => PvpPanel.start());
@@ -182,13 +199,60 @@ const PvpPanel = {
       return;
     }
     this.build();
+    this.mode = "live"; this.locked = false; this.busy = false;
     this._p = localPlayer() || players[0];
     if (!this._p) { toast("NO WARDEN TO OUTFIT"); return; }
+    this._chrome();
     this.refresh();
     $("pvpPanel").classList.add("on");
     AudioFX.click();
   },
+  /* matchmaking: edit a draft warden/loadout before any room exists */
+  openDraft(draft, handlers) {
+    this.build();
+    this.mode = "draft";
+    this._draft = draft;
+    this._p = null;
+    this.locked = false; this.busy = false;
+    this._onQueue = (handlers && handlers.queue) || null;
+    this._onClose = (handlers && handlers.close) || null;
+    this._onCancel = (handlers && handlers.cancel) || null;
+    this._onDraft = (handlers && handlers.change) || null;
+    this._chrome();
+    this.setQueue("READY — PICK A WARDEN AND A LOADOUT");
+    this.refresh();
+    $("pvpPanel").classList.add("on");
+  },
+  _chrome() {
+    const draft = this.mode === "draft";
+    $("pvTitle").textContent = draft ? "VERSUS · MATCHMAKING" : "VERSUS LOADOUT";
+    $("pvNote").textContent = draft
+      ? "pick a warden + loadout · find a rival · the duel starts on its own"
+      : "each warden picks on their own screen · the host starts the match";
+    $("pvClose").textContent = draft ? "LEAVE ✕" : "CLOSE ✕";
+    $("pvQueueBar").style.display = draft ? "" : "none";
+  },
+  setQueue(text) {
+    const el = $("pvQueue");
+    if (el) el.textContent = text || "";
+  },
+  setDraftState(opts) {
+    if (!opts) return;
+    if (opts.locked !== undefined) this.locked = !!opts.locked;
+    if (opts.busy !== undefined) this.busy = !!opts.busy;
+    if (opts.queue !== undefined) this.setQueue(opts.queue);
+    this.refresh();
+  },
   close() {
+    /* draft mode's LEAVE and the cancel button are owned by the matchmaker,
+       which also has to tear the gate down */
+    if (this.mode === "draft" && this._onClose) { this._onClose(); return; }
+    this.hide();
+  },
+  cancel() {
+    if (this.mode === "draft" && this._onCancel) this._onCancel();
+  },
+  hide() {
     const el = $("pvpPanel");
     if (el) el.classList.remove("on");
   },
@@ -203,8 +267,13 @@ const PvpPanel = {
   },
 
   /* ---------- state ---------- */
+  target() {
+    return this.mode === "draft" ? this._draft : (this._p || localPlayer());
+  },
   canEdit() {
-    return !Game.pvpMode && typeof Net !== "undefined" && Net.active &&
+    if (Game.pvpMode) return false;
+    if (this.mode === "draft") return !!this._draft && !this.locked;
+    return typeof Net !== "undefined" && Net.active &&
       typeof Coop !== "undefined" && Coop.running;
   },
   visibleRunes(p) {
@@ -212,9 +281,8 @@ const PvpPanel = {
   },
   refresh() {
     this.build();
-    const p = this._p || localPlayer();
+    const p = this.target();
     if (!p) return;
-    this._p = p;
     const left = pvpPointsLeft(p), base = pvpBasePoints(p);
     $("pvPoints").textContent = left + " / " + base;
     $("pvPoints").classList.toggle("low", left <= 0);
@@ -247,9 +315,16 @@ const PvpPanel = {
     $("pvSaveName").disabled = sealed;
     this.renderCustom();
 
+    const cancel = $("pvCancel");
+    if (cancel) cancel.style.display = (this.mode === "draft" && (this.busy || this.locked)) ? "" : "none";
+
     const host = typeof Net !== "undefined" && Net.role === "host";
     const start = $("pvStart"), wait = $("pvWait");
-    if (Game.pvpMode) {
+    if (this.mode === "draft") {
+      start.disabled = this.locked || this.busy;
+      start.textContent = this.locked ? "MATCH SEALED" : (this.busy ? "SEARCHING…" : "FIND MATCH");
+      wait.textContent = this.locked ? "" : "your warden and loadout lock when the duel begins";
+    } else if (Game.pvpMode) {
       start.disabled = true; start.textContent = "MATCH LIVE";
       wait.textContent = "";
     } else if (host) {
@@ -291,6 +366,10 @@ const PvpPanel = {
   /* a local edit was made: repaint, then tell the other screen */
   changed() {
     this.refresh();
+    if (this.mode === "draft") {
+      if (this._onDraft) this._onDraft(this._draft);
+      return;
+    }
     if (typeof Net === "undefined" || !Net.active || typeof Coop === "undefined" || !Coop.running) return;
     const p = localPlayer();
     if (!p) return;
@@ -303,32 +382,32 @@ const PvpPanel = {
 
   /* ---------- edits ---------- */
   buy(id) {
-    const p = localPlayer();
+    const p = this.target();
     if (!p || !this.canEdit()) { toast("THE LOADOUT IS SEALED"); return; }
     const cost = pvpStackCost(p, id, (p.runes[id] | 0) + 1);
     if (pvpPointsLeft(p) < cost) { toast("NOT ENOUGH POINTS — " + cost + " NEEDED"); return; }
     if (pvpBuy(p, id, 1)) { AudioFX.equip(); this.changed(); }
   },
   sell(id) {
-    const p = localPlayer();
+    const p = this.target();
     if (!p || !this.canEdit()) { toast("THE LOADOUT IS SEALED"); return; }
     if (pvpSell(p, id, 1)) { AudioFX.click(); this.changed(); }
   },
   clear() {
-    const p = localPlayer();
+    const p = this.target();
     if (!p || !this.canEdit()) return;
     pvpReset(p);
     this.changed();
   },
   random() {
-    const p = localPlayer();
+    const p = this.target();
     if (!p || !this.canEdit()) return;
     pvpRandomLoadout(p);
     AudioFX.pickup();
     this.changed();
   },
   loadout(i) {
-    const p = localPlayer();
+    const p = this.target();
     if (!p || !this.canEdit()) return;
     const stacks = pvpApplyLoadout(p, i);
     if (stacks) AudioFX.equip();
@@ -336,7 +415,7 @@ const PvpPanel = {
     this.changed();
   },
   useCustom(i) {
-    const p = localPlayer();
+    const p = this.target();
     const loadout = pvpCustomLoadouts()[i];
     if (!p || !this.canEdit() || !loadout) return;
     pvpApplyRunes(p, loadout.runes);
@@ -344,7 +423,7 @@ const PvpPanel = {
     this.changed();
   },
   saveCurrent() {
-    const p = localPlayer();
+    const p = this.target();
     if (!p || !this.canEdit()) return;
     const runes = {};
     for (const id in p.runes) if (RUNE_IDS.includes(id) && (p.runes[id] | 0) > 0) runes[id] = p.runes[id];
@@ -373,10 +452,16 @@ const PvpPanel = {
   /* switching warden refunds the old loadout: every warden prices runes
      differently, so carrying stacks across would be a hidden discount */
   changeChar(id) {
-    const p = localPlayer();
+    const p = this.target();
     if (!p || !this.canEdit() || !CHARS[id] || id === p.char) return;
     p.char = id;
     pvpReset(p);                 // refunds + recalc
+    if (this.mode === "draft") {
+      toast(CHARS[id].name + " TAKES THE FIELD — LOADOUT REFUNDED");
+      AudioFX.equip();
+      this.changed();
+      return;
+    }
     p.hp = p.maxHp;
     updateHp();
     toast(CHARS[id].name + " TAKES THE FIELD — LOADOUT REFUNDED");
@@ -386,6 +471,11 @@ const PvpPanel = {
 
   /* ---------- start ---------- */
   start() {
+    if (this.mode === "draft") {
+      if (this.locked || this.busy) return;
+      if (this._onQueue) this._onQueue();
+      return;
+    }
     if (typeof Net === "undefined" || Net.role !== "host") { toast("ONLY THE HOST STARTS THE MATCH"); return; }
     if (Game.pvpMode) return;
     const p = localPlayer();

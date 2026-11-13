@@ -33,6 +33,10 @@ const Net = {
   peerCfg: null,         // convenience: first partner's cfg (the host's, when guest)
   rtt: 0,                // worst link in the party — what the lobby shows
   _hbTimer: 0,
+  /* How many guests this gate will seat. Co-op holds the full table; a versus
+     match sets it to one so a third searcher is refused instead of joining a
+     duel that has already found its rival. */
+  maxGuests: MAX_GUESTS,
 
   /* wired by the lobby / game layer */
   onConnected: null,     // (peer) both channels open, hello sent
@@ -146,8 +150,10 @@ const Net = {
   /* HOST: claim a room code and answer every guest that knocks with its own
      offer. Resolves with the code as soon as the room exists; guests connect
      in the background, one peer record each. */
-  async host() {
+  async host(opts) {
     if (this.role !== "none") this.hangUp();   // a retry must not leave a stale room behind
+    const cap = (opts && opts.maxGuests) | 0;
+    this.maxGuests = cap > 0 ? Math.min(MAX_GUESTS, cap) : MAX_GUESTS;
     this.role = "host"; this.localIdx = 0;
     this.peers = [];
     this.iceStats = { gathered: 0, relay: 0, srflx: 0, rescued: 0, state: "", route: "" };
@@ -162,7 +168,7 @@ const Net = {
   async _acceptJoin(jid, at) {
     if (this.role !== "host" || this.peerById(jid)) return;
     if (at && Signal.now() - at > this.JOIN_STALE_MS) { Signal.dropJoin(jid); return; }
-    if (this.peers.length >= MAX_GUESTS) { Signal.rejectJoin(jid, "full"); return; }
+    if (this.peers.length >= (this.maxGuests || MAX_GUESTS)) { Signal.rejectJoin(jid, "full"); return; }
     const peer = this._newPeer(jid, this._nextIdx());
     this.peers.push(peer);
     /* a join that never opens a channel must not hold a seat forever */
@@ -322,6 +328,7 @@ const Net = {
     Signal.cleanup(true);
     Signal.releaseSoon();
     this.peerCfg = null; this.rtt = 0;
+    this.maxGuests = MAX_GUESTS;
     this.role = "none"; this.localIdx = 0;
   },
 
