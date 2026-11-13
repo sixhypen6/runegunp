@@ -1922,16 +1922,24 @@ function drawWarden(P) {
               cx.restore();
             }
           } else if (stage === 2) {
-            /* saber: a single heavy curved blade with jagged barbs */
-            cx.save(); cx.translate(px, py); cx.rotate(aim + 0.5 + Math.sin(Game.time * 12) * 0.15);
-            const sizeMul = 1.3;
-            cx.strokeStyle = "#222"; cx.lineWidth = 3 * sizeMul; cx.lineCap = "round";
-            cx.beginPath(); cx.moveTo(5, 0); cx.lineTo(12, 0); cx.stroke();
-            cx.strokeStyle = "#cc0000"; cx.lineWidth = 4 * sizeMul;
-            cx.beginPath(); cx.moveTo(12, 0); cx.lineTo(40 * sizeMul, 0); cx.stroke();
-            cx.fillStyle = "#ff0000";
-            for (let j = 0; j < 4; j++) cx.fillRect(15 + j * 6 * sizeMul, -3 * sizeMul, 3 * sizeMul, 2 * sizeMul);
-            cx.restore();
+            /* saber: one heavy curved blade — or the pair, when this swing
+               rolled two (v5's stage-2 variation). The lone sword is longer. */
+            const pair = P.s2Var === 2;
+            const sizeMul = P.s2Var === 1 ? 1.55 : 1.3;
+            for (const s of (pair ? [-1, 1] : [0])) {
+              cx.save(); cx.translate(px, py);
+              const sway = Math.sin(Game.time * 12 + s) * 0.15;
+              cx.rotate(aim + (pair ? s * 0.42 : 0.5) + sway);
+              cx.strokeStyle = "#222"; cx.lineWidth = 3 * sizeMul; cx.lineCap = "round";
+              cx.beginPath(); cx.moveTo(5, 0); cx.lineTo(12, 0); cx.stroke();
+              cx.strokeStyle = "#cc0000"; cx.lineWidth = 4 * sizeMul;
+              cx.shadowColor = "#ff334d"; cx.shadowBlur = pair ? 8 : 5;
+              cx.beginPath(); cx.moveTo(12, 0); cx.lineTo(40 * sizeMul, 0); cx.stroke();
+              cx.shadowBlur = 0;
+              cx.fillStyle = "#ff0000";
+              for (let j = 0; j < 4; j++) cx.fillRect(15 + j * 6 * sizeMul, -3 * sizeMul, 3 * sizeMul, 2 * sizeMul);
+              cx.restore();
+            }
           } else {
             /* the lance: braided black/red blade and a wide crossguard */
             cx.save(); cx.translate(px, py); cx.rotate(aim);
@@ -1985,17 +1993,26 @@ function drawWarden(P) {
           cx.restore();
         }
 
-        /* A short-lived sweep flash follows the attack cone, attached to Sancho. */
+        /* A short-lived sweep flash follows every cut she makes; the runes add
+           lanes, so each lane carries its own crescent. */
         if (P.sanchoSlashT > 0 && isMelee) {
           const stage = P.sanchoSlashStage || 1;
           const radius = P.sanchoSlashReach || SANCHO_REACH[stage] || SANCHO_REACH[1];
           const half = SANCHO_HALF_ARC[stage] || SANCHO_HALF_ARC[1];
-          const t = clamp(P.sanchoSlashT / 0.16, 0, 1);
-          cx.save(); cx.translate(px, py); cx.rotate(P.sanchoSlashAng || aim);
-          cx.globalAlpha = 0.85 * t; cx.strokeStyle = "#ff7180"; cx.lineWidth = stage >= 2 ? 5 : 4;
-          cx.lineCap = "round"; cx.shadowColor = "#ff334d"; cx.shadowBlur = 12;
-          cx.beginPath(); cx.arc(0, 0, radius, -half, half); cx.stroke();
-          cx.restore();
+          const life = SANCHO_SLASH_LIFE || 0.18;
+          const dir = P.sanchoSlashDir < 0 ? -1 : 1;
+          if (P.sanchoSlashLanes && P.sanchoSlashLanes.length) {
+            for (const L of P.sanchoSlashLanes) {
+              const k = clamp(1 - (P.sanchoSlashT - (L.delay || 0)) / life, 0, 1);
+              drawSanchoSlashArc(px + (L.dx || 0), py + (L.dy || 0), L.ang, radius,
+                half * (L.scale || 1), k, L.alpha == null ? 1 : L.alpha,
+                L.dir == null ? dir : L.dir, !!L.cheap);
+            }
+          } else {
+            const k = clamp(1 - P.sanchoSlashT / life, 0, 1);
+            drawSanchoSlashArc(px, py, P.sanchoSlashAng - 0.12, radius, half, k, 1, dir);
+            drawSanchoSlashArc(px, py, P.sanchoSlashAng + 0.12, radius, half, Math.max(0, k - 0.07), 0.8, dir);
+          }
         }
       } else if (P.char === "sniper") {
         /* SNIPER — a heptagon chassis: flat side at the back for the stock,
@@ -2455,5 +2472,82 @@ function drawSeekerMarks() {
     if (h && !seekerEdgeArrow(h.x, h.y, "#7dff5e", "heart"))
       seekerReticle(h.x, h.y, "#7dff5e", "vital");
   }
+}
+
+/* SANCHO's cut — a crimson crescent that travels across its cone: a bright
+   leading edge, a layered tail, and barbs flicked from the point. `half` is the
+   cut's own half-angle, so a TWIN lane or a SCATTER wedge keeps its own size. */
+function drawSanchoSlashArc(px, py, ang, reach, half, k, alpha, dir, cheap) {
+  const span = Math.max(0.05, half || 0.4);
+  const sweepT = SANCHO_SLASH_SWEEP || 0.45;
+  const prog = k < sweepT ? k / sweepT : 1;
+  const d = dir < 0 ? -1 : 1;
+  const start = d > 0 ? -span : span;
+  const end = -start;
+  const head = start + (end - start) * prog;
+  const trail = Math.min(span * 1.75, 1.7 * Math.max(0.55, 1 - 0.35 * prog));
+  const tail = d > 0 ? Math.max(start, head - trail) : Math.min(start, head + trail);
+  const linger = k < sweepT ? 1 : 1 - (k - sweepT) / (1 - sweepT);
+  const fade = alpha * Math.pow(Math.max(0, linger), 0.75);
+  if (fade <= 0.01 || Math.abs(head - tail) < 0.02) return;
+  const R = reach * (0.9 + 0.1 * prog);
+  /* the extra lanes only need a bright stroke — the layered crescent is kept
+     for the main sweep so a six-TWIN swing stays cheap to draw */
+  if (cheap) {
+    cx.save();
+    cx.translate(px, py);
+    cx.rotate(ang);
+    cx.globalAlpha = fade * 0.9;
+    cx.strokeStyle = "#ffc2ca";
+    cx.lineWidth = 2.4;
+    cx.lineCap = "round";
+    cx.shadowColor = "#ff334d"; cx.shadowBlur = 9;
+    cx.beginPath();
+    cx.arc(0, 0, R, Math.min(head, tail), Math.max(head, tail));
+    cx.stroke();
+    cx.restore();
+    return;
+  }
+  const SEG = 8;
+  cx.save();
+  cx.translate(px, py);
+  cx.rotate(ang);
+  for (let s = 0; s < SEG; s++) {
+    const u0 = s / SEG, u1 = (s + 1) / SEG, um = (u0 + u1) / 2;
+    const a0 = head + (tail - head) * u0;
+    const a1 = head + (tail - head) * u1;
+    const wgt = Math.pow(1 - um, 1.5);
+    const acw = a1 < a0;
+    const shape = (hw) => {
+      cx.beginPath();
+      cx.arc(0, 0, R + hw, a0, a1, acw);
+      cx.arc(0, 0, R - hw, a1, a0, !acw);
+      cx.closePath();
+    };
+    cx.globalAlpha = fade * 0.4 * (0.25 + 0.75 * wgt);
+    cx.fillStyle = "rgba(190,20,40,0.9)";
+    cx.shadowColor = "#ff334d"; cx.shadowBlur = 22;
+    shape(4 + 10 * wgt); cx.fill();
+    cx.shadowBlur = 0;
+    cx.globalAlpha = fade * (0.3 + 0.7 * wgt);
+    cx.fillStyle = "#ff7180";
+    shape(2 + 7 * wgt); cx.fill();
+    cx.globalAlpha = fade * (0.45 + 0.55 * wgt);
+    cx.fillStyle = "#ffe4e8";
+    shape(0.7 + 2.8 * wgt); cx.fill();
+  }
+  /* barbs flicked off the leading edge */
+  cx.shadowBlur = 0;
+  cx.globalAlpha = fade * 0.8;
+  cx.strokeStyle = "#ffc2ca"; cx.lineWidth = 1.3;
+  for (let i = 0; i < 2; i++) {
+    const a = head - d * 0.16 * i;
+    const r0 = R + 9, L = 6 + 8 * Math.abs(Math.sin(i * 2.3 + k * 3));
+    cx.beginPath();
+    cx.moveTo(Math.cos(a - 0.035) * r0, Math.sin(a - 0.035) * r0);
+    cx.lineTo(Math.cos(a) * (r0 + L), Math.sin(a) * (r0 + L));
+    cx.stroke();
+  }
+  cx.restore();
 }
 

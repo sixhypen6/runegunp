@@ -18,7 +18,7 @@ function resetPanelScroll(id) {
 function renderHeld(gunEl = "gunLine", gridEl = "heldGrid", petEl = null) {
   const p = localPlayer();
   const m = buildWeaponModsFrom(p.runes, p);
-  const melee = usesMeleeRuneRemap(p);
+  const melee = bladeReading(p);
   const cuts = (m.meleeArcs || 1) + (m.meleeTwin || 0) + (m.meleeMirror || 0);
   const basicLine =
     (melee
@@ -94,7 +94,7 @@ function advancedRuneLines(p, id) {
       lines.push(label + " " + before.toFixed(digits) + " → " + after.toFixed(digits) + " (Δ " +
         (after - before >= 0 ? "+" : "") + (after - before).toFixed(digits) + unit + ")");
   };
-  const melee = usesMeleeRuneRemap(p);
+  const melee = bladeReading(p);
   if (melee) {
     diff("BLADE DAMAGE", "meleeDmg");
     diff("FIRE RATE", "rate", 3, "/s");
@@ -130,7 +130,7 @@ function advancedRunePreview(p, id) {
   const signed = (a, b) => (b - a >= 0 ? "+" : "") + fmt(b - a);
   const shots = m => m.count * (1 + m.twin) * (1 + m.mirror);
   const dashSpeed = m => clamp((c.dashSpeed || 720) * m.moveMul, 240, 1600);
-  if (usesMeleeRuneRemap(p)) {
+  if (bladeReading(p)) {
     const cuts = m => (m.meleeArcs || 1) + (m.meleeTwin || 0) + (m.meleeMirror || 0);
     return [
       "DMG " + fmt(meleeBite(next)) + " (" + signed(meleeBite(current), meleeBite(next)) + ") · RATE " +

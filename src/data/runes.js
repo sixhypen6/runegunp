@@ -506,11 +506,28 @@ const SINNER_TWIN_RUNE = Object.assign({}, RUNES.twin, {
 const SINNER_MIRROR_RUNE = Object.assign({}, RUNES.mirror, {
   desc: "The second blade cuts behind you — one rear sweep per stack, at full bite, for whatever thought it had your back.",
 });
+/* SANCHO carries steel AND the blood bow: her cards must read true in either
+   stance, so each says what the rune does to a sweep and to an arrow. */
+const SANCHO_SCATTER_RUNE = Object.assign({}, RUNES.scatter, {
+  desc: "Steel: 2 more cuts per stack fan across the sweep, each carrying the blade's full bite. Bow: 2 more arrows split the fan instead.",
+});
+const SANCHO_TWIN_RUNE = Object.assign({}, RUNES.twin, {
+  desc: "Steel: one more parallel cut lane per stack, each at full bite. Bow: one more parallel arrow per stack.",
+});
+const SANCHO_MIRROR_RUNE = Object.assign({}, RUNES.mirror, {
+  desc: "Steel: one rear cut per stack, at the blade's bite. Bow: one more arrow fired behind you.",
+});
 function runeDefFor(p, id) {
   if (p.char === "sancho" && id === "phase")
     return Object.assign({}, RUNES.phase, { color: PHASE_SANCHO_COLOR });
   /* the Passenger's dash is two blades, not a trailing cut */
   if (p.char === "sinner" && id === "phase") return SINNER_PHASE_RUNE;
+  /* Sancho reads the fan runes both ways, depending on what she is holding */
+  if (p.char === "sancho") {
+    if (id === "scatter") return SANCHO_SCATTER_RUNE;
+    if (id === "twin") return SANCHO_TWIN_RUNE;
+    if (id === "mirror") return SANCHO_MIRROR_RUNE;
+  }
   /* a blade answers the projectile runes with cuts, not pellets */
   if (usesMeleeRuneRemap(p)) {
     if (id === "scatter") return SINNER_SCATTER_RUNE;
@@ -685,10 +702,19 @@ function usesMeleeRuneRemap(p) {
   if (!p) return false;
   const c = CHARS[p.char];
   if (!c || !c.melee) return false;
-  /* SANCHO may take up the bow; her cards must keep the gun reading so one
-     build still makes sense in both stances. Pure melee wardens (and future
-     ones carrying `melee: true`) inherit the remap. */
+  /* SANCHO may take up the bow; her offers must keep every rune readable, so
+     the POOL question is answered by the character, not the stance. Pure melee
+     wardens (and future ones carrying `melee: true`) inherit the remap. */
   return p.char !== "sancho";
+}
+/* Does this warden read the projectile runes as a BLADE right now? The
+   Passenger always does; Sancho does only while her steel is out. This is the
+   mod/card question — the offer question above stays character-wide so the bow
+   keeps its PIERCE / RICOCHET / SEEKER. */
+function bladeReading(p) {
+  if (!p) return false;
+  if (usesMeleeRuneRemap(p)) return true;
+  return p.char === "sancho" && p.weaponMode !== "ranged";
 }
 /* the blade's undivided bite — SCATTER's per-pellet softener is a projectile
    concern and must never weaken the edge (cf. the SHREDDER's sawDmg). */
@@ -791,7 +817,7 @@ function buildWeaponModsFrom(runes, p) {
     m.sawDmg = m.dmg / (m.scatterSplit || 1);
   }
   /* blades read the projectile runes in their own terms (see meleeWeaponMods) */
-  if (usesMeleeRuneRemap(p)) meleeWeaponMods(m, runes, p, baseSpread);
+  if (bladeReading(p)) meleeWeaponMods(m, runes, p, baseSpread);
   return m;
 }
 
@@ -806,7 +832,7 @@ function runeStatLines(p, id) {
   const L = [];
   const mul = r => (r >= 1 ? "+" : "\u2212") + Math.round(Math.abs(r - 1) * 100) + "%";
   const di = (a, b) => Math.round(a - b);
-  const melee = usesMeleeRuneRemap(p);
+  const melee = bladeReading(p);
   const bite = o => melee ? meleeBite(o) : o.dmg;
   if (Math.abs(bite(full) / bite(w) - 1) > 0.005) L.push((melee ? "BLADE " : "") + "DAMAGE " + mul(bite(full) / bite(w)));
   if (Math.abs(full.rate / w.rate - 1) > 0.005) L.push("FIRE RATE " + mul(full.rate / w.rate));

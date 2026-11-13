@@ -171,20 +171,29 @@ function sanchoToggleStance(p) {
   return true;
 }
 
-/* Sancho's close weapons are real melee sweeps: enemies are tested in a forward
-   arc and damaged in place. They never enter the projectile array. */
-function sanchoSwing(p, x, y, aim) {
-  const m = p.mods;
-  const stage = p.hbStage || 1;
-  const ranged = p.weaponMode === "ranged";
-  const reach = ranged ? 0 : (SANCHO_REACH[stage] || SANCHO_REACH[1]);
-  const halfArc = SANCHO_HALF_ARC[stage] || SANCHO_HALF_ARC[1];
-  p.sanchoSlashT = 0.16;
-  p.sanchoSlashAng = aim;
-  p.sanchoSlashStage = stage;
-  p.sanchoSlashReach = reach;
-  if (ranged) return false;
+/* Sancho's close weapons are real melee sweeps: enemies are tested in arcs and
+   damaged in place. They never enter the projectile array.
+   The runes answer exactly as they do for the Wayward Passenger's blades: SCATTER
+   fans the sweep into more cuts, TWIN lays parallel lanes, MIRROR cuts behind,
+   HEAVY lengthens the reach, and SCATTER's pellet softener never weakens the edge
+   (meleeBite). */
+const SANCHO_SIZE = [0, 16, 20, 26];               // stage 1 / 2 / 3 base size
+const SANCHO_SLASH_LIFE = 0.18;                    // one swing, hairline to afterglow
+const SANCHO_SLASH_SWEEP = 0.45;                   // share of the life spent crossing the cone
+const SANCHO_TWIN_GAP = 30;                        // px between parallel cut lanes
+const SANCHO_TWIN_HALF = 0.2;                      // how narrow each twin lane's cut is
+/* Stage 2 rolls one heavy sword or a pair on every swing (v5's variation).
+   The pair splits its bite and comes round quicker; the single sword reaches. */
+const SANCHO_S2_STRONG_DMG = 1.65;
+const SANCHO_S2_STRONG_REACH = 1.2;
+const SANCHO_S2_DUAL_DMG = 0.7;
+const SANCHO_S2_DUAL_RATE = 0.85;                  // fireT multiplier — the pair swings faster
+const SANCHO_S2_DUAL_SEP = 0.22;                   // radians between the pair's cuts
 
+/* one sword's cut, tested against the horde (and a rival in VERSUS) */
+function sanchoSlashArc(p, x, y, aim, halfArc, reach, dmg) {
+  const m = p.mods;
+  const bite = dmg === undefined ? meleeBite(m) : dmg;
   for (const e of enemies) {
     if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p") continue;
     const dx = e.x - x, dy = e.y - y;
@@ -193,7 +202,7 @@ function sanchoSwing(p, x, y, aim) {
     delta = Math.atan2(Math.sin(delta), Math.cos(delta));
     if (Math.abs(delta) > halfArc) continue;
     const crit = m.crit > 0 && Math.random() < m.crit;
-    damageEnemy(e, m.dmg * (crit ? m.critMul : 1), {
+    damageEnemy(e, bite * (crit ? m.critMul : 1), {
       owner: p, x, y, knock: m.knock, melee: true, critHit: crit,
     });
     if (!e.dead && m.bleed > 0) {
@@ -203,17 +212,102 @@ function sanchoSwing(p, x, y, aim) {
     }
     applyMeleeElements(p, e, m);
   }
-  /* PVP: the sweep is tested against a rival warden in the same forward arc */
+  /* the same forward arc catches a rival warden */
   if (Game.pvpMode) for (const foe of players) {
     if (foe === p || foe.hp <= 0 || foe.downed || foe.gone) continue;
-    const fdx = foe.x - x, fdy = foe.y - y;
-    if (fdx * fdx + fdy * fdy > (reach + foe.r) ** 2) continue;
-    let fdelta = Math.atan2(fdy, fdx) - aim;
-    fdelta = Math.atan2(Math.sin(fdelta), Math.cos(fdelta));
-    if (Math.abs(fdelta) > halfArc) continue;
+    const dx = foe.x - x, dy = foe.y - y;
+    if (dx * dx + dy * dy > (reach + foe.r) ** 2) continue;
+    let delta = Math.atan2(dy, dx) - aim;
+    delta = Math.atan2(Math.sin(delta), Math.cos(delta));
+    if (Math.abs(delta) > halfArc) continue;
     const crit = m.crit > 0 && Math.random() < m.crit;
-    hurtPlayer(foe, m.dmg * (crit ? m.critMul : 1), { x, y, knock: m.knock });
+    hurtPlayer(foe, bite * (crit ? m.critMul : 1), { x, y, knock: m.knock });
   }
+}
+
+/* crimson violence thrown along the cut */
+function sanchoSlashTrail(x, y, aim, reach, amount) {
+  if (particles.length >= 560) return;
+  for (let i = 0; i < amount; i++) {
+    const a = aim + rnd(-0.95, 0.95);
+    const d = rnd(reach * 0.3, reach + 8);
+    particles.push({ x: x + Math.cos(a) * d, y: y + Math.sin(a) * d,
+      vx: Math.cos(a) * rnd(70, 260), vy: Math.sin(a) * rnd(70, 260),
+      t: 0, life: rnd(0.14, 0.3), r: rnd(1.2, 3),
+      color: pick(["#ff4d5e", "#ffd0d6", "#aa0016"]) });
+  }
+}
+
+function sanchoSwing(p, x, y, aim) {
+  const m = p.mods;
+  const stage = p.hbStage || 1;
+  const ranged = p.weaponMode === "ranged";
+  const baseHalf = SANCHO_HALF_ARC[stage] || SANCHO_HALF_ARC[1];
+  const baseReach = SANCHO_REACH[stage] || SANCHO_REACH[1];
+  const dual = !ranged && stage === 2 && p.s2Var === 2;
+  const strong = !ranged && stage === 2 && p.s2Var === 1;
+  /* HEAVY / TITAN lengthen the steel the same way they lengthen the Passenger's */
+  let reach = ranged ? 0 : baseReach +
+    Math.max(0, (m.size || SANCHO_SIZE[stage]) - SANCHO_SIZE[stage]) * 1.6;
+  if (strong) reach *= SANCHO_S2_STRONG_REACH;
+  p.sanchoSlashT = SANCHO_SLASH_LIFE;
+  p.sanchoSlashAng = aim;
+  p.sanchoSlashStage = stage;
+  p.sanchoSlashReach = reach;
+  p.sanchoSlashDir = Math.random() < 0.5 ? -1 : 1;
+  p.sanchoSlashLanes = null;
+  if (ranged) return false;
+
+  const arcs = Math.max(1, m.meleeArcs || 1);
+  const twin = Math.max(0, m.meleeTwin || 0);
+  const mirror = Math.max(0, m.meleeMirror || 0);
+  /* SCATTER widens the whole sweep; the wedges tile that wider arc */
+  const totalHalf = baseHalf + Math.max(0, m.meleeSpread || 0);
+  const wedge = totalHalf / arcs;
+  let bite = meleeBite(m);
+  if (strong) bite *= SANCHO_S2_STRONG_DMG;
+  else if (dual) bite *= SANCHO_S2_DUAL_DMG;
+  const dir = p.sanchoSlashDir;
+  const lanes = [];
+  /* the base cut — one sword, or the pair's two when the roll says so */
+  const sides = dual ? [-SANCHO_S2_DUAL_SEP, SANCHO_S2_DUAL_SEP] : [0];
+  for (const off of sides) {
+    for (let i = 0; i < arcs; i++) {
+      const a = (arcs === 1 ? aim : aim + (-totalHalf + wedge * (2 * i + 1))) + off;
+      const half = arcs === 1 ? totalHalf : wedge;
+      sanchoSlashArc(p, x, y, a, half, reach, bite);
+      lanes.push({ dx: 0, dy: 0, ang: a, scale: half / baseHalf,
+        delay: (off === 0 ? 0 : 0.012) + i * 0.012,
+        alpha: off === 0 ? 1 : 0.85, dir, cheap: arcs > 1 || dual });
+      sanchoSlashTrail(x, y, a, reach, arcs === 1 ? 9 : Math.min(9, 4 + arcs));
+    }
+  }
+  /* TWIN: parallel cut lanes, offset to either side. Full bite each; the lanes
+     are narrow, so a small foe only crosses the lane it stands in. */
+  if (twin) {
+    const perpX = Math.cos(aim + Math.PI / 2), perpY = Math.sin(aim + Math.PI / 2);
+    for (let i = 0; i < twin; i++) {
+      const side = i % 2 === 0 ? 1 : -1;
+      const off = SANCHO_TWIN_GAP * (Math.floor(i / 2) + 1) * side;
+      const ox = x + perpX * off, oy = y + perpY * off;
+      sanchoSlashArc(p, ox, oy, aim, SANCHO_TWIN_HALF, reach, bite);
+      lanes.push({ dx: perpX * off, dy: perpY * off, ang: aim,
+        scale: SANCHO_TWIN_HALF / baseHalf, delay: 0.02 + i * 0.012,
+        alpha: 0.75, dir, cheap: true });
+      sanchoSlashTrail(ox, oy, aim, reach, 4);
+    }
+  }
+  /* MIRROR: the second blade cuts behind you */
+  if (mirror) {
+    const backHalf = baseHalf * 0.8;
+    for (let i = 0; i < mirror; i++) {
+      sanchoSlashArc(p, x, y, aim + Math.PI, backHalf, reach * 0.9, bite * (m.mirrorDmg || 1));
+      lanes.push({ dx: 0, dy: 0, ang: aim + Math.PI, scale: backHalf / baseHalf,
+        delay: 0.03 + i * 0.012, alpha: 0.7, dir: -dir, cheap: true });
+      sanchoSlashTrail(x, y, aim + Math.PI, reach * 0.9, 4);
+    }
+  }
+  p.sanchoSlashLanes = lanes.length > 1 ? lanes : null;
   return true;
 }
 
@@ -461,7 +555,13 @@ function fireWeapon(p, inp, dt) {
     AudioFX.shoot();
     return;
   }
+  /* SANCHO stage 2: every swing rolls one heavy sword or a pair (v5's variation).
+     Rolled before the cadence so the faster pair and the drawing agree. */
+  if (p.char === "sancho" && p.weaponMode !== "ranged" && (p.hbStage || 1) === 2)
+    p.s2Var = Math.random() < 0.5 ? 1 : 2;
   p.fireT = 1 / (m.rate * jamMul);
+  if (p.char === "sancho" && p.weaponMode !== "ranged" && (p.hbStage || 1) === 2 && p.s2Var === 2)
+    p.fireT *= SANCHO_S2_DUAL_RATE;
   if (p.char === "sancho" && reanimatorAuthority()) {
     p.sanchoAttackCount = (p.sanchoAttackCount || 0) + 1;
     if (p.sanchoAttackCount >= SANCHO_REFINE_ATTACKS) {
