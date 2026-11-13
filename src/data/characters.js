@@ -88,7 +88,7 @@ const CHARS = {
     weaponBase: { dmg: 24, rate: 3.2, size: 85, speed: 450, knock: 100 } },
   sancho: { name: "SANCHO", glyph: "ᚦ", color: "#cc0000", cost: 0,
     hidden: true, consoleOnly: true, melee: true,
-    desc: "The Second Kindred. Hardblood strengthens her fists, saber and lance; at 5 Hardblood she may switch to a blood bow. Her dash is a body-check that bites — by the lance stage it is a skewering run. Starts with BLEED and VAMPIRE. Only granted by the authenticated co-op console.",
+    desc: "The Second Kindred. Hardblood strengthens her fists, saber and lance; at 5 Hardblood she may switch to a blood bow — safe at range, but her steel hits harder. Her dash is a body-check that bites — by the lance stage it is a skewering run. Starts with BLEED and VAMPIRE. Only granted by the authenticated co-op console.",
     hp: 95, speed: 320, dashCd: 0.65, startRunes: 0, rerolls: 3, runeSlots: 5,
     weaponBase: { dmg: 12, rate: 4.5, size: 16, speed: 400, knock: 80 },
     startLoadout: ["bleed", "vampire", "bleed", "vampire"] },

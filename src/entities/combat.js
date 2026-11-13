@@ -83,8 +83,8 @@ function contactHurt(e, pad, dmg) {
 /* ---------- SANCHO · reach and the dash ----------
    Her melee is short by design, but not THIS short: the reach below is the whole
    arc she sweeps, by Hardblood stage (fists → saber → lance). */
-const SANCHO_REACH = [0, 84, 106, 136];          // stage 1 / 2 / 3 (index 0 unused)
-const SANCHO_HALF_ARC = [0, 0.9, 0.72, 0.32];    // half the sweep cone, radians
+const SANCHO_REACH = [0, 96, 120, 152];           // stage 1 / 2 / 3 (index 0 unused)
+const SANCHO_HALF_ARC = [0, 0.96, 0.78, 0.36];    // half the sweep cone, radians
 /* The dash is a body-check that grows teeth: by stage 2 the saber leads, by
    stage 3 the lance turns the whole pass into a skewer. Damage is a multiple of
    her melee blow, so runes and HARDBLOOD carry straight into it. One hit per

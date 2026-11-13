@@ -731,11 +731,13 @@ function buildWeaponModsFrom(runes, p) {
   if (p.char === "sancho") {
     const blood = p.hardblood || 1, stage = p.hbStage || (blood >= 20 ? 3 : blood >= 10 ? 2 : 1);
     if (p.weaponMode === "ranged") {
+      /* the BLOOD BOW: safe at range, but it no longer out-damages her steel in
+         melee. Two arrows still answer, just at a costlier pace and bite. */
       const scale = Math.floor(blood / 10);
-      Object.assign(m, { dmg: 7 + scale * 2, rate: 6.5 + scale, size: 6, speed: 1000, count: 2, spread: SANCHO_BOW_SPREAD, knock: 35 });
-    } else if (stage === 3) Object.assign(m, { dmg: 26, rate: 4.2, size: 26, speed: 400, knock: 125 });
-    else if (stage === 2) Object.assign(m, { dmg: 18, rate: 5.2, size: 20, speed: 400, knock: 100 });
-    else Object.assign(m, { dmg: 12 + (p.sanchoBonusDmg || 0), rate: 4.5, size: 16, speed: 400, knock: 80 });
+      Object.assign(m, { dmg: 6 + scale * 1.5, rate: 6 + scale * 0.8, size: 6, speed: 1000, count: 2, spread: SANCHO_BOW_SPREAD, knock: 35 });
+    } else if (stage === 3) Object.assign(m, { dmg: 40, rate: 4.8, size: 26, speed: 400, knock: 125 });
+    else if (stage === 2) Object.assign(m, { dmg: 25, rate: 5.4, size: 20, speed: 400, knock: 100 });
+    else Object.assign(m, { dmg: 16 + (p.sanchoBonusDmg || 0), rate: 4.7, size: 16, speed: 400, knock: 80 });
   }
   /* the weapon's resting spread before any rune speaks — a melee remap measures
      its sweep bonus from here (see meleeWeaponMods) */
