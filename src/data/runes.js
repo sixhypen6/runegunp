@@ -559,8 +559,35 @@ function weightedPick(items, weights) {
   }
   return items.length - 1;
 }
+/* RANDOMIZED: every offer is drawn from the whole deck, not the path this warden
+   would normally walk. The exclusions that would make a pick a dud still hold —
+   a blade cannot use PIERCE / RICOCHET / SEEKER, a rifle cannot use SCATTER,
+   VAMPIRE still needs a bleed to feed on, and hidden runes stay hidden unless
+   the easter-egg toggle is on. */
+function randomizedRunePool(p) {
+  if (p.char === "theUnknown") return runePool(p);
+  let ids = RUNE_IDS.slice();
+  const isHiddenChar = CHARS[p.char] && CHARS[p.char].hidden;
+  const hiddenAllowed = typeof Meta !== "undefined" && Meta.showHiddenRunes && isHiddenChar;
+  if (!hiddenAllowed) ids = ids.filter(id => !HIDDEN_RUNE_IDS.includes(id));
+  /* RUNEGUN is JOHN RUNEGUN exclusive */
+  if (p.char !== "john") ids = ids.filter(id => id !== "runegun");
+  /* the SNIPER's whole kit is the single patient shot */
+  if (p.char === "sniper") ids = ids.filter(id => id !== "scatter");
+  /* no blade reading for these three */
+  if (usesMeleeRuneRemap(p))
+    ids = ids.filter(id => id !== "pierce" && id !== "ricochet" && id !== "seeker");
+  if (!(p.runes && p.runes.bleed > 0)) ids = ids.filter(id => id !== "vampire");
+  return ids;
+}
+/* the pool a rune OFFER draws from — RANDOMIZED opens the whole deck; every
+   other descent keeps the warden's own path. Shared by the deal and the reroll. */
+function runeOfferPool(p) {
+  const random = typeof challengeRandomized === "function" && challengeRandomized();
+  return random ? randomizedRunePool(p) : runePool(p);
+}
 function genThreeRunes(p) {
-  const pool = runePool(p);
+  const pool = runeOfferPool(p);
   const avail = [...pool];
   const weights = avail.map(() => 1);
   const hasBleed = p.runes && p.runes.bleed > 0;

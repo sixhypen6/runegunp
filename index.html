@@ -473,9 +473,11 @@
   /* three descents share one row on a landscape phone; a narrow portrait screen stacks them */
   #modeChoice .bc-card{width:min(250px,calc((100vw - 120px) / 4))}
   @media (max-width:600px){ #modeChoice .bc-card{width:min(250px,80vw)} }
-  /* the CHAOS challenge screen — same four-card row, opened from the chaos card */
+  /* the CHAOS challenge screen — five cards. One row when the screen is wide;
+     three across (3 + 2, centered) below that so the last card is never orphaned. */
   #challengeChoice{background:rgba(7,6,14,.97)}
-  #challengeChoice .bc-card{width:min(250px,calc((100vw - 120px) / 4))}
+  #challengeChoice .bc-card{width:min(210px,calc((100vw - 150px) / 5))}
+  @media (max-width:1180px){ #challengeChoice .bc-card{width:min(250px,calc((100vw - 120px) / 3))} }
   @media (max-width:600px){ #challengeChoice .bc-card{width:min(250px,80vw)} }
   .ch-mul{font-size:calc(10px * var(--text-scale, 1));letter-spacing:.24em;color:currentColor;margin-top:10px;text-shadow:0 0 12px currentColor}
   /* run-end HARD banner */
@@ -915,6 +917,11 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
       <div class="ic">ᚱ</div><div class="nm">ONE RUNE</div>
       <div class="ds">One slot. The first rune you carve is the only one that answers — the rift pours two stacks of it.</div>
       <div class="ch-mul">×1.25 SOULS</div>
+    </div>
+    <div class="bc-card" id="chRandomized" data-challenge="randomized" style="color:#8dffb0">
+      <div class="ic">⚄</div><div class="nm">RANDOMIZED</div>
+      <div class="ds">Horrors ignore their floors, any of the eight wardens may wake, and every rune is a blind draw from the whole deck. THE UNKNOWN keeps its own rules.</div>
+      <div class="ch-mul">×2 SOULS</div>
     </div>
   </div>
   <button class="menu-btn small" id="challengeBack" style="margin-top:18px">RETURN</button>

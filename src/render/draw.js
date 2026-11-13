@@ -1287,10 +1287,12 @@ function draw() {
        whole frame (and every entity after the orb) dies on `R.color`. */
     const orbOwner = (typeof localPlayer === "function" && localPlayer()) || (players && players[0]);
     for (let k = 0; k < 3; k++) {
-      /* co-op: the orb is unresolved until a warden touches it — "?" until then */
-      const R = p.ids
+      /* co-op: the orb is unresolved until a warden touches it — "?" until then.
+         RANDOMIZED: the hand is already rolled but dealt face down, so the orb
+         wears the same ?s the choice screen will. */
+      const R = (p.ids && !p.blind)
         ? (orbOwner ? runeDefFor(orbOwner, p.ids[k]) : (RUNES[p.ids[k]] || HIDDEN_RUNES[p.ids[k]])) || { color: "#ffd23d", glyph: "?" }
-        : { color: "#ffd23d", glyph: "?" };
+        : { color: p.blind ? "#8dffb0" : "#ffd23d", glyph: "?" };
       cx.save();
       cx.rotate(k / 3 * TAU);
       cx.globalAlpha = 0.9;

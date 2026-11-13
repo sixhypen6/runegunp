@@ -14,6 +14,9 @@
      RUNELESS  entities/spawning.js (no start runes), game/update.js
                (orbs become boons), scenes/rift.js (the rift boons)
      ONE RUNE  data/runes.js (one slot / re-seal), scenes/rift.js
+     RANDOMIZED data/runes.js (the whole rune deck), entities/enemies.js
+               (the whole horror roster and the wave's size), entities/bosses.js
+               (any of the eight wardens may wake)
    ========================================================= */
 "use strict";
 
@@ -29,6 +32,10 @@ const CHALLENGE_DEFS = [
   {
     id: "onerune", name: "ONE RUNE", glyph: "ᚱ", color: "#ffd23d", mul: 1.25,
     desc: "One slot for the whole descent. The first rune you carve is the only one that answers — the rift pours two stacks of it.",
+  },
+  {
+    id: "randomized", name: "RANDOMIZED", glyph: "⚄", color: "#8dffb0", mul: 2,
+    desc: "Every wave, warden and rune is a fresh roll — the horde ignores its floors, any of the eight may wake, and every offer is a blind draw from the whole deck. THE UNKNOWN keeps its own rules.",
   },
 ];
 
@@ -49,6 +56,13 @@ function challengeDef(id) {
 /* the challenge this run is carrying (null on a standard chaos descent) */
 function activeChallenge() {
   return (typeof Game !== "undefined" && Game.challenge) || null;
+}
+/* RANDOMIZED, asked often enough by the roll tables to deserve its own name.
+   Scoped to a SOLO descent on the floor loop: co-op clears challenges, and the
+   Unknown stage keeps its script (the roll helpers check Game.inUnknown too). */
+function challengeRandomized() {
+  return typeof Game !== "undefined" && Game.challenge === "randomized" &&
+    !Game.inUnknown && !Game.inSaloon;
 }
 function soulMul() {
   const d = challengeDef(activeChallenge());

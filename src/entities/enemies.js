@@ -630,6 +630,14 @@ function spawnEnemy(type, x, y) {
 }
 
 function wavePool() {
+  /* RANDOMIZED: no floor roster at all — every fieldable horror may answer,
+     anywhere. Bound bodies (phylacteries, reflections, the posse's hollows)
+     stay out: they only make sense beside the warden that owns them. */
+  if (typeof challengeRandomized === "function" && challengeRandomized()) {
+    return Object.keys(ETYPES).filter(t =>
+      t !== "phylactery" && t !== "reflection" && t !== "hollow" &&
+      t.indexOf("unk") !== 0);   // the Unknown's own creatures stay in its fight
+  }
   const w = Game.wave;
   const pool = ["chaser", "chaser", "gunner"];
   if (w >= 2) pool.push("gunner", "dasher");
@@ -659,7 +667,9 @@ function wavePool() {
 function startWave() {
   Game.wave++;
   const raw = 4 + Math.floor(Game.wave * 1.8 + depth() * 1.5);
-  const n = Math.max(1, Math.round(raw * (1 - partyWardCut()) * partyWaveMul()));
+  /* RANDOMIZED: the horde's own size is a roll too — some waves trickle, some flood */
+  const swing = (typeof challengeRandomized === "function" && challengeRandomized()) ? rnd(0.7, 1.35) : 1;
+  const n = Math.max(1, Math.round(raw * (1 - partyWardCut()) * partyWaveMul() * swing));
   if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("WAVE", "wave " + Game.wave + " started (" + n + " enemies)");
   const pool = wavePool();
   for (let i = 0; i < n; i++) {

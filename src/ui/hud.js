@@ -421,20 +421,27 @@ function renderRuneChoice(pickerIdx) {
     const id = p.ids[slotIdx];
     const R = runeDefFor(ch, id);
     const own = ch.runes[id] || 0;
+    /* RANDOMIZED: the hand is dealt face down — three ?s. The colour, glyph,
+       name and numbers would all give the draw away, so the card wears only the
+       challenge's own green until the pick reveals it. */
+    const blind = !!(p.blind && typeof challengeRandomized === "function" && challengeRandomized());
     const card = document.createElement("div");
     card.className = "rc-rune-card";
-    card.style.color = R.color;
+    card.style.color = blind ? "#8dffb0" : R.color;
     card.style.animationDelay = (i * 90) + "ms";   // the three cards deal in like a hand
-    const numberPreview = Meta.advancedNumbers
+    const numberPreview = (!blind && Meta.advancedNumbers)
       ? "<div class='rc-advanced'>" + advancedRunePreview(ch, id).join("<br>") + "</div>"
       : "";
-    const description = Meta.showRuneDescriptions !== false ? "<div class='rc-ds'>" + R.desc + "</div>" : "";
-    card.innerHTML =
-      "<div class='rc-glyph'>" + R.glyph + "</div>" +
-      "<div class='rc-nm'>" + R.name + "</div>" +
-      "<div class='rc-own'>" + (own ? "you carry \xd7" + own + " — stacks to \xd7" + (own + 1) +
-        (own >= STACK_FULL && TAPERED_RUNES.has(id) && !(typeof Game !== "undefined" && Game.classicMode) ? " · tapers past \xd7" + STACK_FULL : "") : "first of its kind") + "</div>" +
-      numberPreview + description;
+    const description = (!blind && Meta.showRuneDescriptions !== false) ? "<div class='rc-ds'>" + R.desc + "</div>" : "";
+    card.innerHTML = blind
+      ? "<div class='rc-glyph'>?</div>" +
+        "<div class='rc-nm'>UNCAST RUNE</div>" +
+        "<div class='rc-ds'>A blind draw. It answers the moment it is carved.</div>"
+      : "<div class='rc-glyph'>" + R.glyph + "</div>" +
+        "<div class='rc-nm'>" + R.name + "</div>" +
+        "<div class='rc-own'>" + (own ? "you carry \xd7" + own + " — stacks to \xd7" + (own + 1) +
+          (own >= STACK_FULL && TAPERED_RUNES.has(id) && !(typeof Game !== "undefined" && Game.classicMode) ? " · tapers past \xd7" + STACK_FULL : "") : "first of its kind") + "</div>" +
+        numberPreview + description;
     const takeBtn = document.createElement("button");
     takeBtn.className = "menu-btn";
     takeBtn.textContent = "CARVE IT IN";
@@ -486,7 +493,7 @@ function renderRuneChoice(pickerIdx) {
       if (Net.role === "guest") { Net.sendR({ t: "reroll", slot: slotIdx, pickerIdx: idx }); AudioFX.reroll(); return; }
       ch.rerolls--;
       updateRerolls();
-      const pool = runePool(ch);
+      const pool = (typeof runeOfferPool === "function") ? runeOfferPool(ch) : runePool(ch);
       const onScreen = new Set(p.ids);
       let avail = pool.filter(id => !onScreen.has(id));
       if (!avail.length) avail = pool.filter(id => id !== p.ids[slotIdx]);

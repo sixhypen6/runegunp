@@ -19,20 +19,34 @@ function bossProfile(kind) {
     { r: 46, hpMul: 1.9,  spd: 30 },   // Event Horizon   — the end
   ][kind] || DEEP_PROF[kind - 5];       // VI–VIII: the Hourglass Saint, the Thousandfold, the Other Gunslingers (deep.js)
 }
+/* the warden's name wherever the game prints it — the arrival card, the boss bar
+   and the toll screen. RANDOMIZED may wake any of the eight, so the floor's own
+   name is no longer a reliable label. */
+function bossDisplayName(kind) {
+  const F = FLOORS[kind];
+  return (F && F.boss) || floorDef().boss;
+}
+/* which warden a seal wakes. Normally the floor's own; RANDOMIZED rolls the
+   whole eight. THE UNKNOWN is not in FLOORS — its fight has its own script. */
+function bossKindForFloor() {
+  if (typeof challengeRandomized === "function" && challengeRandomized())
+    return Math.floor(Math.random() * FLOORS.length);
+  return Game.mapIdx;
+}
 function spawnBoss(kind) {
-  const k = Number.isInteger(kind) ? clamp(kind, 0, FLOORS.length - 1) : Game.mapIdx;
-  const F = FLOORS[k] || floorDef();
+  const k = Number.isInteger(kind) ? clamp(kind, 0, FLOORS.length - 1) : bossKindForFloor();
+  const name = bossDisplayName(k);
   const b = makeBoss(k, SEAL.x, SEAL.y, 1);
   enemies.push(b);
   Game.boss = b;
   if (k >= 5) deepBossInit(b);       // the deep wardens carry their own state (and the posse rides in)
   SEAL.state = "spent";
-  $("bossName").textContent = F.boss + (Game.loop ? " +" + Game.loop : "");
+  $("bossName").textContent = name + (Game.loop ? " +" + Game.loop : "");
   $("bossBar").classList.add("on");
   /* cinematic framing: letterbox bars slide in, the name card slams, the mix ducks */
   document.body.classList.add("bossOn");
   const bt = $("bossTitle");
-  bt.textContent = F.boss;
+  bt.textContent = name;
   bt.classList.remove("show"); void bt.offsetWidth; bt.classList.add("show");
   AudioFX.duck();
   Game.shake = 14;

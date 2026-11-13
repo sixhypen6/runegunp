@@ -992,8 +992,12 @@ function bossSlain(e, killer) {
   /* the FIRST time THE OTHER GUNSLINGERS fall — the bottom of the descent — the way
      out no longer opens here: the toll is paid as usual, then the rift from floor I
      tears open and THE UNKNOWN waits past it (hud.js spawnPortal). Shared descents
-     see the same rift; the host carries the stage and the guest follows. */
-  if (e && e.kind === 7 && !Game.starConquered) {
+     see the same rift; the host carries the stage and the guest follows.
+     RANDOMIZED may wake something else on floor VIII, so there the FLOOR reaching
+     its bottom is what opens the way — the Unknown's own fight is never rolled. */
+  const bottomOfDescent = e && Game.mapIdx === FLOORS.length - 1 &&
+    (e.kind === 7 || (typeof challengeRandomized === "function" && challengeRandomized()));
+  if (bottomOfDescent && !Game.starConquered) {
     Game.starConquered = true;
     Game.unknownDue = true;
   }
@@ -1023,7 +1027,7 @@ function bossSlain(e, killer) {
     Game.slowmo = 0.9;
     Game.ceremonyT = 1.25;
   } else setState("choice");
-  $("bcTitle").textContent = floorDef().boss + (e && e.kind === 7 ? " FALL" : " FALLS");
+  $("bcTitle").textContent = (e ? bossDisplayName(e.kind) : floorDef().boss) + (e && e.kind === 7 ? " FALL" : " FALLS");
   $("bcHealDesc").textContent = "Restore " + Math.round(localPlayer().maxHp / 2) + " vitality (half your maximum).";
 }
 

@@ -109,6 +109,14 @@ function resetRun(cfgs) {
         grantRune(p, pick(runePool(p)), true); started++;
       }
     }
+    /* RANDOMIZED: even the opening kit is a roll — two runes off the whole deck,
+       so no two descents start the same way */
+    if (Game.challenge === "randomized") {
+      for (let i = 0; i < 2; i++) {
+        const pool = typeof randomizedRunePool === "function" ? randomizedRunePool(p) : runePool(p);
+        if (pool.length) grantRune(p, pick(pool), true);
+      }
+    }
     recalc(p);
   }
   Game.intermission = 1.2;
@@ -145,7 +153,12 @@ function setupFloor(first) {
   Game.comboN = 0; Game.comboT = 0; Game.streakTier = -1;
   Game.inRift = false; Game.riftCreature = null; Game.riftPicks = null;
   Game.bossRocks.length = 0;
-  Game.chestsTotal = Game.mapIdx === 4 ? 0 : Math.min(6, 4 + Game.loop);
+  /* RANDOMIZED: the floor's own furnishing is rolled too — how many boxes wait,
+     how much of the ground is dangerous, and which hazard answers. */
+  const randFloor = typeof challengeRandomized === "function" && challengeRandomized();
+  Game.chestsTotal = Game.mapIdx === 4 ? 0
+    : randFloor ? 3 + Math.floor(Math.random() * 4)
+    : Math.min(6, 4 + Game.loop);
   Game.chestsOpened = 0;
   if (!first) for (const p of players) {
     p.x = MAP.w / 2 + p.idx * 44; p.y = MAP.h / 2 + 220; p.iframes = 1.5;
@@ -155,13 +168,20 @@ function setupFloor(first) {
   /* the carried pack arrives at its master's side on the new floor */
   reanimatorRestoreFloorCarry(carriedThralls);
   for (let i = 0; i < Game.chestsTotal; i++) spawnChest();
-  if (Game.mapIdx !== 4) { for (let i = 0; i < 2; i++) spawnHealthBox(); }
+  if (Game.mapIdx !== 4) {
+    const boxes = randFloor ? 1 + Math.floor(Math.random() * 3) : 2;
+    for (let i = 0; i < boxes; i++) spawnHealthBox();
+  }
   const F = floorDef();
-  if (F.hazards) for (let i = 0; i < F.hazards; i++) {
+  const hazardN = randFloor ? Math.floor(Math.random() * 7) : F.hazards;
+  if (hazardN) for (let i = 0; i < hazardN; i++) {
     const p = openSpot(360, 220);
-    if (F.hazardType === "water")
+    /* RANDOMIZED picks the hazard itself; the tuned floors keep their own weather.
+       Lava is weighted double in the roll so a random floor still bites. */
+    const hz = randFloor ? pick(["lava", "lava", "water", "ice"]) : F.hazardType;
+    if (hz === "water")
       puddles.push({ x: p.x, y: p.y, r: rnd(60, 90), t: 0, life: Infinity, team: "e", dmg: 0, color: "#2ea8b8", tickMap: {}, water: true });
-    else if (F.hazardType === "ice")   // the Stilled Hour's black ice: harmless, but it keeps your momentum
+    else if (hz === "ice")   // the Stilled Hour's black ice: harmless, but it keeps your momentum
       puddles.push({ x: p.x, y: p.y, r: rnd(70, 110), t: 0, life: Infinity, team: "e", dmg: 0, color: "#bfe6ff", tickMap: {}, ice: true });
     else
       puddles.push({ x: p.x, y: p.y, r: rnd(55, 85), t: 0, life: Infinity, team: "e", dmg: 6, color: "#ff5e2e", tickMap: {}, lava: true });
@@ -198,7 +218,9 @@ function spawnHealthBox() {
    Solo there is only one pool, so it rolls now (the orb displays its glyphs);
    in co-op `ids` stays null — drawn as "?" — until touched (update.js rolls it). */
 function spawnPickup(x, y) {
-  pickups.push(assignId({ x, y, r: 20, ids: players.length === 1 ? genThreeRunes(players[0]) : null, t: 0 }));
+  pickups.push(assignId({ x, y, r: 20, ids: players.length === 1 ? genThreeRunes(players[0]) : null,
+    /* RANDOMIZED deals the hand face down: the three cards read as ? until one is carved */
+    blind: typeof challengeRandomized === "function" && challengeRandomized(), t: 0 }));
 }
 /* `opt` is purely additive — every existing 3-to-5-arg call lands on defaults that
    reproduce the original numbers exactly, so damage numbers stay on the fast draw path.
