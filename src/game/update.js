@@ -692,10 +692,15 @@ function update(dt) {
       const c = nearestSealedChestTo(p.x, p.y, isSeeker ? SEEKER_FIND_RANGE : maxD);
       if (c) {
         const inSend = !Game.ambush && dist2(c.x, c.y, p.x, p.y) <= maxD * maxD;
-        pHint = isSeeker
-          ? (inSend ? "[ E ] SEND THE SEEKER TO BREAK A SEAL" : "[ E ] MARK THE NEAREST SEAL")
-          : "[ E ] SEND THE " + (PTYPES[p.pet] ? PTYPES[p.pet].name : "COMPANION") + " TO BREAK A SEAL";
-        pAct = () => (isSeeker ? seekerSealErrand(p) : orderPetToSeal(p));
+        /* SANCHO: the locator's mark alone is not an errand. Her [ E ] still
+           changes stance, so the bar stays quiet here rather than promising a
+           mark the key will not make. An actual send does claim the key. */
+        if (!(isSeeker && !inSend && p.char === "sancho")) {
+          pHint = isSeeker
+            ? (inSend ? "[ E ] SEND THE SEEKER TO BREAK A SEAL" : "[ E ] MARK THE NEAREST SEAL")
+            : "[ E ] SEND THE " + (PTYPES[p.pet] ? PTYPES[p.pet].name : "COMPANION") + " TO BREAK A SEAL";
+          pAct = () => (isSeeker ? seekerSealErrand(p) : orderPetToSeal(p));
+        }
       }
     }
     /* the needle's brief dark reads even when there is no action to take */
@@ -717,7 +722,13 @@ function update(dt) {
       hint = pHint;
     }
     const f = frames[p.idx];
-    if (f && f.useTap && pAct) pAct();
+    if (f && f.useTap) {
+      /* [ E ] belongs to the world first: a seal to unseal, a box to take, the
+         SEEKER's errand, the saloon, THE UNKNOWN. Only an empty prompt is
+         Sancho's own — that is where the stance changes. */
+      if (pAct) pAct();
+      else if (!Game.inSaloon && typeof sanchoToggleStance === "function") sanchoToggleStance(p);
+    }
   }
   if (hint) hint = hint.replace("[ E ]", "[ " + (Input.touchMode ? "SEAL" : bindLabel("use")) + " ]");
   if (hint !== lastHint) {

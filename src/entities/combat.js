@@ -156,6 +156,21 @@ function sanchoDashHit(p) {
   }
 }
 
+/* E belongs to the world first (game/update.js): a seal to break, a box to take,
+   the SEEKER's errand. Only when no prompt answers does the key change her
+   stance — see the fallback in update()'s interaction pass. */
+function sanchoToggleStance(p) {
+  if (!p || p.char !== "sancho") return false;
+  if (p.weaponMode !== "ranged" && p.hardblood < 5) {
+    toast("HARDBLOOD TOO LOW FOR BOW (MIN 5)");
+    return false;
+  }
+  p.weaponMode = p.weaponMode === "ranged" ? "melee" : "ranged";
+  recalc(p);
+  toast("SANCHO: " + p.weaponMode.toUpperCase());
+  return true;
+}
+
 /* Sancho's close weapons are real melee sweeps: enemies are tested in a forward
    arc and damaged in place. They never enter the projectile array. */
 function sanchoSwing(p, x, y, aim) {
@@ -344,16 +359,6 @@ function fireWeapon(p, inp, dt) {
   /* THE SINGULAR: guns stay holstered. Auto-fire just stays quiet; a deliberate
      trigger pull (mouse button / manual aim stick) earns a word from the bar. */
   if (Game.inSaloon) { if (inp.mouseDown || (inp.touchMode && inp.aiming)) saloonHolster(p); return; }
-  if (p.char === "sancho" && inp.useTap) {
-    const nearChest = chests.some(c => c.state === "sealed" && dist2(c.x, c.y, p.x, p.y) < 64 * 64);
-    const nearHealth = healthBoxes.some(h => h.state === "sealed" && dist2(h.x, h.y, p.x, p.y) < 64 * 64);
-    const nearSeal = SEAL.state === "ready" && dist2(SEAL.x, SEAL.y, p.x, p.y) < (SEAL.r + 40) ** 2;
-    if (!nearChest && !nearHealth && !nearSeal) {
-      if (p.weaponMode !== "ranged" && p.hardblood < 5) toast("HARDBLOOD TOO LOW FOR BOW (MIN 5)");
-      else { p.weaponMode = p.weaponMode === "ranged" ? "melee" : "ranged"; recalc(p); toast("SANCHO: " + p.weaponMode.toUpperCase()); }
-      return;
-    }
-  }
   const jamMul = curseActive(p, "jam") ? 0.5 : 1;
   /* FORTRESS — three forward-facing guns: main cannon slower, two side guns faster */
   if (p.char === "fortress" && firing) {
