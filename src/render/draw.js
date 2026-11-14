@@ -2087,8 +2087,10 @@ function drawWarden(P) {
       cx.shadowBlur = 0;
       cx.lineCap = "butt";   // barrel caps (round/square) end with the character draw
 
-      /* --- dash cooldown indicator: reload arc, LOCAL warden only --- */
-      if (isLocal && P.dashT <= 0 && P.char !== "shredder") {
+      /* --- dash cooldown indicator: reload arc, LOCAL warden only ---
+         Every warden gets it, SHREDDER included: its saw is drawn at the same
+         centre, so the ring reads against the blade's inner disc. */
+      if (isLocal && P.dashT <= 0) {
         const rr = P.r + 9;
         const cdFrac = P.dashCdBase > 0 ? clamp(P.dashCd / P.dashCdBase, 0, 1) : 0;
         if (cdFrac > 0) {
