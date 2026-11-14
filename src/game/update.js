@@ -754,8 +754,11 @@ function update(dt) {
         portal = null;
         Game.floorFade = 1;          // the dark swallows the descent, then releases the new floor
         /* past the Event Horizon the way down leads into the saloon first; the
-           saloon's own portal (Game.inSaloon) carries on to the next floor */
-        if (Game.mapIdx === 4 && !Game.inSaloon && saloonAvailable()) { enterSaloon(); return; }
+           saloon's own portal (Game.inSaloon) carries on to the next floor.
+           CLASSIC keeps its old five-floor lap: no saloon, no deep floors — the
+           gate wraps straight back to THE CATACOMB. */
+        if (Game.mapIdx === 4 && !Game.inSaloon && saloonAvailable() &&
+            !(typeof classicOldLap === "function" && classicOldLap())) { enterSaloon(); return; }
         nextFloor();
         return;
       }

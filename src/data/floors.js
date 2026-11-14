@@ -47,8 +47,14 @@ const FLOORS = [
 /* How many floors a lap runs before the Catacomb returns. Solo and co-op both run
    the full eight now: THE SINGULAR sits between V and VI (scenes/saloon.js), and
    VI–VIII end at the Other Gunslingers, whose death opens the final rift to THE
-   UNKNOWN (entities/unknown.js). A co-op guest follows the host through all of it. */
-const loopLen = () => FLOORS.length;
+   UNKNOWN (entities/unknown.js). A co-op guest follows the host through all of it.
+
+   CLASSIC keeps the old five-floor descent: THE EVENT HORIZON is its last warden,
+   and BACK INTO THE DARK wraps there instead of falling into VI–VIII. CLASSIC LOOP
+   (co-op's endless lap) keeps the full eight so it still reaches the deep floors. */
+const classicOldLap = () => typeof Game !== "undefined" && Game.classicMode === true && !Game.classicLoop;
+const CLASSIC_LAP_LEN = 5;
+const loopLen = () => classicOldLap() ? CLASSIC_LAP_LEN : FLOORS.length;
 /* THE SINGULAR — not a floor of the loop but the saloon stage past the Event Horizon
    (scenes/saloon.js). floorDef() hands it out while Game.inSaloon, so the shared
    renderer paints the void outside the saloon's walls; the room draws itself. */
@@ -63,7 +69,7 @@ const UNKNOWN_FLOOR = { name: "THE UNKNOWN", boss: "THE UNKNOWN",
   rockA: "#15102b", rockB: "#100c22", rockTop: "#2b2350",
   rocks: 0, hazards: 0, newEnemy: "wisp" };
 const floorDef = () => Game.inSaloon ? SALOON_FLOOR : Game.inUnknown ? UNKNOWN_FLOOR : FLOORS[Game.mapIdx];
-const depth = () => Game.loop * FLOORS.length + Game.mapIdx;   // 0,1,2,3,...
+const depth = () => Game.loop * loopLen() + Game.mapIdx;   // 0,1,2,3,...
 const diffScale = () => 1 + (Game.wave - 1) * 0.14 + depth() * 0.45;
 
 /* =========================================================

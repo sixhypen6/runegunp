@@ -18,13 +18,14 @@ function startEnding() {
   ENDING.t = 0; ENDING.phase = "gather"; ENDING.revealed = false; ENDING.ringT = 0;
   ENDING.rings = []; ENDING.stars = [];
   $("voidChoice").classList.remove("reveal");
-  /* CLASSIC runs end here, at THE EVENT HORIZON: no way back down is offered */
-  const classic = !!Game.classicMode;
+  /* CLASSIC runs still end their lap here, at THE EVENT HORIZON, but the descent
+     may continue: BACK INTO THE DARK wraps to the Catacomb for another lap. */
+  const classic = Game.classicMode === true && !Game.classicLoop;
   $("vcTitle").textContent = classic ? "THE EVENT HORIZON COLLAPSES" : "THE UNKNOWN FALLS";
   $("vcSub").textContent = classic
-    ? "THE DEEP CLOSES BEHIND YOU — THE DESCENT ENDS WHERE IT ALWAYS DID"
+    ? "THE DEEP CLOSES BEHIND YOU — CLIMB OUT, OR FALL FOREVER"
     : "EVERY RUNE EVER CARVED ANSWERS IN CHORUS — CHOOSE";
-  $("vcDeeper").style.display = classic ? "none" : "";
+  $("vcDeeper").style.display = "";
   const far = Math.max(W, H) * 0.8;
   ENDING.glyphs = RUNE_IDS.map((id, i) => ({
     id,
@@ -148,7 +149,9 @@ function endingFrame(dt) {
         $("waitTitle").textContent = "YOUR PARTNER IS CHOOSING";
       } else {
         setState("choice");
-        $("bcTitle").textContent = "THE UNKNOWN YIELDS — THE DESCENT IS ENDLESS";
+        $("bcTitle").textContent = (Game.classicMode && !Game.classicLoop)
+          ? "THE VOID YIELDS — THE DESCENT IS ENDLESS"
+          : "THE UNKNOWN YIELDS — THE DESCENT IS ENDLESS";
         $("bcHealDesc").textContent = "Restore " + Math.round(player.maxHp / 2) + " vitality (half your maximum).";
       }
       toast("THE CATACOMB LOOPS — AND IT ONLY GETS HUNGRIER");
@@ -201,7 +204,6 @@ function endingChoice(deeper) {
 function applyEndingChoice(deeper) {
   if (Game.state !== "ending" || ENDING.phase !== "gather") return;
   if (deeper) {
-    if (Game.classicMode) return;                 // a CLASSIC descent has no deeper to fall into
     ENDING.phase = "deeper"; ENDING.t = 0; ENDING.ringT = 0;
     $("voidChoice").classList.remove("reveal");
     AudioFX.bossRoar();
