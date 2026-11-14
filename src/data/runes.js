@@ -888,7 +888,12 @@ function runeStatLines(p, id) {
   if (full.prey !== w.prey) L.push("+" + Math.round((full.prey - 1) * 100) + "% DMG TO BURNING / CHILLED / BLEEDING");
   if (full.crit !== w.crit) L.push(Math.round(full.crit * 100) + "% CRIT ×" + full.critMul.toFixed(1));
   if (full.wrath !== w.wrath) L.push("UP TO +" + Math.round(full.wrath * 100) + "% DMG NEAR DEATH");
-  if (full.dr !== w.dr) L.push("DAMAGE TAKEN −" + Math.round(full.dr * 100) + "%");
+  if (full.dr !== w.dr) {
+    /* dr is damage REDUCTION: a negative value means the warden takes more.
+       Show that as +X% (the old line printed "DAMAGE TAKEN −−8%" for GLASS CANNON). */
+    const taken = (w.dr - full.dr) * 100;
+    L.push("DAMAGE TAKEN " + (taken >= 0 ? "+" : "\u2212") + Math.round(Math.abs(taken)) + "%");
+  }
   if (full.thorns !== w.thorns) L.push("THORN BURST " + Math.round(12 + 9 * full.thorns) + " DMG WHEN HIT");
   if (full.regen !== w.regen) L.push("REGEN " + full.regen.toFixed(2) + " HP/s WHEN UNTOUCHED");
   if (full.vortex !== w.vortex) L.push("SLAIN FOES MAY PULL THE CROWD INWARD");
