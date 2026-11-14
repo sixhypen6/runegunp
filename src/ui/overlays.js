@@ -771,36 +771,26 @@ $("tabBestiary").addEventListener("click", () => glossShowPage("bestiary"));
 $("tabRunes").addEventListener("click", () => glossShowPage("runes"));
 
 /* ---------- the reckoning: custom in-game leaderboard ---------- */
-/* scope × group × difficulty × warden × record type
-   group "global" holds NORMAL/HARD/CHAOS as separate boards; "classic" is its
-   own short descent. lbChar "" means the overall mode board (ALL WARDENS). */
-let lbTab = "global", lbGroup = "global", lbMode = "normal", lbChar = "", lbMetric = "score";
+/* scope × board × warden × record type
+   The board is one of ALL / NORMAL / HARD / CHAOS / CLASSIC. ALL is the
+   composite: souls from any mode, but clear times only from NORMAL/HARD/CHAOS
+   (CLASSIC is a shorter descent). lbChar "" means the overall board (ALL
+   WARDENS). */
+const LB_MODES = ["all", "normal", "hard", "chaos", "classic"];
+let lbTab = "global", lbMode = "all", lbChar = "", lbMetric = "score";
 
 /* one key for "which view is on screen", so a slow fetch can prove it is still
    painting the view the player asked for */
-function lbViewKey() { return [lbTab, lbGroup, lbMode, lbChar, lbMetric].join("|"); }
+function lbViewKey() { return [lbTab, lbMode, lbChar, lbMetric].join("|"); }
 
-/* Two compact pickers replace the old group + mode + warden button rows. The
-   board list is rebuilt only when the supported set changes (a Play Games
-   fallback has no CLASSIC/CHAOS boards); the warden list is built once because
-   CHARS only grows. */
+/* the five board tabs are static in the markup; this is their id scheme */
+function lbBoardId(mode) { return "lbBoard" + mode.charAt(0).toUpperCase() + mode.slice(1); }
+
+/* One compact picker replaces the old group + mode + warden button rows. The
+   warden list is built once because CHARS only grows. */
 function lbBuildSelectors() {
-  const boardSel = $("lbBoardSel"), charSel = $("lbCharSel");
-  if (!boardSel || !charSel) return;
-  const boards = [["global:normal", "GLOBAL · NORMAL"], ["global:hard", "GLOBAL · HARD"]];
-  if (Leaderboard.modeSupported("chaos")) boards.push(["global:chaos", "GLOBAL · CHAOS"]);
-  if (Leaderboard.modeSupported("classic")) boards.push(["classic:classic", "CLASSIC"]);
-  const sig = boards.map(b => b[0]).join("|");
-  if (boardSel.dataset.sig !== sig) {
-    boardSel.textContent = "";
-    for (const [value, label] of boards) {
-      const opt = document.createElement("option");
-      opt.value = value;
-      opt.textContent = label;
-      boardSel.appendChild(opt);
-    }
-    boardSel.dataset.sig = sig;
-  }
+  const charSel = $("lbCharSel");
+  if (!charSel) return;
   if (charSel.dataset.built !== "1") {
     charSel.textContent = "";
     const add = (id, label) => {
@@ -818,8 +808,8 @@ function lbBuildSelectors() {
 
 function lbEmptyText(isClear, mode, char) {
   const who = char ? lbCharName(char) : "";
-  if (isClear) return "NO FASTEST CLEAR RECORDED YET" + (who ? " FOR " + who : "");
-  const kind = mode === "chaos" ? "CHAOS " : mode === "classic" ? "CLASSIC " : "";
+  if (isClear) return "NO FASTEST CLEAR RECORDED YET" + (mode === "all" ? " ACROSS ANY MODE" : "") + (who ? " FOR " + who : "");
+  const kind = mode === "all" ? "ALL-MODE " : mode === "chaos" ? "CHAOS " : mode === "classic" ? "CLASSIC " : "";
   return "NO " + kind + "SOULS RECORDED YET" + (who ? " WITH " + who : "");
 }
 
@@ -865,13 +855,16 @@ function lbRow(entry, me, pending) {
   name.className = "lb-name"; 
   name.textContent = rowName + (me ? " · YOU" : "");
 
-  /* Loadout details (character, runes, challenge) */
+  /* Loadout details (character, runes, challenge). On the composite ALL board
+     `mode` names the descent whose record won, so the source is never a
+     mystery. */
+  const from = entry.mode ? String(entry.mode).toUpperCase() : "";
   const who = lbCharName(entry.char), runes = lbRuneGlyphs(entry.runes), pet = lbPetName(entry.pet);
   const chal = (typeof challengeName === "function") ? challengeName(entry.challenge) : "";
 
-  if (who || pet || runes || chal) {
+  if (from || who || pet || runes || chal) {
     const sub = document.createElement("small");
-    sub.textContent = [who, pet ? "PET " + pet : "", runes, chal].filter(Boolean).join(" · ");
+    sub.textContent = [from, who, pet ? "PET " + pet : "", runes, chal].filter(Boolean).join(" · ");
     name.appendChild(sub);
   }
 
@@ -1008,12 +1001,12 @@ async function renderLeaderboard() {
   }
 }
 
-/* repaint the board + warden pickers (and the mode's skin), then refetch */
+/* repaint the board + warden picker (and the mode's skin), then refetch */
 function lbSync() {
   lbBuildSelectors();
-  /* Play Games has no CLASSIC board, so that group only exists where it can pay off */
-  if (lbGroup === "classic" && !Leaderboard.modeSupported("classic")) { lbGroup = "global"; lbMode = "normal"; }
-  if (lbGroup === "global" && lbMode === "chaos" && !Leaderboard.modeSupported("chaos")) lbMode = "normal";
+  /* Play Games has no ALL/CLASSIC/CHAOS boards, so a mode that cannot pay off
+     falls back to the board it does have instead of leaving a dead tab. */
+  if (!Leaderboard.modeSupported(lbMode)) lbMode = "normal";
   /* warden boards are a Firebase feature; a Play Games fallback has no rows to
      filter, so the selector would only lie about what is on screen */
   const charBoards = Leaderboard.charSupported(lbMode);
@@ -1022,28 +1015,37 @@ function lbSync() {
   if (!charBoards) lbChar = "";
   if (charWrap) charWrap.style.display = charBoards ? "" : "none";
   if (charSel) { charSel.disabled = !charBoards; charSel.value = lbChar; }
-  const group = lbGroup, mode = lbMode;
-  const boardSel = $("lbBoardSel");
-  if (boardSel) {
-    const want = group === "classic" ? "classic:classic" : "global:" + mode;
-    if ([...boardSel.options].some(o => o.value === want)) boardSel.value = want;
+  const mode = lbMode;
+  for (const m of LB_MODES) {
+    const btn = $(lbBoardId(m));
+    if (!btn) continue;
+    const supported = Leaderboard.modeSupported(m);
+    btn.style.display = supported ? "" : "none";
+    btn.disabled = !supported;
+    btn.classList.toggle("on", m === mode);
   }
   $("lbMetricScore").classList.toggle("on", lbMetric === "score");
   $("lbMetricClear").classList.toggle("on", lbMetric === "clear");
   const list = $("lbList");
+  list.classList.toggle("all", mode === "all");
   list.classList.toggle("hard", mode === "hard");
   list.classList.toggle("classic", mode === "classic");
   list.classList.toggle("chaos", mode === "chaos");
   list.classList.toggle("clear", lbMetric === "clear");
   const sub = $("lbSubtitle");
-  const groupName = group === "classic" ? "CLASSIC" : "GLOBAL · " + mode.toUpperCase();
+  const groupName = mode === "all" ? "ALL MODES" : mode === "classic" ? "CLASSIC" : "GLOBAL · " + mode.toUpperCase();
   const who = lbChar ? lbCharName(lbChar) : "ALL WARDENS";
   sub.textContent = groupName + " · " + who + " · " +
     (lbMetric === "clear" ? "FASTEST CLEAR · " : "BEST SOULS · ") +
     (lbTab === "nearby" ? "AROUND YOU" : "GLOBAL TOP");
   /* beats the inline gold style in the markup */
-  sub.style.color = mode === "hard" ? "var(--blood)" : mode === "chaos" ? CHAOS_COLOR : mode === "classic" ? "#79d9ff" : "var(--gold)";
+  sub.style.color = mode === "all" ? "var(--bone)" : mode === "hard" ? "var(--blood)" : mode === "chaos" ? CHAOS_COLOR : mode === "classic" ? "#79d9ff" : "var(--gold)";
   renderLeaderboard();
+}
+function lbShowBoard(mode) {
+  if (LB_MODES.indexOf(mode) < 0 || !Leaderboard.modeSupported(mode)) return;
+  lbMode = mode;
+  lbSync();
 }
 function lbShowTab(tab) { lbTab = (tab === "nearby") ? "nearby" : "global"; lbSync(); }
 function lbShowChar(id) {
@@ -1067,7 +1069,7 @@ function openLeaderboard() {
   const hint = $("lbDisplayHint"); if (hint) hint.textContent = "";
   setState("leaderboard");
   resetPanelScroll("leaderboardScreen");
-  lbTab = "global"; lbGroup = "global"; lbMode = "normal"; lbChar = ""; lbMetric = "score";    // always land on the normal global score view
+  lbTab = "global"; lbMode = "all"; lbChar = ""; lbMetric = "score";    // always land on the composite ALL score view
   lbSync();
 }
 function closeLeaderboard() { refreshMenu(); setState("menu"); }
@@ -1095,11 +1097,9 @@ $("lbDisplayInput").addEventListener("keydown", e => { if (e.key === "Enter") { 
 
 $("lbTabGlobal").addEventListener("click", () => lbShowTab("global"));
 $("lbTabNearby").addEventListener("click", () => lbShowTab("nearby"));
-$("lbBoardSel").addEventListener("change", e => {
-  const [g, m] = String(e.target.value).split(":");
-  lbGroup = g === "classic" ? "classic" : "global";
-  lbMode = lbGroup === "classic" ? "classic" : (m === "hard" || m === "chaos") ? m : "normal";
-  lbSync();
+LB_MODES.forEach(mode => {
+  const btn = $(lbBoardId(mode));
+  if (btn) btn.addEventListener("click", () => lbShowBoard(mode));
 });
 $("lbCharSel").addEventListener("change", e => lbShowChar(e.target.value));
 $("lbMetricScore").addEventListener("click", () => lbShowMetric("score"));

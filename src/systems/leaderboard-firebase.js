@@ -23,6 +23,10 @@
        chaosClear:  { char, runes },
      }
 
+     The ALL board is derived at read time, never stored: a player's best
+     souls from any mode, plus their fastest clear among normal/hard/chaos
+     (classic is a shorter descent, so its time would not compare).
+
      Per-warden boards live at /charScores/<mode>/<charId>/<auth.uid>:
        { name, display, place, platform, updatedAt,
          score, runes, pet, challenge,          // the warden's best souls
@@ -121,7 +125,13 @@ const FirebaseBoard = (() => {
     normal: "normalClear", hard: "hardClear",
     classic: "classicClear", chaos: "chaosClear",
   };
-  const slotOf = id => (FIELDS[id] ? id : "normal");
+  /* The composite ALL board is derived at read time, never stored. Souls come
+     from every mode; the fastest clear skips CLASSIC because its descent is
+     shorter and its time would not compare with a full run. */
+  const ALL = "all";
+  const ALL_SCORE_MODES = ["normal", "hard", "chaos", "classic"];
+  const ALL_CLEAR_MODES = ["normal", "hard", "chaos"];
+  const slotOf = id => (id === ALL ? ALL : FIELDS[id] ? id : "normal");
 
   let app = null, db = null, auth = null;
   let uid = null, callsign = null;
@@ -295,6 +305,9 @@ const FirebaseBoard = (() => {
     delete cache["char:" + slot + ":" + char + ":clear"];
     delete cache["charAll:" + slot + ":" + char];
     delete cache["charAll:" + slot + ":" + char + ":clear"];
+    /* the composite ALL warden board merges every mode's bucket */
+    delete cache["charAllModes:" + char];
+    delete cache["charAllModes:" + char + ":clear"];
   }
 
   function rowRef() { return db.ref(SCORES + "/" + uid); }
@@ -430,6 +443,7 @@ const FirebaseBoard = (() => {
     const amount = Math.floor(Number(totalScoreAmount) || 0);
     if (!(amount > 0) || amount > SCORE_CAP) return;
     const slot = slotOf(leaderboardID), key = field(slot);
+    if (slot === ALL || !key) return;   // ALL is derived from the per-mode fields at read time
     let cur = 0;
     try {
       const snap = await guard(rowRef().child(key).get(), "best");
@@ -559,6 +573,40 @@ function toEntry(id, row, key, slot, isClearTime) {
     };
   }
 
+  /* A row from the composite ALL board. It is derived, never stored: pick the
+     winning per-mode field, then borrow that mode's loadout tag so the number
+     and the warden always agree. Ties prefer the earlier mode. */
+  function allEntry(id, row, isClearTime) {
+    const modes = isClearTime ? ALL_CLEAR_MODES : ALL_SCORE_MODES;
+    let best = 0, bestMode = "";
+    for (const mode of modes) {
+      const key = isClearTime ? CLEAR_FIELDS[mode] : FIELDS[mode];
+      const v = Math.max(0, Math.floor(Number(row && row[key]) || 0));
+      if (!v) continue;
+      if (!bestMode || (isClearTime ? v < best : v > best)) { best = v; bestMode = mode; }
+    }
+    if (!bestMode) return null;
+    const tag = (row && row[isClearTime ? CLEAR_TAG_FIELDS[bestMode] : bestMode]) || null;
+    const preferredName = (row && typeof row.display === "string" && row.display)
+      || (row && typeof row.name === "string" && row.name)
+      || "WARDEN";
+    return {
+      rank: 0,
+      displayName: preferredName,
+      name: preferredName,
+      displayScore: isClearTime ? fmtClearMs(best) : "",
+      rawScore: best,
+      playerId: id,
+      place: (row && typeof row.place === "string") ? row.place : "unknown",
+      platform: (row && typeof row.platform === "string") ? row.platform : "",
+      char: (tag && typeof tag.char === "string") ? tag.char : "",
+      pet: (tag && typeof tag.pet === "string") ? tag.pet : "",
+      runes: (tag && typeof tag.runes === "string") ? tag.runes : "",
+      challenge: (tag && typeof tag.challenge === "string") ? tag.challenge : "",
+      mode: bestMode,
+    };
+  }
+
   function rankRows(rows, isClearTime) {
     rows.sort((a, b) => (isClearTime ? a.rawScore - b.rawScore : b.rawScore - a.rawScore) ||
       (a.displayName < b.displayName ? -1 : a.displayName > b.displayName ? 1 : 0));
@@ -572,7 +620,9 @@ function toEntry(id, row, key, slot, isClearTime) {
   }
 
   async function rowsFor(mode, isClearTime = false) {
-    const slot = slotOf(mode), key = isClearTime ? CLEAR_FIELDS[slot] : field(slot);
+    const slot = slotOf(mode);
+    if (slot === ALL) return allModeRows(isClearTime);
+    const key = isClearTime ? CLEAR_FIELDS[slot] : field(slot);
     if (!key) return [];
     const cacheKey = slot + (isClearTime ? ":clear" : "");
     const now = Date.now();
@@ -590,17 +640,34 @@ function toEntry(id, row, key, slot, isClearTime) {
     return ranked;
   }
 
-  async function allRowsFor(mode, isClearTime = false) {
-    const slot = slotOf(mode), key = isClearTime ? CLEAR_FIELDS[slot] : field(slot);
-    if (!key) return [];
+  /* One /scores snapshot for every reader that needs the whole tree. */
+  async function scoresSnapshot() {
     let hit = cache.allRows;
     if (!hit || Date.now() - hit.at >= CACHE_MS) {
       const snap = await guard(db.ref(SCORES).get(), "around");
       hit = { value: (snap && snap.val && snap.val()) || {}, at: Date.now() };
       cache.allRows = hit;
     }
-    return Object.keys(hit.value)
-      .map(id => toEntry(id, hit.value[id], key, slot, isClearTime))
+    return hit.value;
+  }
+
+  /* The composite ALL board, derived from every /scores row. */
+  async function allModeRows(isClearTime = false) {
+    const value = await scoresSnapshot();
+    const rows = Object.keys(value)
+      .map(id => allEntry(id, value[id], isClearTime))
+      .filter(Boolean);
+    return rankRows(rows, isClearTime);
+  }
+
+  async function allRowsFor(mode, isClearTime = false) {
+    const slot = slotOf(mode);
+    if (slot === ALL) return allModeRows(isClearTime);
+    const key = isClearTime ? CLEAR_FIELDS[slot] : field(slot);
+    if (!key) return [];
+    const value = await scoresSnapshot();
+    return Object.keys(value)
+      .map(id => toEntry(id, value[id], key, slot, isClearTime))
       .filter(row => row.rawScore > 0);
   }
 
@@ -609,6 +676,7 @@ function toEntry(id, row, key, slot, isClearTime) {
      fall back to the legacy mode rows and keep only those whose loadout tag
      names this warden. A later reload with the new rules uses the real tree. */
   async function charRowsFor(mode, char, isClearTime = false) {
+    if (slotOf(mode) === ALL) return allCharModeRows(char, isClearTime);
     const slot = charSlot(mode);
     if (!slot || !validCharKey(char)) return [];
     const key = isClearTime ? "clearMs" : "score";
@@ -643,7 +711,33 @@ function toEntry(id, row, key, slot, isClearTime) {
     return ranked;
   }
 
+  /* ONE warden on the ALL board: keep each player's best row across every
+     mode. CLASSIC joins for souls only; its clear time is ignored, matching
+     the overall ALL board. */
+  async function allCharModeRows(char, isClearTime = false) {
+    if (!validCharKey(char)) return [];
+    const cacheKey = "charAllModes:" + char + (isClearTime ? ":clear" : "");
+    const now = Date.now();
+    const hit = cache[cacheKey];
+    if (hit && now - hit.at < CACHE_MS) return hit.rows;
+    const modes = isClearTime ? ALL_CLEAR_MODES : ALL_SCORE_MODES;
+    const lists = await Promise.all(modes.map(mode => charRowsFor(mode, char, isClearTime)));
+    const byPlayer = new Map();
+    modes.forEach((mode, i) => {
+      for (const row of lists[i]) {
+        const cur = byPlayer.get(row.playerId);
+        if (!cur) { byPlayer.set(row.playerId, { ...row, mode }); continue; }
+        const better = isClearTime ? row.rawScore < cur.rawScore : row.rawScore > cur.rawScore;
+        if (better) byPlayer.set(row.playerId, { ...row, mode });
+      }
+    });
+    const ranked = rankRows([...byPlayer.values()], isClearTime);
+    cache[cacheKey] = { rows: ranked, at: now };
+    return ranked;
+  }
+
   async function allCharRowsFor(mode, char, isClearTime = false) {
+    if (slotOf(mode) === ALL) return allCharModeRows(char, isClearTime);
     const slot = charSlot(mode);
     if (!slot || !validCharKey(char)) return [];
     const cacheKey = "charAll:" + slot + ":" + char + (isClearTime ? ":clear" : "");
@@ -674,6 +768,7 @@ function toEntry(id, row, key, slot, isClearTime) {
 
   async function centeredRows(mode, isClearTime, maxResults, targetValue, tag) {
     if (!signedIn || !uid) throw new Error("board-signed-out");
+    if (slotOf(mode) === ALL) return centeredAllRows(isClearTime, maxResults, targetValue, tag);
     const slot = slotOf(mode), key = isClearTime ? CLEAR_FIELDS[slot] : field(slot);
     const rows = (await allRowsFor(slot, isClearTime)).map(row => ({ ...row }));
     const current = rows.find(row => row.playerId === uid);
@@ -709,11 +804,51 @@ function toEntry(id, row, key, slot, isClearTime) {
     return ranked.slice(Math.max(0, center - half), Math.min(ranked.length, center + half + 1));
   }
 
+  /* Around-you on the composite ALL board. The virtual pending row cannot
+     borrow a stored field (ALL has none), so it is built directly from the
+     local best + tag and then ranked with everyone else. */
+  async function centeredAllRows(isClearTime, maxResults, targetValue, tag) {
+    const rows = (await allModeRows(isClearTime)).map(row => ({ ...row }));
+    const current = rows.find(row => row.playerId === uid);
+    const target = Math.round(Number(targetValue) || 0);
+    const better = isClearTime
+      ? target > 0 && (!current || target < current.rawScore)
+      : target > 0 && (!current || target > current.rawScore);
+    if (better && target <= (isClearTime ? 86400000 : SCORE_CAP)) {
+      const virtual = {
+        rank: 0,
+        displayName: (current && current.displayName) || displayName || callsign || "WARDEN",
+        name: (current && current.name) || callsign || "WARDEN",
+        displayScore: isClearTime ? fmtClearMs(target) : "",
+        rawScore: target,
+        playerId: uid,
+        place: (current && current.place) || "",
+        platform: (current && current.platform) || "",
+        char: (tag && tag.char) || "",
+        pet: (tag && tag.pet) || "",
+        runes: (tag && tag.runes) || "",
+        challenge: (tag && tag.challenge) || "",
+        pending: true,
+      };
+      const index = rows.findIndex(row => row.playerId === uid);
+      if (index >= 0) rows.splice(index, 1);
+      rows.push(virtual);
+    }
+    const ranked = rankRows(rows, isClearTime);
+    const center = ranked.findIndex(row => row.playerId === uid);
+    if (center < 0) return [];
+    const half = Math.max(3, Math.floor((Math.max(1, maxResults) - 1) / 2));
+    return ranked.slice(Math.max(0, center - half), Math.min(ranked.length, center + half + 1));
+  }
+
   async function centeredCharRows(mode, char, isClearTime, maxResults, targetValue, tag) {
     if (!signedIn || !uid) throw new Error("board-signed-out");
-    const slot = charSlot(mode);
+    const isAll = slotOf(mode) === ALL;
+    const slot = isAll ? ALL : charSlot(mode);
     if (!slot || !validCharKey(char)) return [];
-    const rows = (await allCharRowsFor(slot, char, isClearTime)).map(row => ({ ...row }));
+    const rows = (isAll
+      ? await allCharModeRows(char, isClearTime)
+      : await allCharRowsFor(slot, char, isClearTime)).map(row => ({ ...row }));
     const current = rows.find(row => row.playerId === uid);
     const target = Math.round(Number(targetValue) || 0);
     const better = isClearTime
@@ -775,6 +910,13 @@ function toEntry(id, row, key, slot, isClearTime) {
 
   async function getUserTotalScore({ leaderboardID, char } = {}) {
     if (!signedIn || !uid) throw new Error("board-signed-out");
+    if (slotOf(leaderboardID) === ALL) {
+      const rows = (char && validCharKey(char))
+        ? await allCharModeRows(char, false)
+        : await allModeRows(false);
+      const mine = rows.find(row => row.playerId === uid);
+      return { player_score: mine ? mine.rawScore : 0 };
+    }
     const ref = char && charSlot(leaderboardID) && validCharKey(char)
       ? charRowRef(leaderboardID, char).child("score")
       : rowRef().child(field(leaderboardID));

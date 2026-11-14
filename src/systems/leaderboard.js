@@ -57,17 +57,22 @@ const Leaderboard = (() => {
      is resolved lazily — this file must never assume it exists. */
   const BOARD_BACKEND = "firebase";
 
-  /* Three scored descents. NORMAL / HARD / CHAOS each own their own board:
-     chaos souls come thick and easy, so mixing them with honest descents
-     would bury every honest score (that is why chaos used to post nothing at
-     all). Play Games has no chaos board, so on that backend the mode simply
-     has nowhere to go. */
+  /* Four scored descents, plus the composite ALL board. NORMAL / HARD / CHAOS
+     each own their own board: chaos souls come thick and easy, so mixing them
+     with honest descents would bury every honest score (that is why chaos used
+     to post nothing at all). ALL is derived, never stored: it takes the best
+     souls from ANY mode and the fastest clear from NORMAL / HARD / CHAOS
+     (CLASSIC is a shorter descent, so its time would not compare). Play Games
+     has none of these boards beyond NORMAL/HARD, so on that backend the mode
+     simply has nowhere to go. */
+  const ALL_SCORE_MODES = ["normal", "hard", "chaos", "classic"];
+  const ALL_CLEAR_MODES = ["normal", "hard", "chaos"];
   function modeOf(o) {
     if (o && typeof o === "object") {
-      if (o.mode === "hard" || o.mode === "classic" || o.mode === "chaos") return o.mode;
+      if (o.mode === "all" || o.mode === "hard" || o.mode === "classic" || o.mode === "chaos") return o.mode;
       return o.hard ? "hard" : "normal";
     }
-    return (o === "hard" || o === "classic" || o === "chaos") ? o : "normal";
+    return (o === "all" || o === "hard" || o === "classic" || o === "chaos") ? o : "normal";
   }
   function runMode() {
     return Game.chaosMode ? "chaos" : Game.classicMode ? "classic" : Game.hardMode ? "hard" : "normal";
@@ -96,15 +101,15 @@ const Leaderboard = (() => {
     const m = modeOf(mode), p = board();
     if (!p) return null;
     if (p !== pg()) return m;
-    return m === "hard" ? LB_HIGHSCORE_HARD : (m === "chaos" || m === "classic") ? null : LB_HIGHSCORE;
+    return m === "hard" ? LB_HIGHSCORE_HARD : (m === "all" || m === "chaos" || m === "classic") ? null : LB_HIGHSCORE;
   }
   /* True when this player is on a reachable board. */
   function available() { return !!board() && signedIn; }
   /* True when the CURRENT provider has a board for this mode. */
   function modeSupported(mode) {
     const m = modeOf(mode);
-    if (m !== "chaos" && m !== "classic") return true;
-    return !!fb() && board() === fb();   // CLASSIC and CHAOS live on the shared online board only
+    if (m !== "all" && m !== "chaos" && m !== "classic") return true;
+    return !!fb() && board() === fb();   // ALL / CLASSIC / CHAOS live on the shared online board only
   }
   /* True only when Google's own leaderboard overlay can actually be opened. */
   function nativeUI() { return !!pg() && nativeSignedIn; }
@@ -357,7 +362,7 @@ const Leaderboard = (() => {
      link even though the custom UI is the primary surface now. Native only — a
      Firebase board has no Google surface to show. */
   async function show(opts = {}) {
-    const p = pg(), m = modeOf(opts), id = m === "hard" ? LB_HIGHSCORE_HARD : (m === "chaos" || m === "classic") ? null : LB_HIGHSCORE;
+    const p = pg(), m = modeOf(opts), id = m === "hard" ? LB_HIGHSCORE_HARD : (m === "all" || m === "chaos" || m === "classic") ? null : LB_HIGHSCORE;
     if (!p || !nativeSignedIn || !id) return;
     try { await p.showLeaderboard({ leaderboardID: id }); } catch (e) {}
   }
@@ -388,6 +393,8 @@ const Leaderboard = (() => {
       pet:      e.pet || "",
       runes:    e.runes || "",
       challenge: e.challenge || "",
+      /* which mode owned the record on the composite ALL board */
+      mode:     e.mode || "",
     }));
   }
 
@@ -533,18 +540,91 @@ const Leaderboard = (() => {
      the moment a fetch shows the score has been tallied. */
 
   /* recordBests() runs before submitRun() at every run-end sink, so this is
-     always exactly the score that was last submitted for the given board. */
+     always exactly the score that was last submitted for the given board.
+     ALL is a view over those same ledgers: the best souls of any mode + the
+     fastest clear of NORMAL/HARD/CHAOS, with each half carrying the loadout
+     that actually set it. */
   function bestsFor(mode) {
     const m = modeOf(mode);
     if (typeof Meta === "undefined" || !Meta) return null;
+    if (m === "all") {
+      const scoreMode = allBestMode(false), clearMode = allBestMode(true);
+      const s = scoreMode ? bestsFor(scoreMode) : null;
+      const c = clearMode ? bestsFor(clearMode) : null;
+      return {
+        score: (s && s.score) || 0,
+        speedSec: (c && c.speedSec) || 0,
+        tag: !!(s && s.tag),
+        char: (s && s.char) || "",
+        runes: (s && s.runes) || "",
+        pet: (s && s.pet) || "",
+        challenge: (s && s.challenge) || "",
+        clearTag: !!(c && c.clearTag),
+        clearChar: (c && c.clearChar) || "",
+        clearRunes: (c && c.clearRunes) || "",
+        clearPet: (c && c.clearPet) || "",
+        clearChallenge: (c && c.clearChallenge) || "",
+      };
+    }
     if (m === "chaos") return Meta.bestsChaos || null;
     if (m === "classic") return Meta.bestsClassic || null;
     return m === "hard" ? (Meta.bestsHard || null) : (Meta.bests || null);
   }
-  /* The per-warden record for one mode, or null when that warden has none. */
+  /* Which mode owns the composite ALL record. Souls may come from any mode;
+     clear times skip CLASSIC (its descent is shorter). Ties go to the earlier
+     mode in the list, so NORMAL is preferred when two boards are equal. */
+  function allBestMode(isClear) {
+    const modes = isClear ? ALL_CLEAR_MODES : ALL_SCORE_MODES;
+    let bestMode = null, bestValue = 0;
+    for (const key of modes) {
+      const b = bestsFor(key);
+      if (!b) continue;
+      const v = isClear ? (Number(b.speedSec) || 0) : (Number(b.score) || 0);
+      if (!(v > 0)) continue;
+      if (!bestMode || (isClear ? v < bestValue : v > bestValue)) { bestMode = key; bestValue = v; }
+    }
+    return bestMode;
+  }
+  /* The per-warden record for one mode, or null when that warden has none.
+     ALL merges every mode's bucket: highest souls, plus the fastest clear of
+     NORMAL/HARD/CHAOS, each with its own loadout. CLASSIC contributes souls
+     only — its clear time never feeds the ALL board. */
   function charBest(mode, char) {
     const m = modeOf(mode);
     if (!char || typeof Meta === "undefined" || !Meta || !Meta.charBests) return null;
+    if (m === "all") {
+      const merged = {
+        score: 0, speedSec: 0,
+        runes: "", pet: "", challenge: "",
+        clearRunes: "", clearPet: "", clearChallenge: "",
+      };
+      let bestScore = -1, bestClear = 0;
+      for (const key of ALL_SCORE_MODES) {
+        const c = charBest(key, char);
+        if (!c) continue;
+        const score = Number(c.score) || 0;
+        if (score > bestScore) {
+          bestScore = score;
+          merged.score = score;
+          merged.runes = c.runes || "";
+          merged.pet = c.pet || "";
+          merged.challenge = c.challenge || "";
+        }
+      }
+      for (const key of ALL_CLEAR_MODES) {
+        const c = charBest(key, char);
+        if (!c) continue;
+        const time = Number(c.speedSec) || 0;
+        if (time > 0 && (!bestClear || time < bestClear)) {
+          bestClear = time;
+          merged.speedSec = time;
+          merged.clearRunes = c.clearRunes || "";
+          merged.clearPet = c.clearPet || "";
+          merged.clearChallenge = c.clearChallenge || "";
+        }
+      }
+      return (bestScore > 0 || bestClear > 0) ? merged : null;
+    }
     const bucket = Meta.charBests[m];
     return (bucket && bucket[char]) || null;
   }

@@ -372,9 +372,16 @@
   .lb-row.me{border-color:var(--arcane);box-shadow:0 0 14px rgba(157,107,255,.35);background:rgba(157,107,255,.08)}
   .lb-row.me .lb-name{color:#fff}
   .lb-empty{color:var(--dim);font-size:calc(11px * var(--text-scale, 1));text-align:center;padding:26px 8px;letter-spacing:.2em}
-  /* hard-mode reckoning — runs red */
+  /* the five boards: ALL is the composite (souls any mode, time N/H/C) */
+  .lb-board-tabs{display:flex;gap:6px;margin:0 0 8px;flex-wrap:nowrap}
+  .lb-board-tab{flex:1 1 0;min-width:0;padding:9px 2px;font-size:calc(9px * var(--text-scale, 1));
+    letter-spacing:.08em;text-indent:.08em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lb-board-tab.all.on{border-color:var(--bone);color:#fff;box-shadow:0 0 16px rgba(232,226,208,.35)}
+  .lb-board-tab.hard.on{border-color:var(--blood);color:#fff;box-shadow:0 0 16px rgba(255,77,94,.4)}
+  .lb-board-tab.chaos.on{border-color:#ff6bd6;color:#fff;box-shadow:0 0 16px rgba(255,107,214,.4)}
+  .lb-board-tab.classic.on{border-color:#79d9ff;color:#fff;box-shadow:0 0 16px rgba(121,217,255,.35)}
   .lb-mode-tabs{margin-bottom:8px}
-  /* board + warden pickers: two compact dropdowns instead of a wall of buttons */
+  /* warden picker: one compact dropdown beside the five board tabs */
   .lb-select-row{display:flex;gap:8px;margin:0 0 8px}
   .lb-select-wrap{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
   .lb-select-cap{font-size:calc(8px * var(--text-scale, 1));letter-spacing:.22em;text-indent:.22em;color:var(--dim)}
@@ -387,6 +394,9 @@
   .lb-select option{background:#0b0714;color:var(--bone)}
   .lb-select:disabled{opacity:.4;cursor:default}
   .gloss-tab.hard.on{border-color:var(--blood);color:#fff;box-shadow:0 0 16px rgba(255,77,94,.4)}
+  /* all-mode reckoning — bone over the whole descent */
+  .lb-list.all .lb-row .lb-score{color:var(--bone)}
+  .lb-list.all .lb-row.me{border-color:var(--bone);box-shadow:0 0 14px rgba(232,226,208,.25);background:rgba(232,226,208,.06)}
   .lb-list.hard .lb-row .lb-score{color:var(--blood)}
   .lb-list.hard .lb-row.me{border-color:var(--blood);box-shadow:0 0 14px rgba(255,77,94,.35);background:rgba(255,77,94,.08)}
   /* chaos-mode reckoning — the rift's own pink */
@@ -402,6 +412,7 @@
   @keyframes lbPendingPulse{0%,100%{opacity:.6}50%{opacity:1}}
   .lb-row.pending{border-style:dashed;animation:lbPendingPulse 1.6s ease-in-out infinite}
   .lb-row.pending .lb-rank{color:var(--gold)}
+  .lb-list.all .lb-row.pending .lb-rank{color:var(--bone)}
   .lb-list.hard .lb-row.pending .lb-rank{color:var(--blood)}
   .lb-list.chaos .lb-row.pending .lb-rank{color:#ff6bd6}
   .lb-hint{color:var(--dim);font-size:calc(9px * var(--text-scale, 1));text-align:center;padding:8px 4px 0;letter-spacing:.2em;line-height:1.7}
@@ -978,7 +989,7 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
 <div class="overlay" id="leaderboardScreen">
   <div class="panel">
     <h2>THE RECKONING</h2>
-    <div class="hint">online records · <span style="color:var(--gold)" id="lbSubtitle">GLOBAL · NORMAL · ALL WARDENS</span></div>
+    <div class="hint">online records · <span style="color:var(--gold)" id="lbSubtitle">ALL MODES · ALL WARDENS</span></div>
     <div id="lbNameEdit" style="display:flex;gap:8px;align-items:center;margin:8px 0 10px">
       <input id="lbDisplayInput" maxlength="20" autocomplete="off" autocorrect="off" spellcheck="false"
         placeholder="DISPLAY NAME (1-20)" aria-label="Leaderboard display name"
@@ -986,11 +997,14 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
       <button class="menu-btn small" id="lbDisplaySave" style="margin:0;white-space:nowrap">SET NAME</button>
     </div>
     <div class="hint" id="lbDisplayHint" style="margin:-2px 0 10px;min-height:1.2em"></div>
+    <div class="glossary-tabs lb-board-tabs" role="tablist" aria-label="Leaderboard board">
+      <button class="menu-btn small gloss-tab lb-board-tab all on" id="lbBoardAll" data-mode="all">ALL</button>
+      <button class="menu-btn small gloss-tab lb-board-tab normal" id="lbBoardNormal" data-mode="normal">NORMAL</button>
+      <button class="menu-btn small gloss-tab lb-board-tab hard" id="lbBoardHard" data-mode="hard">HARD</button>
+      <button class="menu-btn small gloss-tab lb-board-tab chaos" id="lbBoardChaos" data-mode="chaos">CHAOS</button>
+      <button class="menu-btn small gloss-tab lb-board-tab classic" id="lbBoardClassic" data-mode="classic">CLASSIC</button>
+    </div>
     <div class="lb-select-row">
-      <label class="lb-select-wrap">
-        <span class="lb-select-cap">BOARD</span>
-        <select class="lb-select" id="lbBoardSel" aria-label="Leaderboard board"></select>
-      </label>
       <label class="lb-select-wrap" id="lbCharWrap">
         <span class="lb-select-cap">WARDEN</span>
         <select class="lb-select" id="lbCharSel" aria-label="Warden board"></select>
