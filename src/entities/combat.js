@@ -551,6 +551,10 @@ function fireWeapon(p, inp, dt) {
   if (p.char === "demolitionist") {
     p.fireT = 1 / (m.rate * jamMul);
     launchShell(p, inp, aim);
+    /* MIRROR: each stack lobs another charge behind you — its own crater and
+       shrapnel answer just like the first (up to six, mirrorDmg tapers them) */
+    for (let i = 0; i < (m.demoRear || 0); i++)
+      launchShell(p, inp, aim + Math.PI + rnd(-0.08, 0.08), { dmgMul: m.demoRearDmg || 1 });
     p.kickT = 0.09;
     Game.shake = Math.max(Game.shake, 3);
     /* muzzle thump — a cough of ember off the tube's mouth */
@@ -735,23 +739,31 @@ function placeMine(p, x, y) {
     t: 0, life: 0.2, r: rnd(1.5, 3), color: "#ff5e2e" });
 }
 
-function detonateMine(mn, trigger) {
+function detonateMine(mn, trigger, dmgMul) {
   const p = mn.owner || localPlayer();
   const m = p.mods;
-  const shards = Math.min(1 + m.count, 40);   // bare gun: 1 bullet → 2 shards; SCATTER etc. add more
+  const mul = dmgMul || 1;
+  /* TWIN: extra shards are aimed at the mark instead of thrown wild */
+  const twin = trigger ? (m.demoShards || 0) : 0;
+  const shards = Math.min(1 + m.count + twin, 40);   // bare gun: 1 bullet → 2 shards; SCATTER etc. add more
+  const aimA = trigger ? angTo(mn.x, mn.y, trigger.x, trigger.y) : 0;
   for (let i = 0; i < shards; i++) {
     /* the first shard always finds the foot that woke the mine; the rest fly wild —
-       and skip the trigger, so a point-blank burst still sprays outward */
-    const a = i === 0 && trigger ? angTo(mn.x, mn.y, trigger.x, trigger.y) : rnd(0, TAU);
+       and skip the trigger, so a point-blank burst still sprays outward. TWIN's
+       aimed shards fan around that same first line and may strike it again. */
+    const aimedShard = !!trigger && (i === 0 || i <= twin);
+    const a = aimedShard
+      ? aimA + (i === 0 ? 0 : (i - (twin + 1) / 2) * 0.14)
+      : rnd(0, TAU);
     bullets.push({ x: mn.x, y: mn.y,
       vx: Math.cos(a) * m.speed, vy: Math.sin(a) * m.speed,
-      r: m.size, dmg: m.dmg, t: 0, life: 1.2,
+      r: m.size, dmg: m.dmg * mul, t: 0, life: 1.2,
       pierce: m.pierce, bounce: m.bounce, homing: m.homing,
       venom: m.venom, ember: m.ember, frost: m.frost, storm: m.storm,
-      execute: m.execute, knock: m.knock,
+      bleed: m.bleed, execute: m.execute, knock: m.knock,
       crit: m.crit, critMul: m.critMul, fear: m.fear, fearDur: m.fearDur,
       owner: p,
-      hitSet: i === 0 || !trigger ? new Set() : new Set([trigger]) });
+      hitSet: !trigger || aimedShard ? new Set() : new Set([trigger]) });
   }
   if (bullets.length > 450) bullets.splice(0, bullets.length - 450); // perf guard on extreme stacks
   for (let k = 0; k < 10; k++) {
@@ -773,8 +785,9 @@ function detonateMine(mn, trigger) {
    ========================================================= */
 const SHELL_RANGE = 180;   // the mortar throws no further — a short, committed lob
 const SHELL_SLAM_R = 90;   // reach of the crater ring where the shell comes down
-function launchShell(p, inp, aim) {
+function launchShell(p, inp, aim, opts) {
   const m = p.mods;
+  const dmgMul = opts && opts.dmgMul !== undefined ? opts.dmgMul : 1;
   /* the lob lands where you're pointing, capped short: auto-aim drops it on the
      target, cursor aim drops it at the cursor, a bare stick throws full range */
   let d = SHELL_RANGE;
@@ -790,7 +803,8 @@ function launchShell(p, inp, aim) {
   const ly = clamp(p.y + Math.sin(aim) * d, 40, MAP.h - 40);
   const T = clamp(Math.hypot(lx - p.x, ly - p.y) / 360, 0.26, 0.5);
   shells.push({ sx: p.x, sy: p.y, x: p.x, y: p.y, lx, ly,
-    t: 0, T, r: m.size + 6, dmg: m.dmg, knock: m.knock, hitSet: new Set(), owner: p });
+    t: 0, T, r: m.size + 6, dmg: m.dmg * dmgMul, dmgMul, bleed: m.bleed || 0,
+    knock: m.knock, hitSet: new Set(), owner: p });
   /* the warning ring closes on the crater exactly when the shell arrives */
   shockwaves.push({ x: lx, y: ly, r: 4, max: SHELL_SLAM_R, speed: (SHELL_SLAM_R - 4) / T,
     dmg: 0, hostile: false, color: "#ff5e2e", hitSet: new Set() });
@@ -799,9 +813,11 @@ function launchShell(p, inp, aim) {
 function shellSlam(sh) {
   const p = sh.owner || localPlayer();
   const m = p.mods;
-  /* the crater: a friendly ring that washes over everything near the fall */
+  const mul = sh.dmgMul || 1;
+  /* the crater: a friendly ring that washes over everything near the fall —
+     BLEED sinks into every body the ring touches */
   shockwaves.push({ x: sh.x, y: sh.y, r: 10, max: SHELL_SLAM_R, speed: 420,
-    dmg: m.dmg, hostile: false, hitSet: new Set(), owner: p });
+    dmg: m.dmg * mul, bleed: m.bleed || 0, hostile: false, hitSet: new Set(), owner: p });
   /* whatever stands nearest the crater eats the aimed shard, mine-fashion */
   let tgt = null, bd = SHELL_SLAM_R ** 2;
   for (const e of enemies) {
@@ -809,7 +825,7 @@ function shellSlam(sh) {
     const dd = dist2(sh.x, sh.y, e.x, e.y);
     if (dd < bd) { bd = dd; tgt = e; }
   }
-  detonateMine({ x: sh.x, y: sh.y, owner: p }, tgt);
+  detonateMine({ x: sh.x, y: sh.y, owner: p }, tgt, mul);
   Game.shake = Math.max(Game.shake, 8);
   AudioFX.slam();
 }

@@ -1011,6 +1011,12 @@ function update(dt) {
       if (dist2(sh.x, sh.y, e.x, e.y) < (sh.r + e.r) ** 2) {
         sh.hitSet.add(e);
         damageEnemy(e, sh.dmg, sh);
+        /* BLEED: the shell itself opens the wound too, not just its shrapnel */
+        if (!e.dead && sh.bleed) {
+          e.bleedT = Math.max(e.bleedT || 0, bleedTime(sh.bleed));
+          e.bleedDps = Math.max(e.bleedDps || 0, bleedDps(sh.bleed));
+          e.bleedBy = sh.owner;
+        }
         bulletSparks(sh, angTo(sh.lx, sh.ly, sh.sx, sh.sy), 4);
       }
     }
@@ -1260,7 +1266,16 @@ function update(dt) {
       if (!s.hitSet) s.hitSet = new Set();
       for (const e of enemies) {
         if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p" || s.hitSet.has(e)) continue;
-        if (dist2(s.x, s.y, e.x, e.y) < (s.r + e.r) ** 2) { s.hitSet.add(e); damageEnemy(e, s.dmg, s.owner ? { owner: s.owner } : undefined); }
+        if (dist2(s.x, s.y, e.x, e.y) < (s.r + e.r) ** 2) {
+          s.hitSet.add(e);
+          damageEnemy(e, s.dmg, s.owner ? { owner: s.owner } : undefined);
+          /* BLEED: the Demolitionist's crater leaves a wound on everything it washes over */
+          if (!e.dead && s.bleed) {
+            e.bleedT = Math.max(e.bleedT || 0, bleedTime(s.bleed));
+            e.bleedDps = Math.max(e.bleedDps || 0, bleedDps(s.bleed));
+            e.bleedBy = s.owner;
+          }
+        }
       }
       /* PVP: a friendly nova bites the other warden too */
       if (Game.pvpMode) {

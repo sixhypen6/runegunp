@@ -528,6 +528,17 @@ const WRAITH_TWIN_RUNE = Object.assign({}, RUNES.twin, {
 const WRAITH_SEEKER_RUNE = Object.assign({}, RUNES.seeker, {
   desc: "The veil drags everything it catches toward its heart, and its corpse discharges curve toward the nearest foe.",
 });
+/* THE DEMOLITIONIST's mortar is the gun: the lane/rear/wound runes reshape the
+   shell, its crater and the shrapnel instead of a bullet that never leaves. */
+const DEMO_TWIN_RUNE = Object.assign({}, RUNES.twin, {
+  desc: "Each stack adds another aimed shard to every blast, fanned toward the mark (up to six). Further stacks add 8% damage each.",
+});
+const DEMO_MIRROR_RUNE = Object.assign({}, RUNES.mirror, {
+  desc: "Each stack lobs another shell behind you at the same distance (up to six). Its crater and shrapnel answer just like the first.",
+});
+const DEMO_BLEED_RUNE = Object.assign({}, RUNES.bleed, {
+  desc: "The shell, its crater and its shrapnel all open wounds — 6 damage per second per stack, and every stack draws the cut out longer.",
+});
 function runeDefFor(p, id) {
   if (p.char === "sancho" && id === "phase")
     return Object.assign({}, RUNES.phase, { color: PHASE_SANCHO_COLOR });
@@ -551,6 +562,13 @@ function runeDefFor(p, id) {
     if (id === "scatter") return WRAITH_SCATTER_RUNE;
     if (id === "twin") return WRAITH_TWIN_RUNE;
     if (id === "seeker") return WRAITH_SEEKER_RUNE;
+  }
+  /* the mortar is the Demolitionist's gun: lanes become aimed shards, the rear
+     copy becomes a rear charge, and the wound rides the shell and crater */
+  if (p.char === "demolitionist") {
+    if (id === "twin") return DEMO_TWIN_RUNE;
+    if (id === "mirror") return DEMO_MIRROR_RUNE;
+    if (id === "bleed") return DEMO_BLEED_RUNE;
   }
   /* the SHREDDER has no trigger to fire venom through, so its card has to
      describe what the blade does instead (see SAW_VENOM_RUNE) */
@@ -767,6 +785,8 @@ function buildWeaponModsFrom(runes, p) {
     bleed: 0, vampire: 0, warp: 0, scatterSplit: 1, sawDmg: 0, reprieveStacks: 0, wardStacks: 0,
     /* THE WRAITH's veil: its own reach, bite and pull, read from the bullet runes */
     veilR: 0, veilMul: 1, veilEcho: 0, veilPull: 0,
+    /* THE DEMOLITIONIST's mortar: aimed shards and rear charges from the bullet runes */
+    demoShards: 0, demoRear: 0, demoRearDmg: 1,
     rangeDmg: 0, rangeStep: 100, rangeCap: 0 };
   /* a character may reshape the bare gun before any rune speaks (JUGGERNAUT's massive slow slug) */
   const wb = CHARS[p.char] && CHARS[p.char].weaponBase;
@@ -849,6 +869,15 @@ function buildWeaponModsFrom(runes, p) {
     m.veilEcho = wEcho;
     m.veilPull = (wRunes.seeker || 0) > 0 ? 14 + 10 * wRunes.seeker : 0;
   }
+  if (p.char === "demolitionist") {
+    /* The mortar has no trigger for the bullet runes to feed, so they reshape
+       the shell instead: TWIN adds aimed shards to every blast, MIRROR lobs rear
+       charges, and BLEED now rides the shell, crater and shards (entities/combat.js
+       and the shell/shockwave loops in game/update.js). */
+    m.demoShards = m.twin;                 // already capped at six
+    m.demoRear = Math.min(6, m.mirror);
+    m.demoRearDmg = m.mirrorDmg;
+  }
   /* blades read the projectile runes in their own terms (see meleeWeaponMods) */
   if (bladeReading(p)) meleeWeaponMods(m, runes, p, baseSpread);
   return m;
@@ -866,6 +895,7 @@ function runeStatLines(p, id) {
   const mul = r => (r >= 1 ? "+" : "\u2212") + Math.round(Math.abs(r - 1) * 100) + "%";
   const di = (a, b) => Math.round(a - b);
   const melee = bladeReading(p);
+  const demo = p.char === "demolitionist";
   const bite = o => melee ? meleeBite(o) : o.dmg;
   if (Math.abs(bite(full) / bite(w) - 1) > 0.005) L.push((melee ? "BLADE " : "") + "DAMAGE " + mul(bite(full) / bite(w)));
   if (Math.abs(full.rate / w.rate - 1) > 0.005) L.push("FIRE RATE " + mul(full.rate / w.rate));
@@ -877,9 +907,16 @@ function runeStatLines(p, id) {
     if (Math.abs(full.meleeSpread - w.meleeSpread) > 0.001) L.push("SWEEP +" + Math.round((full.meleeSpread - w.meleeSpread) * 57) + "\u00b0");
   } else {
     if (full.count !== w.count) L.push("+" + di(full.count, w.count) + " BULLETS PER SHOT");
-    if (full.twin !== w.twin) L.push("+" + di(full.twin, w.twin) + " PARALLEL SHOT");
-    if (full.mirror !== w.mirror) L.push("+" + di(full.mirror, w.mirror) + " REAR SHOT" +
-      (full.mirrorDmg < 0.995 ? " AT " + Math.round(full.mirrorDmg * 100) + "% DMG" : ""));
+    if (full.twin !== w.twin) {
+      if (demo) L.push("+" + di(full.demoShards, w.demoShards) + " AIMED SHARD" + (full.demoShards === 1 ? "" : "S"));
+      else L.push("+" + di(full.twin, w.twin) + " PARALLEL SHOT");
+    }
+    if (full.mirror !== w.mirror) {
+      if (demo) L.push("+" + di(full.demoRear, w.demoRear) + " REAR CHARGE" + (full.demoRear === 1 ? "" : "S") +
+        (full.demoRearDmg < 0.995 ? " AT " + Math.round(full.demoRearDmg * 100) + "% DMG" : ""));
+      else L.push("+" + di(full.mirror, w.mirror) + " REAR SHOT" +
+        (full.mirrorDmg < 0.995 ? " AT " + Math.round(full.mirrorDmg * 100) + "% DMG" : ""));
+    }
     if (Math.abs(full.spread - w.spread) > 0.001) L.push("SPREAD +" + Math.round((full.spread - w.spread) * 57) + "\u00b0");
   }
   if (Math.abs(full.size / w.size - 1) > 0.005) L.push((melee ? "REACH " : "BULLET SIZE ") + mul(full.size / w.size));
@@ -945,7 +982,10 @@ function runeStatLines(p, id) {
   if (full.timeField !== w.timeField) L.push("TIME-SLOW AURA, RADIUS " + Math.round(full.timeR));
   if (full.prickle !== w.prickle) L.push("THORN AURA, RADIUS " + Math.round(full.prickleR));
   if (full.slime !== w.slime) L.push("CAUSTIC SLIME TRAIL " + Math.round(2 + full.slime) + " DMG / TICK");
-  if (full.bleed !== w.bleed) L.push("BLEED " + Math.round(bleedDps(full.bleed)) + " DMG / TICK FOR " + bleedTime(full.bleed).toFixed(1) + "s");
+  if (full.bleed !== w.bleed) {
+    L.push("BLEED " + Math.round(bleedDps(full.bleed)) + " DMG / TICK FOR " + bleedTime(full.bleed).toFixed(1) + "s");
+    if (demo) L.push("SHELLS, CRATERS AND SHARDS ALL OPEN THE WOUND");
+  }
   if (full.vampire !== w.vampire) L.push("HEAL " + (0.25 * full.vampire).toFixed(2) + " + 30% DAMAGE VS BLEEDING FOES");
   if (full.wardStacks !== w.wardStacks)
     L.push("WAVES & AMBUSHES −" + Math.round(wardCut(full.wardStacks) * 100) + "% ENEMIES");
