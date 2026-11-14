@@ -655,10 +655,11 @@ function applyMeleeElements(p, e, m) {
 const VEIL_DMG_MUL = 3.0;   // ring damage = weapon damage × this (HEAVY, VELOCITY etc. scale it)
 function fireVeil(p) {
   const m = p.mods;
-  const R = clamp(110 + m.size * 9, 90, 340);   // bigger bullets → wider circle (HEAVY / TITAN)
-  const ringDmg = m.dmg * VEIL_DMG_MUL;
+  /* bigger bullets → wider circle (HEAVY / TITAN); SCATTER and TWIN widen it further */
+  const R = clamp(110 + m.size * 9 + (m.veilR || 0), 90, 460);
+  const ringDmg = m.dmg * VEIL_DMG_MUL * (m.veilMul || 1);
   p.veilT = 0.45;                          // gone between worlds: invisible & untouchable
-  veils.push({ x: p.x, y: p.y, r: R, t: 0, life: 0.55 });
+  veils.push({ x: p.x, y: p.y, r: R, t: 0, life: 0.55, rings: 1 + (m.veilEcho || 0) });
   /* mist rushing inward along the circle's rim */
   for (let i = 0; i < 26; i++) {
     const a = rnd(0, TAU);
@@ -679,6 +680,14 @@ function fireVeil(p) {
     if (m.storm && !e.dead) chainStorm(e, m.storm, new Set([e]), p);
     if (m.venom && puddles.length < 140) puddles.push({ x: e.x, y: e.y, r: 20 + 10 * m.venom, t: 0, life: 3,
       team: "p", dmg: 3 + 2 * m.venom, color: "#7dff5e", tickMap: {}, owner: p });
+    /* SEEKER: the tear drags what it catches toward its heart (bosses and
+       empowered horrors plant their feet; ordinary prey is tugged inward).
+       The guest only mirrors the visuals — the host owns the body. */
+    if (m.veilPull && !e.boss && !e.buffed &&
+        !(typeof Net !== "undefined" && Net.role === "guest")) {
+      const dx = px - e.x, dy = py - e.y, d = Math.hypot(dx, dy);
+      if (d > 1) { const k = Math.min(d, m.veilPull); e.x += dx / d * k; e.y += dy / d * k; }
+    }
   }
   /* PVP: the hollow circle wounds a rival warden caught inside it just the same */
   pvpBlastWardens(p, px, py, R, ringDmg, { x: px, y: py, knock: m.knock });

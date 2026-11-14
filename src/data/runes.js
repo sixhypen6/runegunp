@@ -517,6 +517,17 @@ const SANCHO_TWIN_RUNE = Object.assign({}, RUNES.twin, {
 const SANCHO_MIRROR_RUNE = Object.assign({}, RUNES.mirror, {
   desc: "Steel: one rear cut per stack, at the blade's bite. Bow: one more arrow fired behind you.",
 });
+/* THE WRAITH has no gun: the fan/lane/curve runes have to speak through the
+   veil it tears open, so their cards describe what the circle does instead. */
+const WRAITH_SCATTER_RUNE = Object.assign({}, RUNES.scatter, {
+  desc: "The veil tears wider — +18 reach per stack — and its bite is no longer split across a fan.",
+});
+const WRAITH_TWIN_RUNE = Object.assign({}, RUNES.twin, {
+  desc: "Each stack widens the veil (+8 reach) and folds another echo ring through it (+55% veil damage), up to three rings. Further stacks still bolster corpse discharges.",
+});
+const WRAITH_SEEKER_RUNE = Object.assign({}, RUNES.seeker, {
+  desc: "The veil drags everything it catches toward its heart, and its corpse discharges curve toward the nearest foe.",
+});
 function runeDefFor(p, id) {
   if (p.char === "sancho" && id === "phase")
     return Object.assign({}, RUNES.phase, { color: PHASE_SANCHO_COLOR });
@@ -533,6 +544,13 @@ function runeDefFor(p, id) {
     if (id === "scatter") return SINNER_SCATTER_RUNE;
     if (id === "twin") return SINNER_TWIN_RUNE;
     if (id === "mirror") return SINNER_MIRROR_RUNE;
+  }
+  /* the WRAITH'S veil is its gun — the fan reads as a wider ring, the lanes as
+     echo rings, and the curve as a tug toward the circle's heart */
+  if (p.char === "wraith") {
+    if (id === "scatter") return WRAITH_SCATTER_RUNE;
+    if (id === "twin") return WRAITH_TWIN_RUNE;
+    if (id === "seeker") return WRAITH_SEEKER_RUNE;
   }
   /* the SHREDDER has no trigger to fire venom through, so its card has to
      describe what the blade does instead (see SAW_VENOM_RUNE) */
@@ -747,6 +765,8 @@ function buildWeaponModsFrom(runes, p) {
     regen: 0, regenDelay: 3, vortex: 0, fear: 0, fearDur: 0,
     timeField: 0, timeR: 0, timeMul: 0, prickle: 0, prickleR: 0, slime: 0,
     bleed: 0, vampire: 0, warp: 0, scatterSplit: 1, sawDmg: 0, reprieveStacks: 0, wardStacks: 0,
+    /* THE WRAITH's veil: its own reach, bite and pull, read from the bullet runes */
+    veilR: 0, veilMul: 1, veilEcho: 0, veilPull: 0,
     rangeDmg: 0, rangeStep: 100, rangeCap: 0 };
   /* a character may reshape the bare gun before any rune speaks (JUGGERNAUT's massive slow slug) */
   const wb = CHARS[p.char] && CHARS[p.char].weaponBase;
@@ -816,6 +836,19 @@ function buildWeaponModsFrom(runes, p) {
        the undivided figure. */
     m.sawDmg = m.dmg / (m.scatterSplit || 1);
   }
+  if (p.char === "wraith") {
+    /* The WRAITH fires no bullet, so the fan/lane/curve runes translate into
+       the veil: SCATTER widens the tear and undoes the pellet split (the ring
+       is one bite, not many); TWIN folds echo rings through it; SEEKER drags
+       what it catches toward the heart. PIERCE / RICOCHET still answer through
+       the full shot a veil kill discharges (entities/combat.js). */
+    const wRunes = runes || {};
+    const wScatter = wRunes.scatter || 0, wTwin = wRunes.twin || 0, wEcho = Math.min(3, wTwin);
+    m.veilR = wScatter * 18 + wTwin * 8;
+    m.veilMul = (1 / (m.scatterSplit || 1)) * (1 + 0.55 * wEcho);
+    m.veilEcho = wEcho;
+    m.veilPull = (wRunes.seeker || 0) > 0 ? 14 + 10 * wRunes.seeker : 0;
+  }
   /* blades read the projectile runes in their own terms (see meleeWeaponMods) */
   if (bladeReading(p)) meleeWeaponMods(m, runes, p, baseSpread);
   return m;
@@ -864,6 +897,17 @@ function runeStatLines(p, id) {
     L.push("SAW DAMAGE " + mul(full.shredDmgMul / w.shredDmgMul));
   if (full.sawReach !== undefined && full.homing !== w.homing)
     L.push("SAW PULL " + Math.round(Math.min(80, full.homing * 7)) + " px/s");
+  /* the WRAITH's veil reads the same runes in its own terms — show the ring */
+  if (Math.abs((full.veilR || 0) - (w.veilR || 0)) > 0.05) {
+    const vr = full.veilR - w.veilR;
+    L.push("VEIL REACH " + (vr > 0 ? "+" : "\u2212") + Math.round(Math.abs(vr)));
+  }
+  if (Math.abs((full.veilMul || 1) / (w.veilMul || 1) - 1) > 0.005)
+    L.push("VEIL DAMAGE " + mul(full.veilMul / w.veilMul));
+  if ((full.veilEcho || 0) !== (w.veilEcho || 0))
+    L.push("+" + di(full.veilEcho, w.veilEcho) + " ECHO RING" + (full.veilEcho === 1 ? "" : "S"));
+  if (Math.abs((full.veilPull || 0) - (w.veilPull || 0)) > 0.05)
+    L.push("VEIL DRAGS FOES " + Math.round(full.veilPull) + "px INWARD");
   if (Math.abs(full.moveMul / w.moveMul - 1) > 0.005) L.push("MOVE SPEED " + mul(full.moveMul / w.moveMul));
   if (full.hpBonus !== w.hpBonus) L.push("+" + di(full.hpBonus, w.hpBonus) + " MAX VITALITY");
   if (full.shieldMax !== w.shieldMax) L.push("SHIELD ABSORBS " + full.shieldMax + " HIT" + (full.shieldMax === 1 ? "" : "S"));

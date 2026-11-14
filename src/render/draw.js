@@ -1367,6 +1367,15 @@ function draw() {
     cx.globalAlpha = (1 - k) * 0.9;
     cx.lineWidth = 5;
     cx.beginPath(); cx.arc(0, 0, rr, 0, TAU); cx.stroke();
+    /* TWIN's echo rings: fainter circles folded inside the veil */
+    const rings = v.rings || 1;
+    if (rings > 1) {
+      cx.strokeStyle = "#9beeff"; cx.lineWidth = 2;
+      for (let i = 1; i < rings; i++) {
+        cx.globalAlpha = (1 - k) * Math.max(0.12, 0.4 - 0.08 * i);
+        cx.beginPath(); cx.arc(0, 0, rr * (1 - 0.16 * i), 0, TAU); cx.stroke();
+      }
+    }
     /* inner runic dashes spinning the wrong way */
     cx.rotate(-v.t * 3);
     cx.strokeStyle = "#c9f4ff"; cx.lineWidth = 2;

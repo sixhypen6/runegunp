@@ -33,8 +33,9 @@ const PVP_CHAR_COST = {
     mul: { scatter: 2, rapid: 2, twin: 2, pierce: 2, ricochet: 2, seeker: 2, splinter: 2, frost: 2, ember: 2 },
   },
   /* THE WRAITH has no gun: its veil answers to RAPID (cooldown), HEAVY/TITAN
-     (circle size + damage) and the elements. Those are cut; the pure bullet
-     runes only answer through a veil kill, so they cost more. */
+     (circle size + damage), the elements, and its own readings of SCATTER /
+     TWIN / SEEKER. PIERCE / RICOCHET only answer through a veil kill, so the
+     bullet runes that add little to the circle cost more in the duel. */
   wraith: {
     set: { rapid: 1, swift: 1, phase: 1, frost: 1, velocity: 1, ember: 2, titan: 2, aegis: 2 },
     mul: { pierce: 2, ricochet: 2, seeker: 2, twin: 2, splinter: 2, scatter: 2 },
