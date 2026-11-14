@@ -285,12 +285,22 @@ function autoRerollForRune(ch, pk, idx, paused) {
     ? Math.min(cfg.rerollMax, ch.rerolls) : ch.rerolls;
   let spent = 0, changed = false, lowSeen = null;
   const rollHand = () => {
-    const pool = runePool(ch);
+    const pool = (typeof runeOfferPool === "function") ? runeOfferPool(ch) : runePool(ch);
     const onScreen = new Set(pk.ids);
-    let avail = pool.filter(id => !onScreen.has(id));
-    if (!avail.length) avail = pool.slice();
-    if (!avail.length) return false;
-    pk.ids = [pick(avail), pick(avail), pick(avail)];
+    const fresh = pool.filter(id => !onScreen.has(id));
+    /* Prefer an all-new hand, but never draw the same rune twice into one
+       hand: taking three independent picks used to show e.g. SEEKER twice.
+       If the fresh pool cannot fill three slots, fall back to the whole pool
+       (still drawn without replacement) so duplicates stay impossible. */
+    const src = fresh.length >= 3 ? fresh : pool.slice();
+    if (!src.length) return false;
+    const hand = [];
+    while (hand.length < 3 && src.length) {
+      hand.push(src.splice(Math.floor(Math.random() * src.length), 1)[0]);
+    }
+    /* only a warden whose entire pool is smaller than a hand pads a repeat */
+    while (hand.length < 3) hand.push(hand[hand.length - 1]);
+    pk.ids = hand;
     return true;
   };
   while (spent < maxSpend && ch.rerolls > 0) {
