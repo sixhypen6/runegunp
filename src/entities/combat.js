@@ -743,18 +743,19 @@ function detonateMine(mn, trigger, dmgMul) {
   const p = mn.owner || localPlayer();
   const m = p.mods;
   const mul = dmgMul || 1;
-  /* TWIN: extra shards are aimed at the mark instead of thrown wild */
-  const twin = trigger ? (m.demoShards || 0) : 0;
+  /* TWIN: every blast gains that many extra shards — aimed at the mark when
+     there is one, thrown wild when there is not */
+  const twin = m.demoShards || 0;
   const shards = Math.min(1 + m.count + twin, 40);   // bare gun: 1 bullet → 2 shards; SCATTER etc. add more
   const aimA = trigger ? angTo(mn.x, mn.y, trigger.x, trigger.y) : 0;
   for (let i = 0; i < shards; i++) {
     /* the first shard always finds the foot that woke the mine; the rest fly wild —
        and skip the trigger, so a point-blank burst still sprays outward. TWIN's
-       aimed shards fan around that same first line and may strike it again. */
+       extra shards fan around that same first line when there is a mark, and may
+       strike it again; without a mark they join the wild spray. */
     const aimedShard = !!trigger && (i === 0 || i <= twin);
-    const a = aimedShard
-      ? aimA + (i === 0 ? 0 : (i - (twin + 1) / 2) * 0.14)
-      : rnd(0, TAU);
+    const fanOff = i === 0 ? 0 : Math.ceil(i / 2) * 0.14 * (i % 2 === 1 ? -1 : 1);
+    const a = aimedShard ? aimA + fanOff : rnd(0, TAU);
     bullets.push({ x: mn.x, y: mn.y,
       vx: Math.cos(a) * m.speed, vy: Math.sin(a) * m.speed,
       r: m.size, dmg: m.dmg * mul, t: 0, life: 1.2,
