@@ -166,6 +166,12 @@ function wipeProgress() {
   Meta.seenTutorial = false;
   Meta.seenCutscene = false;
   Meta.unlocked = { "char:gunsmith": true, "skin:bone": true };
+  /* the equipped set points at the same souls-bought gear the wipe forgets —
+     fall back to the fresh-save loadout, never to a warden the save no longer owns */
+  Meta.char = "gunsmith";
+  Meta.skin = "bone";
+  Meta.gunSkin = null;
+  Meta.pet = null;
   Meta.slain = {};
   Meta.slainFlawless = {};
   Meta.runesSeen = {};
@@ -210,14 +216,20 @@ function metaLoad() {
       if (Meta.slain["boss:8"] && !Meta.unlocked["char:theUnknown"]) Meta.unlocked["char:theUnknown"] = true;
       if (d.char && CHARS[d.char]) Meta.char = d.char;
       if (d.skin && SKINS[d.skin]) Meta.skin = d.skin;
+      if (d.gunSkin && SKINS[d.gunSkin]) Meta.gunSkin = d.gunSkin;
+      if (d.pet && PTYPES[d.pet]) Meta.pet = d.pet;
+      /* the equipped set must name things the save actually owns — a wipe (or
+         a hand-edited save) can leave them pointing at forgotten gear */
+      if (!Meta.unlocked["char:" + Meta.char]) Meta.char = "gunsmith";
+      if (!Meta.unlocked["skin:" + Meta.skin]) Meta.skin = "bone";
+      if (Meta.gunSkin && !Meta.unlocked["skin:" + Meta.gunSkin]) Meta.gunSkin = null;
+      if (Meta.pet && !Meta.unlocked["pet:" + Meta.pet]) Meta.pet = null;
       /* the online board callsign — only a well-formed WARDEN-XXXX survives, so a
          hand-edited save can't put a weird string in front of other players */
       if (typeof d.boardName === "string" && /^WARDEN-[A-Z2-9]{4}$/.test(d.boardName)) Meta.boardName = d.boardName;
       /* the descent's transfer identity — 16 unambiguous marks, so a
          hand-edited save cannot invent a lineage that bypasses the ledger */
       if (typeof d.transferId === "string" && /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{16}$/.test(d.transferId)) Meta.transferId = d.transferId;
-      if (d.gunSkin && SKINS[d.gunSkin]) Meta.gunSkin = d.gunSkin;
-      if (d.pet && PTYPES[d.pet]) Meta.pet = d.pet;
       if (d.aimMode === "twin" || d.aimMode === "auto") Meta.aimMode = d.aimMode;
       if (d.deskMode === "hold" || d.deskMode === "cursor" || d.deskMode === "auto") Meta.deskMode = d.deskMode;
       /* bindings keep only well-formed slots; an action missing here falls back to its default */
