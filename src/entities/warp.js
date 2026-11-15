@@ -101,10 +101,12 @@ function warpNearestFoe(p, cx, cy) {
    RIFTS
    --------------------------------------------------------- */
 function warpAddPortal(p, x, y, nx, ny, link) {
+  /* the Passenger's rifts hold open longer — others get the shared life only */
+  const life = (p.mods && p.mods.warpPortalLife) || WARP_PORTAL_LIFE;
   const o = {
     id: Game.nextId++,
     x: clamp(x, 40, MAP.w - 40), y: clamp(y, 40, MAP.h - 40),
-    t: 0, life: WARP_PORTAL_LIFE, owner: p, twin: 0, link: !!link,
+    t: 0, life, owner: p, twin: 0, link: !!link,
     nx: nx || 0, ny: ny || 0, rot: rnd(-0.32, 0.32), seed: rnd(0, TAU),
   };
   warpPortals.push(o);
@@ -164,7 +166,8 @@ function warpExitPoint(o, p) {
     y: clamp(o.y + (o.ny || 0) * d, 24, MAP.h - 24) };
 }
 function warpGrantRush(p, n) {
-  p.warpSpeedStacks = Math.min(WARP_RUSH_MAX, (p.warpSpeedStacks || 0) + (n || 1));
+  const cap = (p.mods && p.mods.warpRushCap) || WARP_RUSH_MAX;
+  p.warpSpeedStacks = Math.min(cap, (p.warpSpeedStacks || 0) + (n || 1));
   p.warpSpeedT = WARP_RUSH_TIME;
 }
 /* one link of the chain: a rift where the Passenger stands, its twin beyond the
@@ -373,8 +376,10 @@ function warpActivate(p) {
   /* the chain opens with a pair: one rift at the Passenger, its twin beyond the
      first horror. Every kill links another pair; a horror that holds gets the X. */
   const n = warpStacks(p);
+  /* the chain runs deeper for the Passenger — others keep the shared reach */
+  const passBonus = (p.mods && p.mods.warpPassBonus) || 0;
   p.warpSeq = {
-    mode: "chain", pass: 0, left: Math.min(12, 4 + Math.floor(n / 3)),
+    mode: "chain", pass: 0, left: Math.min(14, 4 + Math.floor(n / 3) + passBonus),
     wait: WARP_HOP_GAP, foe: tgt, lastX: p.x, lastY: p.y, hop: null, cx: tgt.x, cy: tgt.y,
   };
   p.warpSeq.hop = warpLink(p, p.x, p.y, tgt);

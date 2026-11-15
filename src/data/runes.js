@@ -506,6 +506,13 @@ const SINNER_TWIN_RUNE = Object.assign({}, RUNES.twin, {
 const SINNER_MIRROR_RUNE = Object.assign({}, RUNES.mirror, {
   desc: "The second blade cuts behind you — one rear sweep per stack, at full bite, for whatever thought it had your back.",
 });
+/* WARP is the Passenger's own tear through space — for the WAYWARD PASSENGER each
+   stack does more than shorten the clock: the chain runs deeper, the rifts linger
+   longer, and the rush holds more stacks. Anyone else carving the rune gets the
+   shared scaling only. */
+const SINNER_WARP_RUNE = Object.assign({}, RUNES.warp, {
+  desc: "The Passenger's rift — [R] opens four rifts around the nearest foe and shreds through them. For the WAYWARD PASSENGER each stack also runs the chain +1 pass per 2 stacks, holds the rifts open +0.75s longer, and lets the rush hold +1 stack (up to +3).",
+});
 /* SANCHO carries steel AND the blood bow: her cards must read true in either
    stance, so each says what the rune does to a sweep and to an arrow. */
 const SANCHO_SCATTER_RUNE = Object.assign({}, RUNES.scatter, {
@@ -556,6 +563,8 @@ function runeDefFor(p, id) {
     if (id === "twin") return SINNER_TWIN_RUNE;
     if (id === "mirror") return SINNER_MIRROR_RUNE;
   }
+  /* WARP is the Passenger's signature tear — its card reads like one only for it */
+  if (p.char === "sinner" && id === "warp") return SINNER_WARP_RUNE;
   /* the WRAITH'S veil is its gun — the fan reads as a wider ring, the lanes as
      echo rings, and the curve as a tug toward the circle's heart */
   if (p.char === "wraith") {
@@ -787,6 +796,9 @@ function buildWeaponModsFrom(runes, p) {
     veilR: 0, veilMul: 1, veilEcho: 0, veilPull: 0,
     /* THE DEMOLITIONIST's mortar: aimed shards and rear charges from the bullet runes */
     demoShards: 0, demoRear: 0, demoRearDmg: 1,
+    /* THE WAYWARD PASSENGER's WARP: the deeper, longer, headier rift the
+       Passenger carves (entities/warp.js reads these; others get none) */
+    warpPassBonus: 0, warpPortalLife: 0, warpRushCap: 0,
     rangeDmg: 0, rangeStep: 100, rangeCap: 0 };
   /* a character may reshape the bare gun before any rune speaks (JUGGERNAUT's massive slow slug) */
   const wb = CHARS[p.char] && CHARS[p.char].weaponBase;
@@ -877,6 +889,17 @@ function buildWeaponModsFrom(runes, p) {
     m.demoShards = m.twin;                 // already capped at six
     m.demoRear = Math.min(6, m.mirror);
     m.demoRearDmg = m.mirrorDmg;
+  }
+  if (p.char === "sinner") {
+    /* The WAYWARD PASSENGER's rift: deeper chain, lingering rifts, a headier
+       rush. Shared scaling (cooldown, contact bite, rush speed) already grows
+       with the stacks in entities/warp.js — these are the Passenger-only layers. */
+    const wStacks = (runes && runes.warp) || 0;
+    if (wStacks > 0) {
+      m.warpPassBonus = Math.min(5, 1 + Math.floor(wStacks / 2));   // +1 pass at 1 stack, +2 at 2, …
+      m.warpPortalLife = 9 + 0.75 * wStacks;                        // rifts hold open longer
+      m.warpRushCap = 5 + Math.min(3, wStacks);                     // the rush holds more stacks
+    }
   }
   /* blades read the projectile runes in their own terms (see meleeWeaponMods) */
   if (bladeReading(p)) meleeWeaponMods(m, runes, p, baseSpread);
@@ -994,6 +1017,21 @@ function runeStatLines(p, id) {
     L.push("DEATH SAVE — RESTORES " + Math.round(reprieveHealFrac(rn) * 100) + "% VITALITY");
     L.push("HOLDS THE HORDE " + reprieveFreezeSecs(rn).toFixed(1) + "s · INVULN " + reprieveInvulSecs(rn).toFixed(1) + "s (BOSSES ONLY SLOWED)");
     L.push("COOLDOWN " + reprieveCooldown(rn).toFixed(1) + "s");
+  }
+  /* the WAYWARD PASSENGER's WARP reads like its own rune only for it */
+  if (p.char === "sinner") {
+    if (Math.abs((full.warpPassBonus || 0) - (w.warpPassBonus || 0)) > 0.05) {
+      const d = di(full.warpPassBonus, w.warpPassBonus);
+      L.push("+" + d + " CHAIN PASS" + (d === 1 ? "" : "ES"));
+    }
+    /* portal life / rush cap fall back to the shared defaults without the stacks —
+       show only the Passenger layer, not the base kit */
+    const lifeShow = Math.abs((full.warpPortalLife || 9) - (w.warpPortalLife || 9));
+    if (lifeShow > 0.05)
+      L.push("RIFTS LAST +" + lifeShow.toFixed(2).replace(/\.?0+$/, "") + "s");
+    const capShow = Math.abs((full.warpRushCap || 5) - (w.warpRushCap || 5));
+    if (capShow > 0.05)
+      L.push("RUSH CAP +" + Math.round(capShow));
   }
   if (full.exterminate !== w.exterminate) {
     const x = full.exterminate;
