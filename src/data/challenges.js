@@ -23,7 +23,7 @@
 const CHALLENGE_DEFS = [
   {
     id: "onehit", name: "ONE HIT", glyph: "☠", color: "#ff4d5e", mul: 3,
-    desc: "A single blow ends the descent. REPRIEVE and BULWARK still answer.",
+    desc: "A single blow ends the descent. REPRIEVE and BULWARK still answer; WRATH and GLASS CANNON feed at full.",
   },
   {
     id: "runeless", name: "RUNELESS", glyph: "⊘", color: "#7ad7ff", mul: 1.5,

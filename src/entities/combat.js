@@ -860,8 +860,9 @@ function damageEnemy(e, dmg, src) {
     dmg *= 1.3;
     if (ow.char !== "sancho") healPlayer(ow, 0.25 * om.vampire, true);
   }
-  /* WRATH: the closer you are to death, the harder you hit */
-  if (om && om.wrath) dmg *= 1 + om.wrath * (1 - ow.hp / ow.maxHp);
+  /* WRATH: the closer you are to death, the harder you hit — ONE HIT never
+     drops vitality, so the rune feeds at full there (entities/combat.js hpMissingFrac) */
+  if (om && om.wrath) dmg *= 1 + om.wrath * hpMissingFrac(ow || (typeof player !== "undefined" ? player : null));
   if (Dev.dmgMul !== 1 && ow) dmg *= Dev.dmgMul;    // TEST TOOLS: damage ×20 (systems/devtools.js)
   /* THE UNKNOWN: phase locks, its carapace, the retort and the knitting (entities/unknown.js) */
   if (e.boss && e.kind === UNK_KIND) { dmg = unknownDamage(e, dmg); if (dmg <= 0) return; }

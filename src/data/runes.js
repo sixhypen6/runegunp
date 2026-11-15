@@ -68,6 +68,14 @@ function stackCurve(n) { return classicStacks() || n <= STACK_FULL ? n : STACK_F
 /* a per-stack multiplier k over n stacks: k^n through the full stacks, then +(k−1)·k^STACK_FULL
    per effective stack. A cost (k < 1) tapers the same way, as the inverse of the matching gain.
    CLASSIC: plain k^n at every stack — the old, uncapped growth. */
+/* ONE HIT never lets vitality actually drop — a single blow ends the descent
+   (REPRIEVE and BULWARK alone answer). A rune that feeds on MISSING vitality
+   is always at full feed on the challenge; there is no other way to earn it. */
+function hpMissingFrac(p) {
+  if (typeof Game !== "undefined" && Game.challenge === "onehit") return 1;
+  if (!p || !(p.maxHp > 0)) return 0;
+  return clamp((p.maxHp - p.hp) / p.maxHp, 0, 1);
+}
 function stackMul(k, n) {
   if (classicStacks()) return Math.pow(k, n);
   if (k < 1) return 1 / stackMul(1 / k, n);
@@ -315,8 +323,8 @@ const RUNES = {
       let incomingPenalty = 0.08 * n; // 2. Defense: Take +8% damage per stack (cap at 64%)
       if (incomingPenalty > 0.64) incomingPenalty = 0.64;
       m.dr -= incomingPenalty; 
-      if (typeof player !== 'undefined' && player.maxHp > 0) { 
-        let missingHealthFrac = (player.maxHp - player.hp) / player.maxHp;
+      if (typeof player !== 'undefined') {
+        const missingHealthFrac = hpMissingFrac(player);
         let speedBoostScalar = 1.0 + (missingHealthFrac * 1.5);
         if (speedBoostScalar > 2.5) speedBoostScalar = 2.5;
         m.speed *= speedBoostScalar; /* 3. Speed Curve: Moves faster the lower your active HP is (up to 2.5x max) */
