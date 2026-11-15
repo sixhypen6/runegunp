@@ -1425,6 +1425,11 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
           </div>
           <div class="aim-mode-note">cause a descent to cross to another device once — a one-time code, spendable a single time</div>
         </div>
+        <div id="wipeRow" style="display:flex;flex-direction:column;align-items:center;margin-top:14px">
+          <label style="font-size:calc(10px * var(--text-scale, 1));letter-spacing:.3em;color:var(--blood)">ERASE PROGRESS</label>
+          <button class="menu-btn small" id="btnWipeProgress" style="border-color:var(--blood);color:var(--blood);margin-top:8px;width:100%">ERASE ALL PROGRESS</button>
+          <div class="aim-mode-note" id="wipeNote">erases souls, deaths, unlocks, bestiary, glossary, run records and the local leaderboard — settings, controls and layouts stay · the online board keeps its own rows</div>
+        </div>
         <button class="menu-btn small" id="btnPrivacyOptions" style="width:100%;margin-top:14px;display:none">AD PRIVACY OPTIONS</button>
         <button class="menu-btn small" id="btnReplayCutscene" style="width:100%;margin-top:10px">REPLAY OPENING</button>
         <button class="menu-btn small" id="btnOpenSprites" style="width:100%;margin-top:10px;border-color:var(--frost);color:var(--frost);" onclick="window.location.href='sprites.html'">SPRITE STUDIO</button>

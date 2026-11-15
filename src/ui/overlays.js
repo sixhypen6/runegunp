@@ -1777,7 +1777,7 @@ $("ctrlEditReset").addEventListener("click", resetCtrlLayout);
 
 /* ---------- settings overlay ---------- */
 function openSettings() { if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings opened"); syncVolumeUI(); applyDeskMode(); applyAimMode(); applyBtnSizeUI(); applyCtrlSettingsUI(); applyHapticsUI(); applyShakeUI(); applyAdvancedNumbersUI(); applyRuneDescriptionSettingsUI(); applyVaultDescriptionSettingsUI(); applyTextSizeUI(); applyGlowUI(); applyJuiceUI(); applyZoneFxUI(); applyHiddenRunesUI(); applyAmbushUI(); applyRunTimerUI(); applySpeedrunUI(); applyPauseOnBlurUI(); syncAutoPickUI(); syncPrivacyOptions(); $("btnReplayCutscene").style.display = (Game.state === "menu") ? "" : "none"; $("settings").classList.add("on"); }
-function closeSettings() { $("settings").classList.remove("on"); if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings closed"); }
+function closeSettings() { $("settings").classList.remove("on"); if (typeof wipeArmReset === "function") wipeArmReset(); if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings closed"); }
 /* Google requires EEA/UK players to have a persistent way back to the consent
    choice. UMP tells us who needs one; everyone else never sees the button. */
 function syncPrivacyOptions() {
@@ -1797,6 +1797,30 @@ $("btnPrivacyOptions").addEventListener("click", () => {
 $("btnSettings").addEventListener("click", openSettings);
 $("btnSettingsPause").addEventListener("click", openSettings);
 $("settingsClose").addEventListener("click", closeSettings);
+/* ERASE ALL PROGRESS — armed on the first tap, carried through on the second.
+   A reload keeps every cached screen honest: no stale bank, bests or unlocks. */
+let wipeArmed = false;
+const WIPE_NOTE_DEFAULT = "erases souls, deaths, unlocks, bestiary, glossary, run records and the local leaderboard — settings, controls and layouts stay · the online board keeps its own rows";
+function wipeArmReset() {
+  wipeArmed = false;
+  const btn = $("btnWipeProgress");
+  if (btn) btn.textContent = "ERASE ALL PROGRESS";
+  const note = $("wipeNote");
+  if (note) note.textContent = WIPE_NOTE_DEFAULT;
+}
+$("btnWipeProgress").addEventListener("click", () => {
+  const btn = $("btnWipeProgress");
+  if (!wipeArmed) {
+    wipeArmed = true;
+    btn.textContent = "ARE YOU SURE? TAP AGAIN TO ERASE";
+    $("wipeNote").textContent = "this cannot be undone — your whole descent will be forgotten on this device";
+    return;
+  }
+  if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "progress wiped from settings");
+  wipeArmReset();
+  wipeProgress();
+  location.reload();
+});
 $("btnHowToPlay").addEventListener("click", () => {          // replay the walkthrough, return where we came from
   const ret = Game.state;   // captured before setState: "menu" from the title, "pause" if opened mid-run
   closeSettings();

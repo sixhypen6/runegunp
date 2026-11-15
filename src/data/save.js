@@ -140,6 +140,48 @@ const Meta = {
 };
 const SAVE_KEY = "runegun.meta.v2";
 let storageOk = true;
+
+/* ---------- erasing progress (settings → SYSTEM) ----------
+   Everything a run leaves behind: souls, deaths, unlocks, bestiary, glossary,
+   speedrun bests and every personal/leaderboard ledger. Nothing a player would
+   call a setting. The online board's rows live under the device's board identity
+   on Google's servers and cannot be deleted from the client — a wiped device
+   simply has no local records left to seed or post them. */
+function freshModeBests() {
+  return {
+    score: 0, survivedSec: 0, wave: 0, depth: 0, speedSec: 0,
+    char: "gunsmith", runes: "", challenge: "", tag: false, pet: "",
+    clearChar: "gunsmith", clearRunes: "", clearPet: "",
+    clearChallenge: "", clearTag: false,
+  };
+}
+function freshAllBests() {
+  return Object.assign(freshModeBests(), {
+    voidKills: 0, fastestVoidClearSec: 0, longestAfterVoidSec: 0,
+  });
+}
+function wipeProgress() {
+  Meta.bank = 0;
+  Meta.deaths = 0;
+  Meta.seenTutorial = false;
+  Meta.seenCutscene = false;
+  Meta.unlocked = { "char:gunsmith": true, "skin:bone": true };
+  Meta.slain = {};
+  Meta.slainFlawless = {};
+  Meta.runesSeen = {};
+  Meta.speedBests = {};
+  Meta.charBests = { normal: {}, hard: {}, classic: {}, chaos: {} };
+  Meta.bests = freshAllBests();
+  Meta.bestsHard = freshModeBests();
+  Meta.bestsClassic = freshModeBests();
+  Meta.bestsChaos = freshModeBests();
+  /* submit stamps are the diagnostics behind the board's pending-state note */
+  try {
+    for (const k of Object.keys(localStorage))
+      if (k.indexOf("rg.lbTs.") === 0) localStorage.removeItem(k);
+  } catch (e) {}
+  metaSave();
+}
 function metaSave() {
   /* a TEST TOOLS run writes nothing; its snapshot is restored when it ends (systems/devtools.js) */
   if (typeof Game !== "undefined" && Game.devRun) return;
