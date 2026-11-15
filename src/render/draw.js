@@ -8,6 +8,12 @@
    RENDER
    ========================================================= */
 
+/* GROUND FX off — the flat hazard smear: one opaque wash for every ground
+   hazard (poison, slime, lava, flood, the Phase wake) and the aura rings, so
+   overlapping areas never stack into a brighter mess, and nothing glows. */
+const ZONE_FLAT = "#2e2b26";
+const ZONE_FLAT_EDGE = "#48443c";
+
 /* ---------- baked glow sprites: the bullet halo without the blur pass ----------
    Every glowing bullet used to be a live `shadowBlur` draw — a Skia saveLayer
    plus a two-pass Gaussian, per bullet, per frame, 300+ of them in a late
@@ -938,7 +944,18 @@ function draw() {
     cx.globalAlpha = 1;
   }
 
-  /* puddles */
+  /* puddles — with GROUND FX off every hazard pools into ONE flat smear: a
+     single opaque pass, so overlapping pools never brighten each other */
+  const zoneOff = typeof Meta !== "undefined" && Meta.zoneFx === false;
+  if (zoneOff) {
+    cx.fillStyle = ZONE_FLAT; cx.globalAlpha = 1;
+    cx.beginPath(); let any = false;
+    for (const p of puddles) {
+      if (p.x + p.r + 40 < cullL || p.x - p.r - 40 > cullR || p.y + p.r + 40 < cullT || p.y - p.r - 40 > cullB) continue;
+      cx.moveTo(p.x + p.r, p.y); cx.arc(p.x, p.y, p.r, 0, TAU); any = true;
+    }
+    if (any) cx.fill();
+  } else {
   const puLowFx = puddles.length > 100; // the inner ring is the second path per pool
   for (const p of puddles) {
     if (p.x + p.r + 40 < cullL || p.x - p.r - 40 > cullR || p.y + p.r + 40 < cullT || p.y - p.r - 40 > cullB) continue;
@@ -953,6 +970,7 @@ function draw() {
       cx.beginPath(); cx.arc(p.x, p.y, p.r * (0.7 + 0.1 * Math.sin(p.t * 5)), 0, TAU); cx.stroke();
     }
     cx.globalAlpha = 1;
+  }
   }
 
   /* boss world-space VFX: graves, vents, converge target, plunge shadow — for every
@@ -2145,26 +2163,40 @@ function drawWarden(P) {
       cx.restore();
     }
 
-    /* STILLPOINT — the faint bubble where time crawls (drawn under the thorns) */
+    /* STILLPOINT — the faint bubble where time crawls (drawn under the thorns).
+       GROUND FX off: no glow fill, just the dial's edge, flat */
     if (P.mods && P.mods.timeField) {
       const R = P.mods.timeR;
       cx.save(); cx.translate(P.x, P.y);
-      cx.globalAlpha = 0.08; cx.fillStyle = "#6be0d4";
-      cx.beginPath(); cx.arc(0, 0, R, 0, TAU); cx.fill();
-      cx.globalAlpha = 0.35 + 0.15 * Math.sin(Game.time * 2);
-      cx.strokeStyle = "#6be0d4"; cx.lineWidth = 1.5; cx.setLineDash([3, 9]);
-      cx.rotate(Game.time * 0.3);
-      cx.beginPath(); cx.arc(0, 0, R, 0, TAU); cx.stroke();
-      cx.setLineDash([]); cx.restore(); cx.globalAlpha = 1;
+      if (typeof Meta !== "undefined" && Meta.zoneFx === false) {
+        cx.globalAlpha = 1; cx.strokeStyle = ZONE_FLAT_EDGE; cx.lineWidth = 1.5; cx.setLineDash([3, 9]);
+        cx.rotate(Game.time * 0.3);
+        cx.beginPath(); cx.arc(0, 0, R, 0, TAU); cx.stroke();
+        cx.setLineDash([]); cx.restore(); cx.globalAlpha = 1;
+      } else {
+        cx.globalAlpha = 0.08; cx.fillStyle = "#6be0d4";
+        cx.beginPath(); cx.arc(0, 0, R, 0, TAU); cx.fill();
+        cx.globalAlpha = 0.35 + 0.15 * Math.sin(Game.time * 2);
+        cx.strokeStyle = "#6be0d4"; cx.lineWidth = 1.5; cx.setLineDash([3, 9]);
+        cx.rotate(Game.time * 0.3);
+        cx.beginPath(); cx.arc(0, 0, R, 0, TAU); cx.stroke();
+        cx.setLineDash([]); cx.restore(); cx.globalAlpha = 1;
+      }
     }
 
-    /* PRICKLE — a bristling ring of barbs around the carrier */
+    /* PRICKLE — a bristling ring of barbs around the carrier.
+       GROUND FX off: one flat stroke, no glow, no drifting petals */
     if (P.mods && P.mods.prickle) {
       const R = P.mods.prickleR, spikes = 22 + Math.round(P.mods.prickle * 6);   // tapered stacks run fractional
       const isSancho = P.char === "sancho";
+      const zoneOff = typeof Meta !== "undefined" && Meta.zoneFx === false;
       cx.save(); cx.translate(P.x, P.y); cx.rotate(Game.time * 0.6);
-      cx.strokeStyle = isSancho ? "#dd0000" : "#d6e85a"; cx.globalAlpha = 0.5 + 0.2 * Math.sin(Game.time * 5);
-      cx.lineWidth = 1.5; cx.shadowColor = isSancho ? "#aa0000" : "#d6e85a"; cx.shadowBlur = 6;
+      if (zoneOff) {
+        cx.strokeStyle = ZONE_FLAT_EDGE; cx.globalAlpha = 1; cx.lineWidth = 1.5;
+      } else {
+        cx.strokeStyle = isSancho ? "#dd0000" : "#d6e85a"; cx.globalAlpha = 0.5 + 0.2 * Math.sin(Game.time * 5);
+        cx.lineWidth = 1.5; cx.shadowColor = isSancho ? "#aa0000" : "#d6e85a"; cx.shadowBlur = 6;
+      }
       cx.beginPath();
       for (let k = 0; k < spikes; k++) {
         const a = k / spikes * TAU;
@@ -2172,7 +2204,7 @@ function drawWarden(P) {
         cx.lineTo(Math.cos(a) * (R + 4), Math.sin(a) * (R + 4));
       }
       cx.stroke();
-      if (isSancho) {
+      if (isSancho && !zoneOff) {
         /* the Rose Abnormality: crimson petals drift inside the barbs */
         cx.fillStyle = "#aa0000";
         for (let i = 0; i < 6; i++) {
@@ -2180,8 +2212,7 @@ function drawWarden(P) {
           cx.beginPath(); cx.arc(Math.cos(a) * (R - 4), Math.sin(a) * (R - 4), 3, 0, TAU); cx.fill();
         }
       }
-      cx.globalAlpha = 0.16;
-      cx.beginPath(); cx.arc(0, 0, R, 0, TAU); cx.stroke();
+      if (!zoneOff) { cx.globalAlpha = 0.16; cx.beginPath(); cx.arc(0, 0, R, 0, TAU); cx.stroke(); }
       cx.restore(); cx.shadowBlur = 0; cx.globalAlpha = 1;
     }
   }

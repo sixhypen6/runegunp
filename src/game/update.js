@@ -49,7 +49,11 @@ function localInputFrame() {
     touchMode: Input.touchMode, aimMode: Meta.aimMode, deskMode: Meta.deskMode,
     boost: !!(Input.keys["ShiftLeft"] || Input.keys["ShiftRight"] || (typeof Pad !== "undefined" && Pad.boost)),
     dashTap: Input.dashTap, useTap: Input.useTap, recallTap: Input.recallTap, surgeTap: Input.surgeTap,
-    mark1Tap: Input.mark1Tap, mark2Tap: Input.mark2Tap };
+    mark1Tap: Input.mark1Tap, mark2Tap: Input.mark2Tap,
+    /* held-dash is polled, not repeated: the OS only repeats one held key at a time,
+       so any other press used to freeze a held SPACE's auto-dash */
+    dashHeld: keyHeld("dash") || !!(typeof Pad !== "undefined" && Pad.dashHeld) || !!Input.touchDashHeld,
+    autoDash: typeof Meta !== "undefined" && !!Meta.autoDash };
   Input.dashTap = false; Input.useTap = false; Input.recallTap = false; Input.surgeTap = false;
   Input.mark1Tap = false; Input.mark2Tap = false;
   return f;
@@ -58,7 +62,7 @@ function zeroFrame() {
   return { mx: 0, my: 0, aimX: 0, aimY: 0, aiming: false, mouseX: undefined, mouseY: undefined,
     mouseDown: false, touchMode: true, aimMode: "auto", deskMode: "auto", boost: false,
     dashTap: false, useTap: false, recallTap: false, surgeTap: false,
-    mark1Tap: false, mark2Tap: false };
+    mark1Tap: false, mark2Tap: false, dashHeld: false, autoDash: false };
 }
 function inputFrameFor(p) {
   if (p === localPlayer()) return localInputFrame();
@@ -229,7 +233,8 @@ function updatePlayer(p, inp, dt) {
     if (inp.mark1Tap) toggleSeekerAmbushMark(p);
     if (inp.mark2Tap) toggleSeekerVitalMark(p);
   }
-  if (inp.dashTap && p.dashCd <= 0) {
+  const dashWant = inp.dashTap || inp.dashHeld || inp.autoDash;
+  if (dashWant && p.dashCd <= 0 && !p.downed) {
     p.dashT = p.dashDur; p.dashCd = p.dashCdBase;
     if (onIce(p.x, p.y)) p.dashT *= 1.6;   // the Stilled Hour: a dash launched off black ice slides 1.6x as far
     p.dashAng = (mx || my) ? Math.atan2(my, mx) : p.aim;

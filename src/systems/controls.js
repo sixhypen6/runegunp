@@ -90,6 +90,7 @@ const Pad = {
   active: false,       // the controller is the device in use: prompts and the virtual cursor follow it
   moveX: 0, moveY: 0,  // left stick / d-pad, deadzoned — 0 unless active and in play
   fire: false,         // FIRE held
+  dashHeld: false,     // DASH held — polled, so a held LT keeps dashing through other inputs
   aimAng: 0,           // right-stick aim, kept when the stick returns to centre
   focus: null,         // the menu element the focus ring is on
   prev: [],            // button states at the last poll — a press is an edge against these
@@ -100,7 +101,7 @@ const Pad = {
     let gp = null;
     for (const g of navigator.getGamepads()) if (g && g.connected) { gp = g; break; }
     if (!gp) {
-      if (this.connected) { this.connected = false; this.setActive(false); this.prev = []; controlsStatus(); }
+      if (this.connected) { this.connected = false; this.setActive(false); this.prev = []; this.dashHeld = false; controlsStatus(); }
       return;
     }
     if (!this.connected || gp.id !== this.id) {
@@ -135,10 +136,11 @@ const Pad = {
     /* one branch per poll, decided by the state at its start: an A that presses RESUME
        must not also land as SEAL on the first frame of play */
     const st = Game.state;
-    this.moveX = this.moveY = 0; this.fire = false;
+    this.moveX = this.moveY = 0; this.fire = false; this.dashHeld = false;
     if (this.active && st === "play") {
       this.moveX = lx; this.moveY = ly;
       this.fire = !!held[padBind("fire")];
+      this.dashHeld = padBind("dash") !== null && padBind("dash") !== undefined && !!held[padBind("dash")];
       if (rm > PAD_AIM_DEAD) this.aimAng = Math.atan2(ry, rx);
       if (edge(padBind("dash"))) Input.dashTap = true;
       if (edge(padBind("use"))) Input.useTap = true;

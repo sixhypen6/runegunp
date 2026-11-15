@@ -306,6 +306,8 @@ const Coop = {
       f.aimMode = "manual";
       /* the guest's thrall mark (world px) — undefined on a non-Reanimator */
       if (Number.isFinite(m.tx) && Number.isFinite(m.ty)) { f.thrallX = m.tx; f.thrallY = m.ty; }
+      f.dashHeld = !!m.dh;
+      f.autoDash = !!m.ad;
       if (m.dashN > taps.dash) { f.dashTap = true; taps.dash = m.dashN; }
       if (m.useN > taps.use) { f.useTap = true; taps.use = m.useN; }
       if (m.recallN > taps.recall) { f.recallTap = true; taps.recall = m.recallN; }
@@ -571,7 +573,11 @@ const Coop = {
     let tx, ty;
     if (Input.touchMode && typeof Input.tapWX === "number") { tx = Input.tapWX; ty = Input.tapWY; }
     else if (Input.mouseX !== undefined) { tx = Input.mouseX / ZOOM + Game.cam.x; ty = Input.mouseY / ZOOM + Game.cam.y; }
-    Net.sendU({ t: "i", mx: f.mx, my: f.my, aim: self.aim, fire, boost: !!f.boost, tx, ty, dashN: this._dashN, useN: this._useN, recallN: this._recallN, surgeN: this._surgeN });
+    /* what the other device needs for the wire: position/aim/fire, boost, and
+       the tap counters. dh/ad ride along for AUTO DASH: the guest keeps its
+       hands free too — the host's copy of the guest warden dashes on its own */
+    const dh = !!(keyHeld("dash") || !!(typeof Pad !== "undefined" && Pad.dashHeld) || !!Input.touchDashHeld);
+    Net.sendU({ t: "i", mx: f.mx, my: f.my, aim: self.aim, fire, boost: !!f.boost, tx, ty, dashN: this._dashN, useN: this._useN, recallN: this._recallN, surgeN: this._surgeN, dh, ad: !!Meta.autoDash });
   },
 
   /* interaction hints (display only — the host executes on our useTap) */

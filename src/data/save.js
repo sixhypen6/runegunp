@@ -56,6 +56,7 @@ const Meta = {
                       // default while this is false — an explicit choice always outranks it.
   runTimer: true,     // speedrun clock in the HUD — display only; records are kept either way
   speedrun: false,    // SPEEDRUN mode: guarantee WARD then SWIFT in the first two rune choices (independent of the clock)
+  autoDash: false,    // AUTO DASH: the warden dashes for you whenever the dash is ready (SPACE switches it off mid-run)
   speedBests: {},     // fastest COMPLETED descent per warden id and mode, seconds (0/absent = never cleared)
   /* per-warden online records — the RECKONING's warden boards read these, so a
      SNIPER row shows a SNIPER run even when the player's overall mode best used
@@ -271,6 +272,7 @@ function metaLoad() {
       Meta.runTimer = d.runTimer !== false;
       /* SPEEDRUN mode is opt-in: saves from before it existed start with it off */
       Meta.speedrun = d.speedrun === true;
+      Meta.autoDash = d.autoDash === true;
       if (d.speedBests && typeof d.speedBests === "object")
         for (const k in d.speedBests) {
           const base = String(k).split(":")[0];   // "gunsmith" or "gunsmith:classic"

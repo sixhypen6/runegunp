@@ -13,6 +13,8 @@ const Input = {
   touchMode: false,
   dashTap: false, useTap: false, recallTap: false, surgeTap: false,
   mark1Tap: false, mark2Tap: false,
+  /* touch DASH button held — polled like a key (the mobile counterpart of holding SPACE) */
+  touchDashHeld: false,
   /* touchscreen thrall mark — world px of the last tap (Reanimator cursor mode) */
   tapWX: undefined, tapWY: undefined,
 };
@@ -53,7 +55,19 @@ function fireHeld() { return keyHeld("fire") || (typeof Pad !== "undefined" && P
    dash the instant the game resumes. R (refine) and Q (surge) ignore auto-repeat
    so one press is one action, not a held key dumping every stack at once. */
 function pressBound(code, e) {
-  if (keyBound("dash", code)) { if (Game.state === "play") Input.dashTap = true; if (e) e.preventDefault(); }
+  if (keyBound("dash", code)) {
+    if (Game.state === "play") {
+      /* SPACE switches AUTO DASH off instead of dashing — the one exception
+         to the held-key repeat: a deliberate press always means "back to hands" */
+      if (typeof Meta !== "undefined" && Meta.autoDash && !(e && e.repeat)) {
+        Meta.autoDash = false;
+        try { metaSave(); } catch (_) {}
+        if (typeof applyAutoDashUI === "function") applyAutoDashUI();
+        if (typeof toast === "function") toast("AUTO DASH — OFF");
+      } else Input.dashTap = true;
+    }
+    if (e) e.preventDefault();
+  }
   if (keyBound("use", code) && Game.state === "play") Input.useTap = true;
   if (keyBound("recall", code) && Game.state === "play" && !(e && e.repeat)) Input.recallTap = true;
   if (keyBound("surge", code) && Game.state === "play" && !(e && e.repeat)) Input.surgeTap = true;
@@ -125,7 +139,7 @@ window.addEventListener("keyup", e => Input.keys[e.code] = false);
 /* focus loss eats keyup events — release everything or keys stick after alt-tab */
 window.addEventListener("blur", () => {
   Input.keys = {}; Input.mouseDown = false;
-  Input.moveX = Input.moveY = 0; Input.aiming = false;
+  Input.moveX = Input.moveY = 0; Input.aiming = false; Input.touchDashHeld = false;
 });
 document.addEventListener("visibilitychange", () => {
   /* Parking/unparking the audio hardware lives here, regardless of state — a menu
@@ -228,7 +242,9 @@ makeStick($("stickR"),
    Single-tap fires the action. While the layout editor is open (CtrlEditing) the
    touch is a drag, so the tap is suppressed. */
 let CtrlEditing = false;
-$("btnDash").addEventListener("touchstart", e => { if (CtrlEditing) return; if (Game.state === "play") Input.dashTap = true; e.preventDefault(); });
+$("btnDash").addEventListener("touchstart", e => { if (CtrlEditing) return; if (Game.state === "play") Input.dashTap = true; Input.touchDashHeld = true; e.preventDefault(); }, { passive: false });
+$("btnDash").addEventListener("touchend", () => { Input.touchDashHeld = false; });
+$("btnDash").addEventListener("touchcancel", () => { Input.touchDashHeld = false; });
 $("btnUse").addEventListener("touchstart", e => { if (CtrlEditing) return; if (Game.state === "play") Input.useTap = true; e.preventDefault(); });
 
 /* ---------- repositionable controls (BUTTONS scheme) ----------

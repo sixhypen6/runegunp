@@ -1174,6 +1174,24 @@ function toggleAimMode() {
 }
 $("btnAimModeSettings").addEventListener("click", toggleAimMode);
 
+/* ---------- AUTO DASH — the warden keeps dashing for you ---------- */
+function applyAutoDashUI() {
+  const b = $("btnAutoDash");
+  if (b) b.textContent = "AUTO DASH: " + (Meta.autoDash ? "ON" : "OFF");
+  const n = $("autoDashNote");
+  if (n) n.textContent = Meta.autoDash
+    ? "the warden keeps dashing whenever the dash is ready — SPACE switches it off mid-run (settings switch it back on)"
+    : "the warden dashes for you whenever the dash is ready — best with PHASE's near-zero cooldown · SPACE switches it off mid-run";
+}
+function toggleAutoDash() {
+  Meta.autoDash = !Meta.autoDash;
+  metaSave();
+  applyAutoDashUI();
+  AudioFX.equip();
+  if (typeof toast === "function") toast(Meta.autoDash ? "AUTO DASH — ON" : "AUTO DASH — OFF");
+}
+$("btnAutoDash").addEventListener("click", toggleAutoDash);
+
 /* ---------- control scheme (desktop): hold-fire vs auto-fire vs auto-aim ---------- */
 const DESK_MODES = {
   hold:   { label: "HOLD TO FIRE",        note: "aim with cursor · hold mouse to fire (DEFAULT)" },
@@ -1776,7 +1794,7 @@ $("ctrlEditReset").addEventListener("click", resetCtrlLayout);
 })();
 
 /* ---------- settings overlay ---------- */
-function openSettings() { if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings opened"); syncVolumeUI(); applyDeskMode(); applyAimMode(); applyBtnSizeUI(); applyCtrlSettingsUI(); applyHapticsUI(); applyShakeUI(); applyAdvancedNumbersUI(); applyRuneDescriptionSettingsUI(); applyVaultDescriptionSettingsUI(); applyTextSizeUI(); applyGlowUI(); applyJuiceUI(); applyZoneFxUI(); applyHiddenRunesUI(); applyAmbushUI(); applyRunTimerUI(); applySpeedrunUI(); applyPauseOnBlurUI(); syncAutoPickUI(); syncPrivacyOptions(); $("btnReplayCutscene").style.display = (Game.state === "menu") ? "" : "none"; $("settings").classList.add("on"); }
+function openSettings() { if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings opened"); syncVolumeUI(); applyDeskMode(); applyAimMode(); applyAutoDashUI(); applyBtnSizeUI(); applyCtrlSettingsUI(); applyHapticsUI(); applyShakeUI(); applyAdvancedNumbersUI(); applyRuneDescriptionSettingsUI(); applyVaultDescriptionSettingsUI(); applyTextSizeUI(); applyGlowUI(); applyJuiceUI(); applyZoneFxUI(); applyHiddenRunesUI(); applyAmbushUI(); applyRunTimerUI(); applySpeedrunUI(); applyPauseOnBlurUI(); syncAutoPickUI(); syncPrivacyOptions(); $("btnReplayCutscene").style.display = (Game.state === "menu") ? "none" : ""; $("settings").classList.add("on"); }
 function closeSettings() { $("settings").classList.remove("on"); if (typeof wipeArmReset === "function") wipeArmReset(); if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("UI", "settings closed"); }
 /* Google requires EEA/UK players to have a persistent way back to the consent
    choice. UMP tells us who needs one; everyone else never sees the button. */
