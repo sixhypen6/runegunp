@@ -178,8 +178,88 @@ function cutDrawChar(x, y, rot, sx, sy, col, alpha, flame, charType) {
     cx.fillText("?", 0, 1);
     cx.strokeStyle = gun; cx.lineWidth = 2.5; cx.lineCap = "round";
     cx.beginPath(); cx.moveTo(11, 0); cx.lineTo(24, 0); cx.stroke();
+  } else if (charType === "alchemist") {
+    /* triangle body + forked barrel */
+    cx.beginPath(); cx.moveTo(14, 0); cx.lineTo(-11, 11); cx.lineTo(-11, -11); cx.closePath(); cx.fill();
+    cx.fillStyle = "#0a0a14"; cx.fillRect(10, -3, 5, 6);
+    cx.strokeStyle = gun; cx.lineWidth = 2; cx.lineCap = "round";
+    cx.beginPath(); cx.moveTo(8, 0); cx.lineTo(20, 0); cx.stroke();
+    for (const s of [-1, 1]) { cx.beginPath(); cx.moveTo(20, 0); cx.lineTo(25, s * 4); cx.stroke(); }
+  } else if (charType === "sniper") {
+    /* heptagon chassis, dark hood, pale visor slit, long scoped rifle */
+    cx.beginPath();
+    for (let i = 0; i < 7; i++) { const a = i / 7 * TAU; i === 0 ? cx.moveTo(Math.cos(a)*14, Math.sin(a)*14) : cx.lineTo(Math.cos(a)*14, Math.sin(a)*14); }
+    cx.closePath(); cx.fill();
+    cx.beginPath();
+    for (let i = 0; i < 7; i++) { const a = i / 7 * TAU; i === 0 ? cx.moveTo(Math.cos(a)*9.5, Math.sin(a)*9.5) : cx.lineTo(Math.cos(a)*9.5, Math.sin(a)*9.5); }
+    cx.closePath(); cx.fillStyle = "#1a2418"; cx.fill();
+    cx.fillStyle = "#e8ffb0"; cx.globalAlpha = alpha * (0.55 + 0.45 * Math.sin(now * 7));
+    cx.fillRect(4.4, -4, 2.2, 8); cx.globalAlpha = alpha;
+    cx.strokeStyle = "#5e5a4a"; cx.lineWidth = 2.5; cx.lineCap = "round";
+    cx.beginPath(); cx.moveTo(4, 0); cx.lineTo(32, 0); cx.stroke();
+    cx.strokeStyle = "#2c2a22"; cx.lineWidth = 5;
+    cx.beginPath(); cx.moveTo(9, 0); cx.lineTo(17, 0); cx.stroke();
+    cx.fillStyle = gun; cx.globalAlpha = alpha * (0.55 + 0.45 * Math.sin(now * 7));
+    cx.beginPath(); cx.arc(33, 0, 1.7, 0, TAU); cx.fill(); cx.globalAlpha = alpha;
+  } else if (charType === "sinner") {
+    /* hooded drifter — cloak, bone mask, two purple tear-blades angled forward */
+    cx.fillStyle = col;
+    cx.beginPath(); cx.moveTo(11, 0);
+    cx.quadraticCurveTo(10, -13, -10, -11); cx.quadraticCurveTo(-16, 0, -10, 11);
+    cx.quadraticCurveTo(10, 13, 11, 0); cx.closePath(); cx.fill();
+    cx.fillStyle = "#efe6da"; cx.beginPath(); cx.ellipse(4, 0, 5.5, 4.6, 0, 0, TAU); cx.fill();
+    cx.fillStyle = "#2a0d16";
+    cx.beginPath(); cx.ellipse(5.6, -1.8, 1.6, 1.05, 0.2, 0, TAU); cx.fill();
+    cx.beginPath(); cx.ellipse(5.6, 1.8, 1.6, 1.05, -0.2, 0, TAU); cx.fill();
+    cx.strokeStyle = "#c86bff"; cx.shadowColor = "#c86bff"; cx.shadowBlur = 9; cx.lineWidth = 3; cx.lineCap = "round";
+    for (const s of [-1, 1]) { cx.beginPath(); cx.moveTo(10, s * 3); cx.lineTo(23, s * 8); cx.stroke(); }
+    cx.shadowBlur = 0;
+  } else if (charType === "sancho") {
+    /* black suit, red cape, blonde fall, red eyes, sanguine cut */
+    cx.fillStyle = "#880011";
+    cx.beginPath(); cx.moveTo(-9, -6); cx.quadraticCurveTo(-24, -16, -32, 6);
+    cx.quadraticCurveTo(-20, 16, -9, 8); cx.closePath(); cx.fill();
+    cx.fillStyle = "#1a1a1a"; cx.fillRect(-8, -12, 16, 24);
+    cx.fillStyle = "#aa0000"; cx.fillRect(-1.5, -8, 3, 7);
+    cx.fillStyle = "#ffcc33";
+    cx.beginPath(); cx.moveTo(-9, -13); cx.lineTo(9, -13); cx.lineTo(11, -4);
+    cx.quadraticCurveTo(0, -6.5, -11, -4); cx.closePath(); cx.fill();
+    cx.fillStyle = "#ff0000";
+    cx.beginPath(); cx.arc(-3, -9, 1.5, 0, TAU); cx.fill();
+    cx.beginPath(); cx.arc(3, -9, 1.5, 0, TAU); cx.fill();
+    cx.strokeStyle = "#cc0000"; cx.shadowColor = "#ff334d"; cx.shadowBlur = 8; cx.lineWidth = 4; cx.lineCap = "round";
+    cx.beginPath(); cx.moveTo(12, 0); cx.lineTo(35, 0); cx.stroke();
+    cx.shadowBlur = 0;
+  } else if (charType === "john") {
+    /* the legend: heroic silhouette, red cape, gold visor, the RUNEGUN */
+    cx.fillStyle = "#8a1a1a"; cx.globalAlpha = alpha * 0.8;
+    cx.beginPath(); cx.moveTo(4, -8);
+    cx.quadraticCurveTo(-18, -14, -30, -3); cx.quadraticCurveTo(-22, 12, -8, 12);
+    cx.closePath(); cx.fill(); cx.globalAlpha = alpha;
+    cx.fillStyle = col; cx.fillRect(-8, -12, 18, 24);
+    cx.fillStyle = "#ffd23d"; cx.shadowColor = "#ffd23d"; cx.shadowBlur = 10;
+    cx.fillRect(3.5, -5, 5.5, 3.5); cx.shadowBlur = 0;
+    cx.strokeStyle = "#ffd23d"; cx.lineWidth = 4; cx.lineCap = "square";
+    cx.beginPath(); cx.moveTo(10, 0); cx.lineTo(28, 0); cx.stroke();
+    cx.fillStyle = gun; cx.beginPath(); cx.arc(28, 0, 3.2, 0, TAU); cx.fill();
+    cx.strokeStyle = "#aa8844"; cx.lineWidth = 1.5;
+    cx.beginPath(); cx.moveTo(19, -4.5); cx.lineTo(19, 4.5); cx.stroke();
+  } else if (charType === "fortress") {
+    /* octagon war-machine, central hub, three barrels forward */
+    cx.beginPath();
+    for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; i === 0 ? cx.moveTo(Math.cos(a)*14, Math.sin(a)*14) : cx.lineTo(Math.cos(a)*14, Math.sin(a)*14); }
+    cx.closePath(); cx.fill();
+    cx.fillStyle = "#0a0a14"; cx.beginPath(); cx.arc(0, 0, 5.5, 0, TAU); cx.fill();
+    cx.fillStyle = gun; cx.font = "bold 8px monospace"; cx.textAlign = "center"; cx.textBaseline = "middle";
+    cx.fillText("ᛝ", 0, 0.5);
+    cx.strokeStyle = gun; cx.lineWidth = 4; cx.lineCap = "square";
+    cx.beginPath(); cx.moveTo(12, 0); cx.lineTo(26, 0); cx.stroke();
+    const px_ = Math.cos(Math.PI / 2), py_ = Math.sin(Math.PI / 2);
+    for (const s of [-1, 1]) {
+      cx.beginPath(); cx.moveTo(11, s * 8); cx.lineTo(21, s * 8); cx.stroke();
+    }
   } else {
-    /* alchemist: triangle body + forked barrel */
+    /* anything unlisted keeps the triangle marker */
     cx.beginPath(); cx.moveTo(14, 0); cx.lineTo(-11, 11); cx.lineTo(-11, -11); cx.closePath(); cx.fill();
     cx.fillStyle = "#0a0a14"; cx.fillRect(10, -3, 5, 6);
     cx.strokeStyle = gun; cx.lineWidth = 2; cx.lineCap = "round";
