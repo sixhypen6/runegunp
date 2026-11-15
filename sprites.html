@@ -964,18 +964,200 @@
         targetCtx.fillText("?", 0, 1);
         drawCracks(targetCtx, hpFrac, 12);
         targetCtx.restore();
-      } else if (P.char === "sancho") {
+      } else if (P.char === "sniper") {
+        // heptagon chassis, dark hood, breathing visor slit, long scoped rifle
         targetCtx.save(); targetCtx.translate(px, py); targetCtx.rotate(aim);
-        targetCtx.fillStyle = bodyColor;
-        targetCtx.beginPath(); targetCtx.moveTo(-2, -13); targetCtx.lineTo(9, -10); targetCtx.lineTo(14, -3);
-        targetCtx.lineTo(11, 10); targetCtx.lineTo(0, 14); targetCtx.lineTo(-10, 7); targetCtx.lineTo(-12, -5); targetCtx.closePath(); targetCtx.fill();
-        targetCtx.fillStyle = "#0b0b14"; targetCtx.fillRect(2, -4, 7, 2.5);
-        targetCtx.strokeStyle = "#ff6675"; targetCtx.lineWidth = 2.4; targetCtx.lineCap = "round"; targetCtx.lineJoin = "round";
-        // Stage-one fists; the gameplay upgrades this silhouette to saber/lance or bow.
-        targetCtx.fillStyle = "#ff6675";
-        for (const side of [-1, 1]) { targetCtx.beginPath(); targetCtx.arc(11, side * 8, 3.2, 0, TAU); targetCtx.fill(); }
+        const hept = radius => {
+          targetCtx.beginPath();
+          for (let i = 0; i < 7; i++) { const a = i / 7 * TAU; i === 0 ? targetCtx.moveTo(Math.cos(a) * radius, Math.sin(a) * radius) : targetCtx.lineTo(Math.cos(a) * radius, Math.sin(a) * radius); }
+          targetCtx.closePath();
+        };
+        targetCtx.fillStyle = bodyColor; hept(15); targetCtx.fill();
+        targetCtx.fillStyle = "#1a2418"; hept(10.5); targetCtx.fill();
+        targetCtx.fillStyle = "#e8ffb0";
+        targetCtx.globalAlpha = 0.55 + 0.45 * Math.sin(Game.time * 7);
+        targetCtx.fillRect(4.6, -4.4, 2.4, 8.8);
+        targetCtx.globalAlpha = 1;
+        targetCtx.strokeStyle = "#5e5a4a"; targetCtx.lineWidth = 3; targetCtx.lineCap = "round";
+        targetCtx.beginPath(); targetCtx.moveTo(4, 0); targetCtx.lineTo(37, 0); targetCtx.stroke();
+        targetCtx.strokeStyle = "#2c2a22"; targetCtx.lineWidth = 6;
+        targetCtx.beginPath(); targetCtx.moveTo(11, 0); targetCtx.lineTo(21, 0); targetCtx.stroke();
+        targetCtx.strokeStyle = "#3a4636"; targetCtx.lineWidth = 2;
+        targetCtx.beginPath(); targetCtx.moveTo(11, -5.5); targetCtx.lineTo(22, -5.5); targetCtx.stroke();
+        targetCtx.fillStyle = tint;
+        targetCtx.globalAlpha = 0.55 + 0.45 * Math.sin(Game.time * 7);
+        targetCtx.beginPath(); targetCtx.arc(23, -5.5, 1.7, 0, TAU); targetCtx.fill();
+        targetCtx.globalAlpha = 1;
+        targetCtx.beginPath(); targetCtx.arc(38, 0, 1.8, 0, TAU); targetCtx.fill();
         drawCracks(targetCtx, hpFrac, 10);
         targetCtx.restore();
+
+      } else if (P.char === "sinner") {
+        // WAYWARD PASSENGER — masked drifter, tendrils, two tear-blades
+        targetCtx.save(); targetCtx.translate(px, py);
+        // tendrils streaming opposite the aim
+        targetCtx.strokeStyle = "#8c1f36"; targetCtx.lineCap = "round";
+        for (let i = -2; i <= 2; i++) {
+          const base = aim + Math.PI + i * 0.28;
+          const sway = Math.sin(Game.time * 5 + i * 1.7) * 0.4;
+          targetCtx.globalAlpha = 0.55 - Math.abs(i) * 0.06;
+          targetCtx.lineWidth = 2.4 - Math.abs(i) * 0.35;
+          targetCtx.beginPath();
+          targetCtx.moveTo(Math.cos(base) * 7, Math.sin(base) * 7);
+          targetCtx.quadraticCurveTo(Math.cos(base + sway * 0.5) * 20, Math.sin(base + sway * 0.5) * 20,
+            Math.cos(base + sway) * (30 + Math.abs(i) * 3), Math.sin(base + sway) * (30 + Math.abs(i) * 3));
+          targetCtx.stroke();
+        }
+        targetCtx.globalAlpha = 1;
+        targetCtx.save(); targetCtx.rotate(aim);
+        targetCtx.fillStyle = col;
+        targetCtx.beginPath();
+        targetCtx.moveTo(-10, -11); targetCtx.quadraticCurveTo(11, -10, 12, 0);
+        targetCtx.quadraticCurveTo(11, 10, -10, 11); targetCtx.quadraticCurveTo(-15, 0, -10, -11);
+        targetCtx.closePath(); targetCtx.fill();
+        // high collar
+        targetCtx.fillStyle = "#5c1224";
+        targetCtx.beginPath(); targetCtx.moveTo(-10, -11); targetCtx.lineTo(-2, -16); targetCtx.lineTo(-2, 4); targetCtx.closePath(); targetCtx.fill();
+        targetCtx.beginPath(); targetCtx.moveTo(-10, 11); targetCtx.lineTo(-2, 16); targetCtx.lineTo(-2, -4); targetCtx.closePath(); targetCtx.fill();
+        // bone mask
+        targetCtx.fillStyle = "#efe6da";
+        targetCtx.beginPath(); targetCtx.ellipse(4, 0, 7, 5.5, 0, 0, TAU); targetCtx.fill();
+        targetCtx.fillStyle = "#2a0d16";
+        targetCtx.beginPath(); targetCtx.ellipse(6, -2.1, 2.1, 1.1, 0.2, 0, TAU); targetCtx.fill();
+        targetCtx.beginPath(); targetCtx.ellipse(6, 2.1, 2.1, 1.1, -0.2, 0, TAU); targetCtx.fill();
+        // stitched seam
+        targetCtx.strokeStyle = "#a3334f"; targetCtx.lineWidth = 0.8;
+        targetCtx.beginPath(); targetCtx.moveTo(4, -5); targetCtx.lineTo(4, 5); targetCtx.stroke();
+        drawCracks(targetCtx, hpFrac, 11);
+        targetCtx.restore();
+        // two tear-blades, purple with a white edge
+        for (const [stroke, lw, blur] of [["#c86bff", 3.6, 12], ["#f3e6ff", 1.2, 0]]) {
+          targetCtx.strokeStyle = stroke; targetCtx.lineWidth = lw; targetCtx.lineCap = "round";
+          targetCtx.shadowColor = "#c86bff"; targetCtx.shadowBlur = blur;
+          for (const s of [-1, 1]) {
+            const ba = aim + s * 0.14;
+            targetCtx.beginPath();
+            targetCtx.moveTo(Math.cos(aim) * 4 + Math.cos(ba + Math.PI / 2) * s * 3, Math.sin(aim) * 4 + Math.sin(ba + Math.PI / 2) * s * 3);
+            targetCtx.lineTo(Math.cos(aim) * 4 + Math.cos(ba) * 33, Math.sin(aim) * 4 + Math.sin(ba) * 33);
+            targetCtx.stroke();
+          }
+          targetCtx.shadowBlur = 0;
+        }
+        targetCtx.restore();
+
+      } else if (P.char === "sancho") {
+        // SANCHO — black suit, layered red cape, blonde hair, hardblood fists (stage 1)
+        targetCtx.save(); targetCtx.translate(px, py);
+        targetCtx.shadowColor = "#b5162a"; targetCtx.shadowBlur = 10;
+        // feathery red cape
+        targetCtx.fillStyle = "#880011";
+        const capePulse = Math.sin(Game.time * 4) * 2;
+        for (let i = 0; i < 3; i++) {
+          const off = i * 4;
+          targetCtx.beginPath();
+          targetCtx.moveTo(-10, -5 + off);
+          targetCtx.bezierCurveTo(-25 - off, -15 + capePulse, -40 - off, 10 + off, -15, 25 + off);
+          targetCtx.bezierCurveTo(-35, 40, -5, 35, 8, 25);
+          targetCtx.fill();
+        }
+        // black suit + red tie
+        targetCtx.fillStyle = "#1a1a1a";
+        if (targetCtx.roundRect) { targetCtx.beginPath(); targetCtx.roundRect(-8, -12, 16, 26, 4); targetCtx.fill(); }
+        else targetCtx.fillRect(-8, -12, 16, 26);
+        targetCtx.fillStyle = "#aa0000"; targetCtx.fillRect(-1.5, -8, 3, 7);
+        // blonde hair, a few loose strands
+        targetCtx.fillStyle = "#ffcc33";
+        targetCtx.beginPath();
+        targetCtx.moveTo(-10, -13); targetCtx.lineTo(10, -13); targetCtx.lineTo(13, -3);
+        targetCtx.quadraticCurveTo(0, -6, -13, -3); targetCtx.closePath(); targetCtx.fill();
+        targetCtx.strokeStyle = "#ffcc33"; targetCtx.lineWidth = 1.5; targetCtx.lineCap = "round";
+        for (let i = 0; i < 4; i++) {
+          const hx = -8 + i * 5;
+          targetCtx.beginPath(); targetCtx.moveTo(hx, -13); targetCtx.lineTo(hx - 3, -19); targetCtx.stroke();
+        }
+        // red eyes
+        targetCtx.fillStyle = "#ff0000";
+        targetCtx.beginPath(); targetCtx.arc(-3, -9, 1.5, 0, TAU); targetCtx.fill();
+        targetCtx.beginPath(); targetCtx.arc(3, -9, 1.5, 0, TAU); targetCtx.fill();
+        drawCracks(targetCtx, hpFrac, 12);
+        targetCtx.shadowBlur = 0;
+        targetCtx.restore();
+        // armored knuckles, aimed forward
+        targetCtx.fillStyle = "#e8e2d0";
+        const punch = Math.sin(Game.time * 20) > 0 ? 10 : 0;
+        for (const s of [-1, 1]) {
+          targetCtx.save(); targetCtx.translate(px, py); targetCtx.rotate(aim + s * 0.4);
+          targetCtx.beginPath(); targetCtx.arc(14 + (s > 0 ? punch : 0), s * 5, 4, 0, TAU); targetCtx.fill();
+          targetCtx.restore();
+        }
+
+      } else if (P.char === "john") {
+        // JOHN RUNEGUN — the legend: heroic silhouette, electric visor, red cape, THE RUNEGUN
+        const aura = 0.5 + 0.5 * Math.sin(Game.time * 10);
+        targetCtx.save(); targetCtx.translate(px, py);
+        targetCtx.shadowColor = "#ffd23d"; targetCtx.shadowBlur = 15 * aura;
+        // cape, streaming opposite the aim
+        const capeA = aim + Math.PI + Math.sin(Game.time * 5) * 0.13;
+        const capeLen = 30 + Math.sin(Game.time * 6) * 3;
+        targetCtx.save(); targetCtx.rotate(capeA);
+        targetCtx.fillStyle = "#8a1a1a"; targetCtx.globalAlpha = 0.8;
+        targetCtx.beginPath();
+        targetCtx.moveTo(4, -9);
+        targetCtx.quadraticCurveTo(capeLen * 0.55, -13, capeLen, -5);
+        targetCtx.quadraticCurveTo(capeLen * 0.88, 3, capeLen * 0.68, 11);
+        targetCtx.quadraticCurveTo(capeLen * 0.34, 5, 3, 9);
+        targetCtx.closePath(); targetCtx.fill();
+        targetCtx.strokeStyle = "#c22a2a"; targetCtx.globalAlpha = 0.5; targetCtx.lineWidth = 1.5;
+        targetCtx.beginPath(); targetCtx.moveTo(5, -8.5);
+        targetCtx.quadraticCurveTo(capeLen * 0.55, -12, capeLen * 0.97, -5.5); targetCtx.stroke();
+        targetCtx.globalAlpha = 1;
+        targetCtx.restore();
+        // heroic body (a more vertical rectangle than the Juggernaut)
+        targetCtx.fillStyle = col;
+        if (targetCtx.roundRect) { targetCtx.beginPath(); targetCtx.roundRect(-12, -18, 24, 34, 10); targetCtx.fill(); }
+        else targetCtx.fillRect(-12, -18, 24, 34);
+        // helmet visor
+        targetCtx.fillStyle = "#5ee6ff"; targetCtx.fillRect(-8, -8, 16, 3);
+        // hands, aligned to aim
+        targetCtx.save(); targetCtx.rotate(aim);
+        targetCtx.fillStyle = col;
+        for (const s of [-1, 1]) { targetCtx.beginPath(); targetCtx.arc(4, s * 18, 6, 0, TAU); targetCtx.fill(); }
+        targetCtx.restore();
+        drawCracks(targetCtx, hpFrac, 14);
+        targetCtx.shadowBlur = 0;
+        targetCtx.restore();
+        // THE RUNEGUN — bronze body, white-hot rails
+        targetCtx.save(); targetCtx.translate(px, py); targetCtx.rotate(aim);
+        targetCtx.strokeStyle = "#aa8844"; targetCtx.lineWidth = 8;
+        targetCtx.beginPath(); targetCtx.moveTo(12, 0); targetCtx.lineTo(38, 0); targetCtx.stroke();
+        targetCtx.strokeStyle = "#fff"; targetCtx.lineWidth = 2;
+        targetCtx.beginPath(); targetCtx.moveTo(15, -4); targetCtx.lineTo(35, -4); targetCtx.stroke();
+        targetCtx.beginPath(); targetCtx.moveTo(15, 4); targetCtx.lineTo(35, 4); targetCtx.stroke();
+        targetCtx.restore();
+
+      } else if (P.char === "fortress") {
+        // FORTRESS — octagon war-machine, central hub, three forward barrels
+        targetCtx.save(); targetCtx.translate(px, py); targetCtx.rotate(aim);
+        targetCtx.fillStyle = bodyColor;
+        targetCtx.beginPath();
+        for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; i === 0 ? targetCtx.moveTo(Math.cos(a) * 17, Math.sin(a) * 17) : targetCtx.lineTo(Math.cos(a) * 17, Math.sin(a) * 17); }
+        targetCtx.closePath(); targetCtx.fill();
+        targetCtx.fillStyle = "#0b0b14"; targetCtx.beginPath(); targetCtx.arc(0, 0, 7, 0, TAU); targetCtx.fill();
+        targetCtx.fillStyle = tint; targetCtx.font = "bold 11px monospace"; targetCtx.textAlign = "center"; targetCtx.textBaseline = "middle";
+        targetCtx.fillText("ᛝ", 0, 1);
+        drawCracks(targetCtx, hpFrac, 14);
+        targetCtx.restore();
+        // three barrels: center + two side-mounted
+        targetCtx.strokeStyle = tint; targetCtx.lineWidth = 7; targetCtx.lineCap = "square";
+        const barrelLen = 26, sideOffset = 10;
+        targetCtx.beginPath(); targetCtx.moveTo(px + Math.cos(aim) * 13, py + Math.sin(aim) * 13); targetCtx.lineTo(px + Math.cos(aim) * barrelLen, py + Math.sin(aim) * barrelLen); targetCtx.stroke();
+        for (const s of [-1, 1]) {
+          targetCtx.beginPath();
+          targetCtx.moveTo(px + Math.cos(aim) * 13 + perpX * sideOffset * s, py + Math.sin(aim) * 13 + perpY * sideOffset * s);
+          targetCtx.lineTo(px + Math.cos(aim) * barrelLen + perpX * sideOffset * s, py + Math.sin(aim) * barrelLen + perpY * sideOffset * s);
+          targetCtx.stroke();
+        }
+
       } else {
         // New character IDs appear automatically; show their configured glyph and palette.
         const C = CHARS[P.char] || {};
