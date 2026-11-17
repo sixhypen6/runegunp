@@ -377,6 +377,9 @@ function updatePet(pet, dt) {
           b.pierce = m.pierce; b.bounce = m.bounce; b.homing = m.homing;
           b.venom = m.venom; b.ember = m.ember; b.frost = m.frost; b.storm = m.storm;
           b.execute = m.execute; b.knock = m.knock || 30;
+          /* BLEED is a supported effect on the shot too — the imp's bullets must
+             carry the wound like any other etched copy */
+          if (m.bleed > 0) b.bleed = m.bleed;
           b.crit = m.crit; b.critMul = m.critMul; b.fear = m.fear; b.fearDur = m.fearDur;
           b.r = Math.max(4, m.size * 0.7);
         }
