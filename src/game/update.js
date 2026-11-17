@@ -159,6 +159,14 @@ function updateShredderSaw(p, dt) {
   }
 }
 
+/* SANCHO starves for kindred blood: whenever her Bloodfeast runs too thin to
+   refine and her Hardblood is still supple, she opens her own wounds — the
+   bleed bites her, and the wound gives back what the fight owes her. */
+const SANCHO_STARVE_FEAST = 50;   // bloodfeast below this is "starving"
+const SANCHO_STARVE_HB    = 10;   // hardblood below this is "soft" for the feast
+const SANCHO_SELF_BLEED_T = 4;    // seconds of self-bleed per starvation episode
+const SANCHO_SELF_BLEED_DPS = 4;   // wounds feed her 4 Bloodfeast per tick
+const SANCHO_STARVE_FLOOR = 1;    // bleed cannot close the distance to death;
 function updatePlayer(p, inp, dt) {
   if (p.hp <= 0 && !p.downed) return;
   const isLocal = p === localPlayer();
@@ -192,6 +200,25 @@ function updatePlayer(p, inp, dt) {
     const stage = p.hardblood >= 20 ? 3 : p.hardblood >= 10 ? 2 : 1;
     if (stage !== p.hbStage) { p.hbStage = stage; recalc(p); }
     p.speed = CHARS.sancho.speed * p.mods.moveMul * (p.hp / p.maxHp < 0.3 ? 1.25 : 1);
+  }
+  /* SANCHO: starvation opens the wound — she drains to feed, never to die */
+  if (p.char === "sancho" && !p.downed) {
+    if (p.bleedT > 0) {
+      p.bleedT -= dt;
+      p.bleedTick = (p.bleedTick || 0) - dt;
+      if (p.bleedTick <= 0) {
+        p.bleedTick = 1;
+        const drain = Math.max(1, Math.round(p.bleedDps || 0));
+        if (p.hp > drain) p.hp -= drain; else p.hp = SANCHO_STARVE_FLOOR;
+        Game.bloodfeast = Math.min(999, Game.bloodfeast + drain);
+        if (p === localPlayer() && typeof updateHp === "function") updateHp();
+      }
+    } else if ((Game.bloodfeast || 0) < SANCHO_STARVE_FEAST && (p.hardblood || 0) < SANCHO_STARVE_HB) {
+      p.bleedT = SANCHO_SELF_BLEED_T;
+      p.bleedDps = SANCHO_SELF_BLEED_DPS;
+      p.bleedBy = p;
+      p.bleedTick = 0;   // first tick lands next frame rather than a delayed one
+    }
   }
   if (isLocal && typeof updateSanchoCue === "function") updateSanchoCue(p);
   if (isLocal && typeof updateWarpCue === "function") updateWarpCue(p);
