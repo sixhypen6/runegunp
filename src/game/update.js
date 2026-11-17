@@ -767,8 +767,13 @@ function update(dt) {
       if (dist2(portal.x, portal.y, p.x, p.y) < (portal.r + p.r) ** 2) {
         portal = null;
         Game.floorFade = 1;          // the dark swallows the descent, then releases the new floor
-        /* THE GAUNTLET: the way in wakes the warden — a door between seats */
-        if (Game.bossRush) { setState("play"); gauntletWake(Game.gauntletStep); return; }
+        /* THE GAUNTLET: the way down leads to the altar first — the warden wakes when you leave it */
+        if (Game.bossRush && Game.gauntletInterludePortal) {
+          Game.gauntletInterludePortal = false;
+          if (typeof openGauntletTithe === "function") openGauntletTithe();
+          else setupGauntletArena(Game.gauntletStep);
+          return;
+        }
         /* past the Event Horizon the way down leads into the saloon first; the
            saloon's own portal (Game.inSaloon) carries on to the next floor.
            CLASSIC keeps its old five-floor lap: no saloon, no deep floors — the

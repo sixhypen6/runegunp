@@ -60,13 +60,6 @@ function startBossRush() {
   else setupGauntletArena(0);    // belt-and-braces: no altar, no interruption
 }
 
-/* the warden wakes — the gate was taken */
-function gauntletWake(step) {
-  const spec = BOSS_RUSH_FIGHTS[step];
-  if (!spec || spec.kind === 8) return;   // THE UNKNOWN stages itself
-  spawnBoss(spec.kind);                   // the arrival, the toast, the banner — all of it
-}
-
 /* one arena, one warden: tear down whatever resetRun or the last fight left,
    dress the floor for the next seat, and open the way in */
 function setupGauntletArena(step) {
@@ -94,13 +87,11 @@ function setupGauntletArena(step) {
     p.x = MAP.w / 2 + p.idx * 44; p.y = MAP.h / 2 + 220;
     p.iframes = 1.5; p.dashT = 0; p.veilT = 0;
   }
-  SEAL.state = "spent";                          // no seal: the fight begins with the ritual — the way opens, then the warden wakes
+  SEAL.state = "spent";                          // no seal: the fight begins with the arrival, not a breaking
   for (const p of players) if (p.pet && PTYPES[p.pet]) pets.push(assignId(spawnPet(p.pet, p)));
   $("mapName").textContent = "THE GAUNTLET · " + ROMAN(step + 1) + " OF IX — " + FLOORS[spec.kind].name;
   $("waveNum").textContent = ROMAN(step + 1);
-  /* the way in: the arena waits empty, the gate hangs open — step through it to wake the warden */
-  portal = { x: MAP.w / 2, y: MAP.h / 2, r: 46, t: 0 };
-  AudioFX.portal();
+  spawnBoss(spec.kind);                          // the arrival, the toast, the banner — all of it
 }
 
 /* a warden falls. The gauntlet answers with souls, +50% vitality, and a seat
@@ -158,15 +149,16 @@ function bossRushSlain(e, killer) {
   else Game.gauntletInterlude = true;
 }
 
-/* the ceremony has played out: half vitality back, then the altar rises */
+/* the ceremony has played out: half vitality back, then the way down opens —
+   step into it to reach the altar (THE TITHE opens on entry) */
 function gauntletInterlude() {
   for (const p of players) p.hp = Math.min(p.maxHp, p.hp + Math.round(p.maxHp * 0.5));
   updateHp();
-  if (typeof openGauntletTithe === "function") openGauntletTithe();
-  else {
-    /* belt-and-braces: no altar, no interruption — move the bracket along */
-    setupGauntletArena(Game.gauntletStep);
-  }
+  /* the way down hangs open at the seal — the fallen warden's seat */
+  portal = { x: SEAL.x, y: SEAL.y, r: 46, t: 0 };
+  Game.gauntletInterludePortal = true;
+  toast("A WAY DOWN OPENS AT THE GRAND SEAL — STEP INTO IT");
+  AudioFX.portal();
 }
 
 /* the ninth warden falls — the bracket is complete */
