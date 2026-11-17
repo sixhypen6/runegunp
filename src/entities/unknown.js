@@ -70,7 +70,7 @@ function unkRockPlan() {
   return out;
 }
 function makeUnknownBoss() {
-  const hp = UNK_HP * (Game.hardMode ? 1.5 : 1);
+  const hp = UNK_HP * (Game.hardMode ? 1.5 : 1) * (typeof gauntletHpMul === "function" ? gauntletHpMul() : 1);
   return assignId({
     type: "boss", boss: true, kind: UNK_KIND, x: UNK_X, y: UNK_Y - 18, r: 52, hp, maxHp: hp,
     color: "#c9b8ff", score: 400,

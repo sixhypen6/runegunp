@@ -1969,6 +1969,17 @@ $("dcCoop").addEventListener("click", () => {
   closeDescentChoice();
   if (typeof Lobby !== "undefined") Lobby.open();
 });
+$("dcGauntlet").addEventListener("click", () => {
+  if (!descentChoiceArmed()) return;
+  closeDescentChoice();
+  startBossRush();
+});
+$("gauntletWinMenu").addEventListener("click", () => {
+  const el = $("gauntletWin");
+  if (el) el.classList.remove("on");
+  refreshMenu();
+  setState("menu");
+});
 $("descentChoiceBack").addEventListener("click", () => { if (descentChoiceArmed()) closeDescentChoice(); });
 
 /* ---------- descent mode: NORMAL, HARD or CHAOS (only the menu DESCEND asks) ---------- */

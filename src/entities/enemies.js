@@ -665,6 +665,8 @@ function wavePool() {
 }
 
 function startWave() {
+  /* THE GAUNTLET never spawns a wave — the fight belongs to the warden */
+  if (typeof Game !== "undefined" && Game.bossRush) return;
   Game.wave++;
   const raw = 4 + Math.floor(Game.wave * 1.8 + depth() * 1.5);
   /* RANDOMIZED: the horde's own size is a roll too — some waves trickle, some flood */

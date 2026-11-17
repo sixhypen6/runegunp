@@ -469,6 +469,8 @@ function recordBests() {
   /* A shared descent keeps no records — and it stays shared for this purpose
      even if the partner left before the final blow (Game.coopLap). */
   if (runIsCoop()) return {};
+  /* THE GAUNTLET keeps its own tally — the boards belong to descents */
+  if (typeof Game !== "undefined" && Game.bossRush) return {};
   const b = modeBests(), improved = {};
   const survived = Math.floor(Game.time), d = depth();
   const recordPlayer = typeof localPlayer === "function" ? localPlayer() : null;

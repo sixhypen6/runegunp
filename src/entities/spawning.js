@@ -70,6 +70,9 @@ function resetRun(cfgs) {
   Game.banked = false; Game.continuesUsed = 0; Game.voidConquered = false; Game.voidKillTime = -1;
   Game.flawless = true; Game.flawlessToast = 0; Game.flawlessAward = 0;
   Game.pvpMode = false; Game.pvpWinner = null;   // a new descent is never still a duel
+  /* a gauntlet bracket never leaks into an ordinary descent */
+  Game.bossRush = false; Game.gauntletStep = 0; Game.gauntletLocked = null; Game.gauntletStartSpent = 0;
+  Game.gauntletWon = false; Game.gauntletTime = 0; Game.gauntletSouls = 0;
   Game.riftOffered = false; Game.riftDone = false; Game.inRift = false; Game.riftCreature = null; Game.riftPicks = null;
   Game.inSaloon = false; Game.saloon = null; Game.saloonVisits = 0;
   Game.drunk = 0; Game.drunkHold = 0; Game.drunkSpan = 0; Game.drunkJolt = 0;

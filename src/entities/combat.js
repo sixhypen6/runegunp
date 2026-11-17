@@ -1088,6 +1088,8 @@ function killEnemy(e, killer) {
 }
 
 function bossSlain(e, killer) {
+  /* the gauntlet handles its own reckoning — souls, the altar, the next seat */
+  if (typeof Game !== "undefined" && Game.bossRush) { bossRushSlain(e, killer); return; }
   /* an echo of a warden THE UNKNOWN sent back: no ceremony, the round goes on */
   if (e && e.echo) { unknownEchoFell(e); return; }
   if (e) {
@@ -1260,8 +1262,9 @@ function hurtPlayer(p, dmg, src) {
   if (p.shield > 0) { shieldBurst(p); return; }   // shield soaks the hit, then detonates
   /* WRATHFUL horrors — and everything they hurl — strike half again as hard */
   if (src && src.wrath) dmg *= WRATH_DMG_MUL;
-  /* PARTY SCALING: a larger party faces harder blows (data/floors.js) */
   dmg *= partyDmgMul();
+  /* the gauntlet's own bite: +12% per cleared warden — solo or shared */
+  if (typeof gauntletDmgMul === "function") dmg *= gauntletDmgMul();
   /* AEGIS: wards bleed the force from the blow before it lands */
   if (p.mods.dr) dmg *= 1 - p.mods.dr;
   /* ONE HIT: any blow that lands is the last. BULWARK is checked above (the shield

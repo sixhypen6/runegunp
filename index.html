@@ -872,8 +872,22 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
       <div class="ic">⚔</div><div class="nm">VERSUS</div>
       <div class="ds">Find a rival — pick a warden and a loadout, then fight a private duel. Last warden standing.</div>
     </div>
+    <div class="bc-card" id="dcGauntlet" style="color:var(--gold)">
+      <div class="ic">☠</div><div class="nm">BOSS RUSH</div>
+      <div class="ds">Nine seats at the altar. Five points to start; every warden you fell pays two more at THE TITHE. Spend them on runes — the fight below the altar permits nothing else.</div>
+    </div>
   </div>
   <button class="menu-btn small" id="descentChoiceBack" style="margin-top:18px">RETURN</button>
+</div>
+
+<!-- THE GAUNTLET'S WIN SCREEN — all nine seats are taken -->
+<div class="overlay" id="gauntletWin" style="z-index:20">
+  <div class="panel" style="width:min(520px,94vw);text-align:center">
+    <h2 id="gauntletWinTitle" style="color:var(--gold)">THE GAUNTLET IS COMPLETE</h2>
+    <div class="hint" id="gauntletWinMeta">ALL NINE SEATS ARE TAKEN</div>
+    <div id="gauntletWinBody" style="margin-top:14px;line-height:2"></div>
+    <button class="menu-btn small" id="gauntletWinMenu" style="width:100%;margin-top:14px">RETURN TO THE MENU</button>
+  </div>
 </div>
 
 <!-- DESCENT MODE — normal, hard or chaos; only the menu DESCEND opens this (retry repeats the last mode) -->
@@ -1601,6 +1615,8 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
 <script src="src/net/lobby.js"></script>
 <script src="src/ui/pvp-panel.js"></script>
 <script src="src/net/pvp-match.js"></script>
+<script src="src/game/boss-rush.js"></script>
+<script src="src/ui/boss-rush.js"></script>
 <script src="src/systems/native.js"></script>
 <script src="src/debug/console-gate.js"></script>
 <script src="src/debug/console.js"></script>
