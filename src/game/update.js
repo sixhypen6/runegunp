@@ -743,6 +743,9 @@ function update(dt) {
       if (pAct) pAct();
       else if (!Game.inSaloon && typeof sanchoToggleStance === "function") sanchoToggleStance(p);
     }
+    /* Q abandons the rite entirely — the warden is not owed the speech and
+       does not need to stand through it */
+    if (f && f.surgeTap && uh.skipAct) uh.skipAct();
   }
   if (hint) hint = hint.replace("[ E ]", "[ " + (Input.touchMode ? "SEAL" : bindLabel("use")) + " ]");
   if (hint !== lastHint) {

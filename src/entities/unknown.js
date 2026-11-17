@@ -176,7 +176,7 @@ function updateUnknown(dt) {
       unkHover(b, dt);
       U.lineT += dt;
       if (U.lineT > 3.2) unkNextLine();
-      else if (U.lineT > 0.5) { out.hint = "[ E ] LISTEN ON"; out.act = unkNextLine; }
+      else if (U.lineT > 0.5) { out.hint = "[ E ] LISTEN · [ Q ] SKIP"; out.act = unkNextLine; out.skipAct = unkReveal; }
       break;
     }
     case "reveal": {
