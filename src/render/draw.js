@@ -1373,22 +1373,25 @@ function draw() {
     cx.shadowBlur = 0; cx.globalAlpha = 1;
   }
 
-  /* VEIL BURST — the hollow circle the wraith tears open */
+  /* VEIL BURST — the hollow circle the wraith tears open (MIRROR's tears read violet) */
   for (const v of veils) {
     if (v.x + v.r + 60 < cullL || v.x - v.r - 60 > cullR || v.y + v.r + 60 < cullT || v.y - v.r - 60 > cullB) continue;
     const k = clamp(v.t / v.life, 0, 1);
     const rr = v.r * Math.min(1, v.t / 0.1);          // snaps open, then hangs and fades
+    const veilCol = v.tint || "#5ee6ff";
+    const innerCol = v.tint === "#9d6bff" ? "#e6c8ff" : "#9beeff";
+    const dashCol = v.tint === "#9d6bff" ? "#c9a6ff" : "#c9f4ff";
     cx.save();
     cx.translate(v.x, v.y);
-    cx.shadowColor = "#5ee6ff"; cx.shadowBlur = 18;
-    cx.strokeStyle = "#5ee6ff";
+    cx.shadowColor = veilCol; cx.shadowBlur = 18;
+    cx.strokeStyle = veilCol;
     cx.globalAlpha = (1 - k) * 0.9;
     cx.lineWidth = 5;
     cx.beginPath(); cx.arc(0, 0, rr, 0, TAU); cx.stroke();
     /* TWIN's echo rings: fainter circles folded inside the veil */
     const rings = v.rings || 1;
     if (rings > 1) {
-      cx.strokeStyle = "#9beeff"; cx.lineWidth = 2;
+      cx.strokeStyle = innerCol; cx.lineWidth = 2;
       for (let i = 1; i < rings; i++) {
         cx.globalAlpha = (1 - k) * Math.max(0.12, 0.4 - 0.08 * i);
         cx.beginPath(); cx.arc(0, 0, rr * (1 - 0.16 * i), 0, TAU); cx.stroke();
@@ -1396,7 +1399,7 @@ function draw() {
     }
     /* inner runic dashes spinning the wrong way */
     cx.rotate(-v.t * 3);
-    cx.strokeStyle = "#c9f4ff"; cx.lineWidth = 2;
+    cx.strokeStyle = dashCol; cx.lineWidth = 2;
     cx.globalAlpha = (1 - k) * 0.55;
     cx.setLineDash([12, 18]);
     cx.beginPath(); cx.arc(0, 0, rr * 0.9, 0, TAU); cx.stroke();
@@ -2254,6 +2257,24 @@ function drawAfterWardens() {
   cx.globalAlpha = 1;
 
   cx.restore();
+
+  /* BLACKOUT — the dark was always hungry: the light shrivels as the descent
+     deepens; only the run's own light and its shots show the way */
+  if (typeof Game !== "undefined" && Game.challenge === "blackout" && typeof depth === "function") {
+    const me = localPlayer();
+    if (me) {
+      const k = ZOOM || 1;
+      const radius = Math.max(150, 520 - depth() * 55);
+      const meX = (me.x - Game.cam.x) * k, meY = (me.y - Game.cam.y) * k;
+      const rPx = Math.max(1, radius * k);
+      const g = cx.createRadialGradient(meX, meY, rPx * 0.55, meX, meY, rPx);
+      g.addColorStop(0, "rgba(2,1,6,0)");
+      g.addColorStop(0.72, "rgba(2,1,6,0.5)");
+      g.addColorStop(1, "rgba(2,1,6,0.97)");
+      cx.fillStyle = g;
+      cx.fillRect(0, 0, W, H);
+    }
+  }
 
   /* the saloon's rounds: blur, double vision, closing edges — over the world, under everything else */
   if (Game.drunk > 0) drawDrunkFX();

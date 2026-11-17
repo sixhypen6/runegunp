@@ -1312,7 +1312,25 @@ function update(dt) {
   /* hard ceiling: the spawn-side caps don't cover every source — a NOVA chain's corpse
      bursts measured 2,884 live. The oldest go first; they're the nearest to fading anyway. */
   if (particles.length > PARTICLE_MAX) particles.splice(0, particles.length - PARTICLE_MAX);
-  for (let i = veils.length - 1; i >= 0; i--) { veils[i].t += dt; if (veils[i].t > veils[i].life) veils.splice(i, 1); }
+  for (let i = veils.length - 1; i >= 0; i--) {
+    const v = veils[i]; v.t += dt;
+    /* RICOCHET — the veil snaps fully open, then recoils inward and bites again */
+    if (v.pulseAt && !v.pulsed && v.t >= v.pulseAt) {
+      v.pulsed = true;
+      const pd = v.pulseDmg || 0;
+      if (pd > 0 && typeof damageEnemy === "function") {
+        const owner = v.owner || localPlayer();
+        for (const e of enemies) {
+          if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p") continue;
+          if (dist2(e.x, e.y, v.x, v.y) > (v.r + e.r) ** 2) continue;
+          damageEnemy(e, pd, { x: v.x, y: v.y, knock: 50, owner });
+        }
+        if (typeof pvpBlastWardens === "function") pvpBlastWardens(owner, v.x, v.y, v.r, pd, { x: v.x, y: v.y });
+        if (owner === localPlayer()) Game.shake = Math.max(Game.shake, 4);
+      }
+    }
+    if (v.t > v.life) veils.splice(i, 1);
+  }
   for (let i = floaters.length - 1; i >= 0; i--) { const f = floaters[i]; f.t += dt; f.y -= (f.vy === undefined ? 40 : f.vy) * dt; if (f.t > (f.life || 0.7)) floaters.splice(i, 1); }
   if (soulMotes.length) tickSoulMotes(dt);   // after particles: motes freeze with hitstop, drag with slowmo
   for (let i = zaps.length - 1; i >= 0; i--) { zaps[i].t += dt; if (zaps[i].t > 0.15) zaps.splice(i, 1); }

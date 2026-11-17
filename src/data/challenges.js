@@ -37,6 +37,10 @@ const CHALLENGE_DEFS = [
     id: "randomized", name: "RANDOMIZED", glyph: "⚄", color: "#8dffb0", mul: 2,
     desc: "Every wave, warden and rune is a fresh roll — the horde ignores its floors, any of the eight may wake, and every offer is a blind draw from the whole deck. THE UNKNOWN keeps its own rules.",
   },
+  {
+    id: "blackout", name: "BLACKOUT", glyph: "☾", color: "#5c5470", mul: 2.5,
+    desc: "Each floor, the light dies a little more. Only shot flashes and motes will show you the way.",
+  },
 ];
 
 /* the runeless orb's boon — the same mend a vitality box gives, plus a short stride */

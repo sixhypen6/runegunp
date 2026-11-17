@@ -543,6 +543,15 @@ const WRAITH_TWIN_RUNE = Object.assign({}, RUNES.twin, {
 const WRAITH_SEEKER_RUNE = Object.assign({}, RUNES.seeker, {
   desc: "The veil drags everything it catches toward its heart, and its corpse discharges curve toward the nearest foe.",
 });
+const WRAITH_PIERCE_RUNE = Object.assign({}, RUNES.pierce, {
+  desc: "The tear punches clean through its spoils: +12% veil damage per stack (tapered). Veil kills still discharge a shot — and it pierces +3 bodies per stack.",
+});
+const WRAITH_RICOCHET_RUNE = Object.assign({}, RUNES.ricochet, {
+  desc: "RECOIL — the veil snaps all the way open, then rebounds inward and bites once more at +25% ring damage per stack.",
+});
+const WRAITH_MIRROR_RUNE = Object.assign({}, RUNES.mirror, {
+  desc: "Veil-slain foes weep a spectral echo of the tear — a smaller ring bursts from the corpse and bites the pack around it (40% veil damage per stack).",
+});
 /* THE DEMOLITIONIST's mortar is the gun: the lane/rear/wound runes reshape the
    shell, its crater and the shrapnel instead of a bullet that never leaves. */
 const DEMO_TWIN_RUNE = Object.assign({}, RUNES.twin, {
@@ -579,6 +588,9 @@ function runeDefFor(p, id) {
     if (id === "scatter") return WRAITH_SCATTER_RUNE;
     if (id === "twin") return WRAITH_TWIN_RUNE;
     if (id === "seeker") return WRAITH_SEEKER_RUNE;
+    if (id === "pierce") return WRAITH_PIERCE_RUNE;
+    if (id === "ricochet") return WRAITH_RICOCHET_RUNE;
+    if (id === "mirror") return WRAITH_MIRROR_RUNE;
   }
   /* the mortar is the Demolitionist's gun: lanes become aimed shards, the rear
      copy becomes a rear charge, and the wound rides the shell and crater */
@@ -801,7 +813,7 @@ function buildWeaponModsFrom(runes, p) {
     timeField: 0, timeR: 0, timeMul: 0, prickle: 0, prickleR: 0, slime: 0,
     bleed: 0, vampire: 0, warp: 0, scatterSplit: 1, sawDmg: 0, reprieveStacks: 0, wardStacks: 0,
     /* THE WRAITH's veil: its own reach, bite and pull, read from the bullet runes */
-    veilR: 0, veilMul: 1, veilEcho: 0, veilPull: 0,
+    veilR: 0, veilMul: 1, veilEcho: 0, veilPull: 0, veilRecoil: 0,
     /* THE DEMOLITIONIST's mortar: aimed shards and rear charges from the bullet runes */
     demoShards: 0, demoRear: 0, demoRearDmg: 1,
     /* THE WAYWARD PASSENGER's WARP: the deeper, longer, headier rift the
@@ -884,10 +896,14 @@ function buildWeaponModsFrom(runes, p) {
        the full shot a veil kill discharges (entities/combat.js). */
     const wRunes = runes || {};
     const wScatter = wRunes.scatter || 0, wTwin = wRunes.twin || 0, wEcho = Math.min(3, wTwin);
+    const wPierce = wRunes.pierce || 0, wRicochet = wRunes.ricochet || 0;
     m.veilR = wScatter * 18 + wTwin * 8;
-    m.veilMul = (1 / (m.scatterSplit || 1)) * (1 + 0.55 * wEcho);
+    /* PIERCE folds into the veil's own damage — the tear punches clean through */
+    m.veilMul = (1 / (m.scatterSplit || 1)) * (1 + 0.55 * wEcho) * (1 + 0.12 * stackCurve(wPierce));
     m.veilEcho = wEcho;
     m.veilPull = (wRunes.seeker || 0) > 0 ? 14 + 10 * wRunes.seeker : 0;
+    /* RICOCHET gives the veil a recoil bite on the snap-back */
+    m.veilRecoil = 0.25 * stackCurve(wRicochet);
   }
   if (p.char === "demolitionist") {
     /* The mortar has no trigger for the bullet runes to feed, so they reshape
@@ -945,6 +961,7 @@ function runeStatLines(p, id) {
     if (full.mirror !== w.mirror) {
       if (demo) L.push("+" + di(full.demoRear, w.demoRear) + " REAR CHARGE" + (full.demoRear === 1 ? "" : "S") +
         (full.demoRearDmg < 0.995 ? " AT " + Math.round(full.demoRearDmg * 100) + "% DMG" : ""));
+      else if (p.char === "wraith") L.push("+" + di(full.mirror, w.mirror) + " CORPSE ECHO RING" + (full.mirror === 1 ? "" : "S"));
       else L.push("+" + di(full.mirror, w.mirror) + " REAR SHOT" +
         (full.mirrorDmg < 0.995 ? " AT " + Math.round(full.mirrorDmg * 100) + "% DMG" : ""));
     }
@@ -976,6 +993,8 @@ function runeStatLines(p, id) {
     L.push("+" + di(full.veilEcho, w.veilEcho) + " ECHO RING" + (full.veilEcho === 1 ? "" : "S"));
   if (Math.abs((full.veilPull || 0) - (w.veilPull || 0)) > 0.05)
     L.push("VEIL DRAGS FOES " + Math.round(full.veilPull) + "px INWARD");
+  if (Math.abs((full.veilRecoil || 0) - (w.veilRecoil || 0)) > 0.005)
+    L.push("RECOIL \u2014 " + Math.round(full.veilRecoil * 100) + "% OF THE RING SNAPS BACK");
   if (Math.abs(full.moveMul / w.moveMul - 1) > 0.005) L.push("MOVE SPEED " + mul(full.moveMul / w.moveMul));
   if (full.hpBonus !== w.hpBonus) L.push("+" + di(full.hpBonus, w.hpBonus) + " MAX VITALITY");
   if (full.shieldMax !== w.shieldMax) L.push("SHIELD ABSORBS " + full.shieldMax + " HIT" + (full.shieldMax === 1 ? "" : "S"));

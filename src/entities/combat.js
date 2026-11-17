@@ -662,8 +662,10 @@ function fireVeil(p) {
   /* bigger bullets → wider circle (HEAVY / TITAN); SCATTER and TWIN widen it further */
   const R = clamp(110 + m.size * 9 + (m.veilR || 0), 90, 460);
   const ringDmg = m.dmg * VEIL_DMG_MUL * (m.veilMul || 1);
+  const recoil = m.veilRecoil || 0;
   p.veilT = 0.45;                          // gone between worlds: invisible & untouchable
-  veils.push({ x: p.x, y: p.y, r: R, t: 0, life: 0.55, rings: 1 + (m.veilEcho || 0) });
+  veils.push({ x: p.x, y: p.y, r: R, t: 0, life: 0.55, rings: 1 + (m.veilEcho || 0),
+    pulseAt: recoil ? 0.24 : 0, pulseDmg: recoil ? ringDmg * recoil : 0, owner: p });
   /* mist rushing inward along the circle's rim */
   for (let i = 0; i < 26; i++) {
     const a = rnd(0, TAU);
@@ -695,6 +697,22 @@ function fireVeil(p) {
   }
   /* PVP: the hollow circle wounds a rival warden caught inside it just the same */
   pvpBlastWardens(p, px, py, R, ringDmg, { x: px, y: py, knock: m.knock });
+  /* MIRROR — every foe slain inside the circle weeps a spectral echo of the
+     tear: a smaller, violet ring bursts from the corpse and bites its pack */
+  if (m.mirror > 0 && slain.length) {
+    const echoR = clamp(R * 0.45, 60, 200);
+    const echoDmg = ringDmg * 0.4 * stackCurve(m.mirror);
+    for (const e of slain) {
+      veils.push({ x: e.x, y: e.y, r: echoR, t: 0, life: 0.45, rings: 1, tint: "#9d6bff", owner: p });
+      for (const o of enemies) {
+        if (o === e || o.dead || o.ghost || o.spawnT > 0) continue;
+        if (dist2(o.x, o.y, e.x, e.y) > (echoR + o.r) ** 2) continue;
+        damageEnemy(o, echoDmg, { x: e.x, y: e.y, knock: m.knock * 0.5, owner: p });
+      }
+      if (typeof Net !== "undefined" && Net.role === "guest") continue;
+      pvpBlastWardens(p, e.x, e.y, echoR, echoDmg, { x: e.x, y: e.y, knock: m.knock * 0.5 });
+    }
+  }
   /* every foe slain inside the circle discharges your full shot at its nearest kin */
   for (const e of slain) {
     let tgt = null, bd = Infinity;
