@@ -23,19 +23,22 @@ const BOSS_RUSH_FIGHTS = [
 const BOSS_RUSH_TITHE_START = 5;
 const BOSS_RUSH_TITHE_PER_BOSS = 2;
 
-/* the altar's flat price list — every warden pays the same, the SHREDDER's
-   bargain hunter and the juggernaut's discount do not apply here */
+/* the altar's flat price list — rebalanced so no warden gets a discount.
+   And the carved charter is honoured: the warden's starting loadout is free */
 function gauntletFlatCost(id, nextStack) {
   let c = PVP_RUNE_COST[id];
   if (c == null) c = 2;
   if (id === "reprieve") c = (nextStack | 0) <= 1 ? PVP_REPRIEVE_FIRST : PVP_REPRIEVE_NEXT;
-  return Math.max(1, c);
+  const p = typeof localPlayer === "function" ? localPlayer() : null;
+  const free = p ? (pvpFreeStacks(p.char)[id] || 0) : 0;
+  return (nextStack | 0) <= free ? 0 : Math.max(1, c);
 }
 function gauntletSpent(p) {
   let total = 0;
+  const free = pvpFreeStacks(p.char);
   for (const id in p.runes) {
     const n = p.runes[id] | 0;
-    for (let i = 1; i <= n; i++) total += gauntletFlatCost(id, i);
+    for (let i = 1; i <= n; i++) total += i <= (free[id] || 0) ? 0 : gauntletFlatCost(id, i);
   }
   return total;
 }
@@ -54,6 +57,17 @@ function startBossRush() {
   Game.bossRush = true;
   Game.gauntletStep = 0; Game.gauntletLocked = null;
   Game.gauntletWon = false; Game.gauntletTime = 0; Game.gauntletSouls = 0;
+  /* THE GAUNTLET gives SANCHO her fight's due: twice the opening blood and a
+     purse of Bloodfeast to refine it into — the altar pays the Kindred what
+     the descent always made her claw for */
+  for (const p of players) {
+    if (p.char === "sancho") {
+      p.hardblood = 2;
+      p.hbStage = 1;
+      Game.bloodfeast = 25;
+      if (typeof recalc === "function") recalc(p);
+    }
+  }
   updateHp(); updateScore(); updateRerolls();
   $("waveNum").textContent = "I";
   if (typeof openGauntletTithe === "function") openGauntletTithe();

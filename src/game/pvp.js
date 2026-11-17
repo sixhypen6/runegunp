@@ -127,7 +127,7 @@ function pvpPointsLeft(p) {
 
 /* returns how many stacks actually fit in the remaining points */
 function pvpBuy(p, id, n) {
-  if (!RUNES[id]) throw new Error("Unknown rune: " + id);
+  if (!runeBaseDef(id)) throw new Error("Unknown rune: " + id);
   if (Game.pvpMode) throw new Error("The match has begun — the loadout is sealed.");
   n = Math.max(1, Math.floor(n || 1));
   const before = p.runes[id] || 0;
@@ -171,7 +171,7 @@ function pvpApplyRunes(p, runes) {
   pvpReset(p);
   let stacks = 0;
   for (const id in runes) {
-    if (!RUNES[id]) continue;
+    if (!runeBaseDef(id)) continue;
     stacks += pvpBuy(p, id, Math.max(1, runes[id] | 0));
   }
   return stacks;
@@ -189,7 +189,7 @@ function pvpApplyLoadout(p, idx) {
 function pvpRandomLoadout(p) {
   pvpReset(p);
   if (Game.pvpMode) return 0;
-  const pool = Object.keys(RUNES).filter(id => !RUNES[id].hidden);
+  const pool = RUNE_IDS.slice();
   let picks = 0;
   for (let guard = 0; guard < 90 && picks < 8; guard++) {
     const id = pool[Math.floor(Math.random() * pool.length)];

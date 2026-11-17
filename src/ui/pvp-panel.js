@@ -26,7 +26,7 @@ function pvpCustomLoadouts() {
       const runes = {};
       for (const id in o.runes) {
         const n = o.runes[id] | 0;
-        if (RUNES[id] && n > 0) runes[id] = Math.min(99, n);
+        if (runeBaseDef(id) && n > 0) runes[id] = Math.min(99, n);
       }
       if (!Object.keys(runes).length) return null;
       return { name: String(o.name || "CUSTOM").slice(0, 18).toUpperCase(), runes };
@@ -168,10 +168,14 @@ const PvpPanel = {
       loadouts.appendChild(box);
     });
 
-    /* the rune grid — same cell contract as TEST TOOLS */
+    /* the rune grid — same cell contract as TEST TOOLS.
+       Built wide enough for every glyph any warden could ever be dealt,
+       hidden ones included — refresh() hides what this warden never sees. */
     const grid = $("pvRunes");
-    for (const id of RUNE_IDS) {
-      const R = RUNES[id], d = document.createElement("div");
+    for (const id of RUNE_IDS.concat(HIDDEN_RUNE_IDS)) {
+      const R = runeBaseDef(id);
+      if (!R) continue;
+      const d = document.createElement("div");
       d.className = "pv-rune"; d.dataset.id = id; d.style.setProperty("--rc", R.color);
       d.innerHTML = `<button class="pv-add" title="buy a stack"><span class="g">${R.glyph}</span><span class="n">${R.name}</span><span class="c"></span></button><button class="pv-sub" title="refund a stack">−</button>`;
       d.querySelector(".pv-add").addEventListener("click", () => PvpPanel.buy(id));
@@ -277,7 +281,7 @@ const PvpPanel = {
       typeof Coop !== "undefined" && Coop.running;
   },
   visibleRunes(p) {
-    return RUNE_IDS.filter(id => !RUNES[id].hidden || (p.runes[id] | 0) > 0);
+    return runePoolFor(p);
   },
   refresh() {
     this.build();
@@ -348,8 +352,10 @@ const PvpPanel = {
     }
     list.forEach((loadout, i) => {
       const ids = Object.keys(loadout.runes);
-      const desc = ids.map(id => RUNES[id].glyph + " " + RUNES[id].name +
-        (loadout.runes[id] > 1 ? " ×" + loadout.runes[id] : "")).join(" · ");
+      const desc = ids.map(id => {
+        const R = runeBaseDef(id);
+        return R.glyph + " " + R.name + (loadout.runes[id] > 1 ? " ×" + loadout.runes[id] : "");
+      }).join(" · ");
       const tile = document.createElement("div");
       tile.className = "pv-loadout custom";
       tile.innerHTML = `<button class="pv-loadout-apply"><b></b>${desc}</button><button class="pv-loadout-x" title="delete this loadout">✕</button>`;
@@ -426,7 +432,7 @@ const PvpPanel = {
     const p = this.target();
     if (!p || !this.canEdit()) return;
     const runes = {};
-    for (const id in p.runes) if (RUNE_IDS.includes(id) && (p.runes[id] | 0) > 0) runes[id] = p.runes[id];
+    for (const id in p.runes) if (runeBaseDef(id) && (p.runes[id] | 0) > 0) runes[id] = p.runes[id];
     if (!Object.keys(runes).length) { toast("NOTHING TO SAVE — BUY A RUNE FIRST"); return; }
     const list = pvpCustomLoadouts();
     if (list.length >= PVP_CUSTOM_MAX) { toast("LOADOUT LIST FULL — DELETE ONE FIRST"); return; }

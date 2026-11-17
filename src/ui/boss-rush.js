@@ -93,9 +93,13 @@ const BossRushTithe = {
       chars.appendChild(b);
     }
 
+    /* the grid is built wide enough for every glyph any warden could be shown —
+       refresh() hides the ones this warden can never see */
     const grid = $("brRunes");
-    for (const id of RUNE_IDS) {
-      const R = RUNES[id], d = document.createElement("div");
+    for (const id of RUNE_IDS.concat(HIDDEN_RUNE_IDS)) {
+      const R = runeBaseDef(id);
+      if (!R) continue;
+      const d = document.createElement("div");
       d.className = "br-rune"; d.dataset.id = id; d.style.setProperty("--rc", R.color);
       d.innerHTML = `<button class="br-add" title="buy a stack"><span class="g">${R.glyph}</span><span class="n">${R.name}</span><span class="c"></span></button><button class="br-sub" title="refund this visit's stack">−</button>`;
       d.querySelector(".br-add").addEventListener("click", () => BossRushTithe.buy(id));
@@ -109,7 +113,7 @@ const BossRushTithe = {
   },
 
   visibleRunes(p) {
-    return RUNE_IDS.filter(id => !RUNES[id].hidden || (p.runes[id] | 0) > 0);
+    return runePoolFor(p);
   },
 
   refresh() {
@@ -195,7 +199,7 @@ const BossRushTithe = {
   },
   random() {
     const p = localPlayer(); if (!p) return;
-    const pool = RUNE_IDS.filter(id => !RUNES[id].hidden);
+    const pool = runePoolFor(p).filter(id => !HIDDEN_RUNE_IDS.includes(id) || p.runes[id] > 0);
     for (let guard = 0; guard < 80; guard++) {
       const id = pool[Math.floor(Math.random() * pool.length)];
       if (gauntletPointsLeft(p) < gauntletFlatCost(id, (p.runes[id] | 0) + 1)) continue;

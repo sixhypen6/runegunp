@@ -485,6 +485,23 @@ const HIDDEN_RUNE_IDS = Object.keys(HIDDEN_RUNES);
 
 const RUNE_IDS = Object.keys(RUNES);
 const UNK_PLAYER_RUNE_IDS = Object.keys(UNK_PLAYER_RUNES);
+/* shops/loadouts (THE TITHE, VERSUS) build their grid from this: the visible
+   deck for everyone, plus the hidden glyphs a hidden warden is eligible for.
+   RUNEGUN is JOHN RUNEGUN exclusive; hidden runes enter a warden's grid once
+   the easter-egg toggle is on, or the moment one of them is actually held. */
+function runePoolFor(p) {
+  const ids = RUNE_IDS.slice();
+  if (!p || !CHARS[p.char]) return ids;
+  const hiddenChar = !!CHARS[p.char].hidden;
+  for (const id of HIDDEN_RUNE_IDS) {
+    if (id === "runegun" && p.char !== "john") continue;
+    if (hiddenChar || (p.runes && (p.runes[id] | 0) > 0)) ids.push(id);
+  }
+  return ids;
+}
+function runeBaseDef(id) {
+  return (RUNES && RUNES[id]) || (HIDDEN_RUNES && HIDDEN_RUNES[id]) || null;
+}
 
 /* which rune definitions apply to a given warden: THE UNKNOWN's own runes,
    everyone else's normal ones. Hidden runes only appear for hidden wardens,
