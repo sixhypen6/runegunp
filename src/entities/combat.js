@@ -1088,10 +1088,11 @@ function killEnemy(e, killer) {
 }
 
 function bossSlain(e, killer) {
+  /* an echo of a warden THE UNKNOWN sent back: no ceremony — the round goes on.
+     Must come before the gauntlet's intercept: an echo is no seat at the altar */
+  if (e && e.echo) { unknownEchoFell(e); return; }
   /* the gauntlet handles its own reckoning — souls, the altar, the next seat */
   if (typeof Game !== "undefined" && Game.bossRush) { bossRushSlain(e, killer); return; }
-  /* an echo of a warden THE UNKNOWN sent back: no ceremony, the round goes on */
-  if (e && e.echo) { unknownEchoFell(e); return; }
   if (e) {
     recordSlain("boss:" + e.kind);
     /* the warden fell with the run still unscarred — the same condition that pays
