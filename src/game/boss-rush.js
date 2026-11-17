@@ -23,6 +23,22 @@ const BOSS_RUSH_FIGHTS = [
 const BOSS_RUSH_TITHE_START = 5;
 const BOSS_RUSH_TITHE_PER_BOSS = 2;
 
+/* the altar's flat price list — every warden pays the same, the SHREDDER's
+   bargain hunter and the juggernaut's discount do not apply here */
+function gauntletFlatCost(id, nextStack) {
+  let c = PVP_RUNE_COST[id];
+  if (c == null) c = 2;
+  if (id === "reprieve") c = (nextStack | 0) <= 1 ? PVP_REPRIEVE_FIRST : PVP_REPRIEVE_NEXT;
+  return Math.max(1, c);
+}
+function gauntletSpent(p) {
+  let total = 0;
+  for (const id in p.runes) {
+    const n = p.runes[id] | 0;
+    for (let i = 1; i <= n; i++) total += gauntletFlatCost(id, i);
+  }
+  return total;
+}
 function bossRushPool() { return BOSS_RUSH_TITHE_START + BOSS_RUSH_TITHE_PER_BOSS * (Game.gauntletStep || 0); }
 
 /* ---------- the gauntlet begins ---------- */
@@ -36,7 +52,7 @@ function startBossRush() {
   if (typeof Ads !== "undefined") Ads.preload();
   resetRun();                    // the bookkeeping; the floor it spawns is never seen — the altar is
   Game.bossRush = true;
-  Game.gauntletStep = 0; Game.gauntletLocked = null; Game.gauntletStartSpent = 0;
+  Game.gauntletStep = 0; Game.gauntletLocked = null;
   Game.gauntletWon = false; Game.gauntletTime = 0; Game.gauntletSouls = 0;
   updateHp(); updateScore(); updateRerolls();
   $("waveNum").textContent = "I";
@@ -44,8 +60,15 @@ function startBossRush() {
   else setupGauntletArena(0);    // belt-and-braces: no altar, no interruption
 }
 
-/* one arena, one warden: tear down whatever resetRun or the last fight
-   left, dress the floor for this fight, and wake the one who holds it */
+/* the warden wakes — the gate was taken */
+function gauntletWake(step) {
+  const spec = BOSS_RUSH_FIGHTS[step];
+  if (!spec || spec.kind === 8) return;   // THE UNKNOWN stages itself
+  spawnBoss(spec.kind);                   // the arrival, the toast, the banner — all of it
+}
+
+/* one arena, one warden: tear down whatever resetRun or the last fight left,
+   dress the floor for the next seat, and open the way in */
 function setupGauntletArena(step) {
   const spec = BOSS_RUSH_FIGHTS[step];
   if (!spec) return;
@@ -60,7 +83,7 @@ function setupGauntletArena(step) {
   Game.chestsTotal = 0; Game.chestsOpened = 0;   // no chests in the gauntlet — no waves, no seals, no boxes
   if (spec.kind === 8) {
     Game.mapIdx = 4;                             // the void is the only sky the abyss knows
-    enterUnknown();                              // the stage owns its own dressing
+    enterUnknown();                              // the stage owns its own dressing — the warden walks in
     $("mapName").textContent = "THE GAUNTLET · IX OF IX — THE UNKNOWN";
     $("waveNum").textContent = "IX";
     return;
@@ -71,11 +94,13 @@ function setupGauntletArena(step) {
     p.x = MAP.w / 2 + p.idx * 44; p.y = MAP.h / 2 + 220;
     p.iframes = 1.5; p.dashT = 0; p.veilT = 0;
   }
-  SEAL.state = "spent";                          // no seal: the fight begins with the arrival, not a breaking
+  SEAL.state = "spent";                          // no seal: the fight begins with the ritual — the way opens, then the warden wakes
   for (const p of players) if (p.pet && PTYPES[p.pet]) pets.push(assignId(spawnPet(p.pet, p)));
   $("mapName").textContent = "THE GAUNTLET · " + ROMAN(step + 1) + " OF IX — " + FLOORS[spec.kind].name;
   $("waveNum").textContent = ROMAN(step + 1);
-  spawnBoss(spec.kind);                          // the arrival, the toast, the banner — all of it
+  /* the way in: the arena waits empty, the gate hangs open — step through it to wake the warden */
+  portal = { x: MAP.w / 2, y: MAP.h / 2, r: 46, t: 0 };
+  AudioFX.portal();
 }
 
 /* a warden falls. The gauntlet answers with souls, +50% vitality, and a seat
@@ -111,14 +136,37 @@ function bossRushSlain(e, killer) {
   for (let i = puddles.length - 1; i >= 0; i--) if (puddles[i].team === "e") puddles.splice(i, 1);
   for (let i = shockwaves.length - 1; i >= 0; i--) if (shockwaves[i].hostile) shockwaves.splice(i, 1);
   for (const rc of MAP.rocks) delete rc.meltAt;
+  /* the fall, sung: rings rolling out in the warden's color, the horde
+     shuddering apart, time dragging its heels — the way the descent bows
+     before a warden falls. Only when it has played out does the altar ask. */
+  if (e && typeof shockwaves !== "undefined") {
+    for (let k = 0; k < 4; k++)
+      shockwaves.push({ x: e.x, y: e.y, r: 10, max: 180 + k * 90, speed: 700, dmg: 0,
+        hostile: false, color: e.color, hitSet: new Set(), delay: k * 0.12 });
+    for (let k = 0; k < 30; k++)
+      particles.push({ x: e.x, y: e.y, vx: rnd(-160, 160), vy: rnd(-330, -90),
+        t: 0, life: rnd(0.6, 1.2), r: rnd(2, 5), color: "#ffd23d" });
+  }
+  if (e) {
+    floatText(e.x, e.y - e.r - 40, "+" + award + " SOULS", "#ffd23d", 20);
+    Game.slowmo = 0.9;
+    Game.ceremonyT = 1.25;
+  }
   Game.gauntletStep++;
   const cleared = Game.gauntletStep;   // matches BOSS_RUSH_FIGHTS index of the NEXT fight
-  if (cleared >= BOSS_RUSH_FIGHTS.length) { bossRushWin(); return; }
-  /* half their maximum back between seats — the warden is not made of stone */
+  if (cleared >= BOSS_RUSH_FIGHTS.length) Game.gauntletWinPending = true;
+  else Game.gauntletInterlude = true;
+}
+
+/* the ceremony has played out: half vitality back, then the altar rises */
+function gauntletInterlude() {
   for (const p of players) p.hp = Math.min(p.maxHp, p.hp + Math.round(p.maxHp * 0.5));
   updateHp();
   if (typeof openGauntletTithe === "function") openGauntletTithe();
-  else setupGauntletArena(cleared);    // belt-and-braces: no altar, no interruption
+  else {
+    /* belt-and-braces: no altar, no interruption — move the bracket along */
+    setupGauntletArena(Game.gauntletStep);
+  }
 }
 
 /* the ninth warden falls — the bracket is complete */

@@ -72,8 +72,8 @@ const floorDef = () => Game.inSaloon ? SALOON_FLOOR : Game.inUnknown ? UNKNOWN_F
 /* THE GAUNTLET (BOSS RUSH): the warden-scaled fight. No depth/wave crutch —
    HP climbs +35% per cleared warden and their volleys bite +12% harder, so a
    kit that has been fed nine times still has to earn its keep. */
-function gauntletHpMul() { return typeof Game !== "undefined" && Game.bossRush ? 1 + 0.35 * (Game.gauntletStep || 0) : 1; }
-function gauntletDmgMul() { return typeof Game !== "undefined" && Game.bossRush ? 1 + 0.12 * (Game.gauntletStep || 0) : 1; }
+function gauntletHpMul() { return typeof Game !== "undefined" && Game.bossRush ? 1 + 0.45 * (Game.gauntletStep || 0) : 1; }
+function gauntletDmgMul() { return typeof Game !== "undefined" && Game.bossRush ? 1 + 0.15 * (Game.gauntletStep || 0) : 1; }
 const depth = () => Game.loop * loopLen() + Game.mapIdx;   // 0,1,2,3,...
 const diffScale = () => 1 + (Game.wave - 1) * 0.14 + depth() * 0.45;
 

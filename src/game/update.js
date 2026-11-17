@@ -628,7 +628,16 @@ function update(dt) {
   /* boss-death ceremony: the blasts play out, then the toll is offered */
   if (Game.ceremonyT > 0) {
     Game.ceremonyT -= dt;
-    if (Game.ceremonyT <= 0) { Game.ceremonyT = 0; setState("choice"); return; }
+    if (Game.ceremonyT <= 0) {
+      Game.ceremonyT = 0;
+      if (typeof Game.gauntletWinPending !== "undefined" && Game.gauntletWinPending) {
+        Game.gauntletWinPending = false; bossRushWin(); return;
+      }
+      if (typeof Game.gauntletInterlude !== "undefined" && Game.gauntletInterlude) {
+        Game.gauntletInterlude = false; gauntletInterlude(); return;
+      }
+      setState("choice"); return;
+    }
   }
   /* boss-death slow-motion: time drags while the corpse comes apart */
   if (Game.slowmo > 0) { Game.slowmo = Math.max(0, Game.slowmo - dt); dt *= 0.35; }
@@ -758,6 +767,8 @@ function update(dt) {
       if (dist2(portal.x, portal.y, p.x, p.y) < (portal.r + p.r) ** 2) {
         portal = null;
         Game.floorFade = 1;          // the dark swallows the descent, then releases the new floor
+        /* THE GAUNTLET: the way in wakes the warden — a door between seats */
+        if (Game.bossRush) { setState("play"); gauntletWake(Game.gauntletStep); return; }
         /* past the Event Horizon the way down leads into the saloon first; the
            saloon's own portal (Game.inSaloon) carries on to the next floor.
            CLASSIC keeps its old five-floor lap: no saloon, no deep floors — the

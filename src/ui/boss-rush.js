@@ -10,7 +10,7 @@
 function gauntletPool() { return BOSS_RUSH_TITHE_START + BOSS_RUSH_TITHE_PER_BOSS * (Game.gauntletStep || 0); }
 function gauntletPointsLeft(p) {
   if (!p) return 0;
-  return gauntletPool() - (pvpSpent(p) - (Game.gauntletStartSpent || 0));
+  return gauntletPool() - gauntletSpent(p);
 }
 function gauntletLocked(id) { return (Game.gauntletLocked && (Game.gauntletLocked[id] | 0)) || 0; }
 
@@ -121,7 +121,7 @@ const BossRushTithe = {
     $("brPoints").textContent = left + " / " + pool;
     const spec = BOSS_RUSH_FIGHTS[Game.gauntletStep];
     const cleared = Game.gauntletStep || 0;
-    $("brMeta").textContent = "POINTS LEFT · " + (pvpSpent(p) - (Game.gauntletStartSpent || 0)) + " SPENT · "
+    $("brMeta").textContent = "POINTS LEFT · " + gauntletSpent(p) + " SPENT · "
       + (spec ? "NEXT: " + ROMAN(cleared + 1) + " OF IX — " + spec.name : "THE BRACKET IS COMPLETE");
     $("brStart").textContent = cleared === 0 ? "BEGIN THE GAUNTLET" : "PRESS ONWARD";
     document.querySelectorAll("#brChars .br-char").forEach(b => {
@@ -132,7 +132,7 @@ const BossRushTithe = {
     document.querySelectorAll("#brRunes .br-rune").forEach(d => {
       const id = d.dataset.id, held = p.runes[id] | 0;
       d.style.display = wanted.has(id) ? "" : "none";
-      const cost = pvpStackCost(p, id, held + 1);
+      const cost = gauntletFlatCost(id, held + 1);
       d.classList.toggle("on", held > gauntletLocked(id));
       d.classList.toggle("off", held === 0 && cost > left);
       d.querySelector(".c").textContent = held
@@ -149,7 +149,6 @@ const BossRushTithe = {
     if (!p) { toast("NO WARDEN AT THE ALTAR"); return; }
     /* each visit starts with an honest ledger of what this altar refuses to give back */
     Game.gauntletLocked = Object.assign({}, p.runes);
-    Game.gauntletStartSpent = pvpSpent(p);
     this.refresh();
     $("gauntletTithe").classList.add("on");
     AudioFX.click();
@@ -167,7 +166,7 @@ const BossRushTithe = {
   buy(id) {
     const p = localPlayer(); if (!p) return;
     const held = p.runes[id] | 0;
-    const cost = pvpStackCost(p, id, held + 1);
+    const cost = gauntletFlatCost(id, held + 1);
     if (gauntletPointsLeft(p) < cost) { toast("NOT ENOUGH POINTS — " + cost + " NEEDED"); return; }
     p.runes[id] = held + 1;
     recalc(p);
@@ -199,7 +198,7 @@ const BossRushTithe = {
     const pool = RUNE_IDS.filter(id => !RUNES[id].hidden);
     for (let guard = 0; guard < 80; guard++) {
       const id = pool[Math.floor(Math.random() * pool.length)];
-      if (gauntletPointsLeft(p) < pvpStackCost(p, id, (p.runes[id] | 0) + 1)) continue;
+      if (gauntletPointsLeft(p) < gauntletFlatCost(id, (p.runes[id] | 0) + 1)) continue;
       this.buy(id);
     }
   },
@@ -228,20 +227,11 @@ const BossRushTithe = {
     Game.gauntletLocked = Object.assign({}, p.runes);
     this.close();
     AudioFX.waveUp();
+    /* the arena waits dressed and empty — the gate hangs open at the centre;
+       step through to wake the warden */
     setupGauntletArena(Game.gauntletStep);
-    gauntletWake(Game.gauntletStep);
     setState("play");
   },
 };
 
 function openGauntletTithe() { BossRushTithe.open(); }
-
-/* =========================================================
-   I/O helpers used by both modules (kept here because the UI
-   and the stage rules share the ledger names)
-   ========================================================= */
-function gauntletWake(step) {
-  const spec = BOSS_RUSH_FIGHTS[step];
-  if (!spec || spec.kind === 8) return;   // THE UNKNOWN stages itself
-  spawnBoss(spec.kind);                   // the arrival, the toast, the banner — all of it
-}
