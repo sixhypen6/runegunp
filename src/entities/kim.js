@@ -1,7 +1,8 @@
 /* =========================================================
    RUNEGUN · BAMBOO-HATTED KIM — the long blade
    A pure melee warden: one very long, very narrow cut. His gun is a
-   sheathed katana, and the trigger swings it.
+   sheathed jikdo — a straight blade with a red tassel at the pommel —
+   and the trigger swings it.
 
    THE DRAW — every fourth cut is a full circle of steel instead of a
    forward arc: guaranteed critical, longer reach, and it MARKS the
@@ -39,6 +40,20 @@ const KIM_SLASH_LIFE = 0.22;
 const KIM_SWEEP_SHARE = 0.5;
 const KIM_TWIN_GAP = 32;           // px between parallel cut lanes
 const KIM_TWIN_HALF = 0.18;        // how narrow each twin lane's cut is
+
+/* --- the man himself ---
+   Black robe soaked through with old blood, a pale bone beak, one blue
+   flame of an eye, and a long pale blade that has not been cleaned. */
+const KIM_COL = {
+  robe: "#1b1c22", robeHi: "#2b2d35", robeDark: "#111218",
+  mask: "#e4decd", maskShade: "#a9a392",
+  hat: "#3a332c", hatHi: "#6a5b49", hatDark: "#211d19",
+  blood: "#6e1218", bloodHi: "#9c2027",
+  eye: "#5ac8ff", eyeCore: "#e8faff",
+  steel: "#d2d6d6", steelDark: "#33363b", steelEdge: "#eef8ff",
+  arc: "#8fc7ea", arcEdge: "#eef8ff", arcTail: "#bfe3f7",
+  mark: "#8fd0f0",
+};
 
 function kimVitals(p) {
   if (!p) return;
@@ -88,7 +103,7 @@ function kimGainPoise(p) {
   if ((p.kimPoise || 0) < KIM_POISE_MAX) {
     p.kimPoise = (p.kimPoise || 0) + 1;
     if (p === localPlayer())
-      floatText(p.x, p.y - 36, "POISE " + p.kimPoise + "/" + KIM_POISE_MAX, "#bff0a0");
+      floatText(p.x, p.y - 36, "POISE " + p.kimPoise + "/" + KIM_POISE_MAX, KIM_COL.mark);
   }
   kimClearMark(p);
 }
@@ -143,16 +158,19 @@ function kimCutArc(p, x, y, aim, halfArc, reach, forceCrit, mark, biteMul) {
   return best;
 }
 
-/* the green sparks thrown along a cut */
+/* the cold sparks thrown along a cut, and the blood they carry */
 function kimTrail(x, y, aim, reach, amount, draw) {
   if (particles.length >= 560) return;
   for (let i = 0; i < amount; i++) {
     const a = aim + rnd(-0.9, 0.9) + (draw ? rnd(0, TAU) : 0);
     const d = rnd(reach * 0.25, reach + 8);
+    const blood = Math.random() < (draw ? 0.3 : 0.16);
     particles.push({ x: x + Math.cos(a) * d, y: y + Math.sin(a) * d,
       vx: Math.cos(a) * rnd(70, 240), vy: Math.sin(a) * rnd(70, 240),
       t: 0, life: rnd(0.14, 0.3), r: rnd(1.2, 3),
-      color: pick(draw ? ["#d8ffb4", "#ffffff", "#9fe06a"] : ["#9fe06a", "#f4ffe6", "#5d7a3c"]) });
+      color: blood ? pick([KIM_COL.blood, KIM_COL.bloodHi, "#c23a30"])
+        : pick(draw ? [KIM_COL.arcTail, KIM_COL.steelEdge, KIM_COL.arc]
+                    : [KIM_COL.arc, "#dff3ff", "#4d7f9c"]) });
   }
 }
 
@@ -186,7 +204,7 @@ function kimSwing(p, x, y, aim) {
     kimTrail(x, y, aim, dr, 22, true);
     Game.shake = Math.max(Game.shake, 5);
     Game.hitstop = Math.max(Game.hitstop, 0.03);
-    if (p === localPlayer()) floatText(p.x, p.y - 34, "DRAW", "#bff0a0");
+    if (p === localPlayer()) floatText(p.x, p.y - 34, "DRAW", KIM_COL.mark);
     AudioFX.slam();
     return true;
   }
@@ -282,7 +300,7 @@ function updateKimCue(p) {
 }
 
 /* ---------------------------------------------------------
-   RENDER — the ring of the draw, the greens of the swing, the mark
+   RENDER — the ring of the draw, the cold line of the swing, the mark
    --------------------------------------------------------- */
 function drawKimSlashArc(px, py, ang, reach, k, alpha, dir, arcScale, cheap) {
   const scale = arcScale || 1;
@@ -303,20 +321,20 @@ function drawKimSlashArc(px, py, ang, reach, k, alpha, dir, arcScale, cheap) {
   cx.translate(px, py);
   cx.rotate(ang);
   cx.lineCap = "round";
-  /* the green bloom the cut drags through the air */
+  /* the cold bloom the cut drags through the air */
   cx.globalAlpha = fade * (cheap ? 0.35 : 0.5);
-  cx.strokeStyle = "#9fe06a";
-  cx.shadowColor = "#9fe06a"; cx.shadowBlur = cheap ? 8 : 18;
+  cx.strokeStyle = KIM_COL.arc;
+  cx.shadowColor = KIM_COL.arc; cx.shadowBlur = cheap ? 8 : 18;
   cx.lineWidth = cheap ? 3 : 6;
   cx.beginPath(); cx.arc(0, 0, R, lo, hi); cx.stroke();
   /* the white edge — a blade, not a smear */
   cx.globalAlpha = fade * 0.95;
-  cx.strokeStyle = "#f6ffe8";
+  cx.strokeStyle = KIM_COL.arcEdge;
   cx.shadowBlur = 5; cx.lineWidth = cheap ? 1.4 : 2.2;
   cx.beginPath(); cx.arc(0, 0, R, lo, hi); cx.stroke();
   /* a fainter outer whisper of the same arc */
   cx.globalAlpha = fade * 0.22;
-  cx.strokeStyle = "#d8ffb4"; cx.shadowBlur = 0; cx.lineWidth = 1.2;
+  cx.strokeStyle = KIM_COL.arcTail; cx.shadowBlur = 0; cx.lineWidth = 1.2;
   cx.beginPath(); cx.arc(0, 0, R + 5, lo, hi); cx.stroke();
   cx.restore();
   cx.globalAlpha = 1; cx.shadowBlur = 0;
@@ -331,17 +349,17 @@ function drawKimDrawRing(px, py, k, reach) {
   cx.save();
   cx.translate(px, py);
   cx.globalAlpha = fade * 0.5;
-  cx.strokeStyle = "#9fe06a";
-  cx.shadowColor = "#9fe06a"; cx.shadowBlur = 20;
+  cx.strokeStyle = KIM_COL.arc;
+  cx.shadowColor = KIM_COL.arc; cx.shadowBlur = 20;
   cx.lineWidth = 7;
   cx.beginPath(); cx.arc(0, 0, R, 0, TAU); cx.stroke();
   cx.globalAlpha = fade;
   cx.strokeStyle = "#ffffff";
   cx.shadowBlur = 9; cx.lineWidth = 2.4;
   cx.beginPath(); cx.arc(0, 0, R, 0, TAU); cx.stroke();
-  /* petals thrown off the rim */
+  /* droplets thrown off the rim */
   cx.shadowBlur = 0;
-  cx.strokeStyle = "#d8ffb4"; cx.lineWidth = 2;
+  cx.strokeStyle = KIM_COL.arcTail; cx.lineWidth = 2;
   for (let i = 0; i < 8; i++) {
     const a = i / 8 * TAU + k * 1.2;
     cx.globalAlpha = fade * 0.75;
@@ -365,14 +383,14 @@ function drawKimMark(g) {
   g.save();
   g.translate(e.x, e.y);
   g.globalAlpha = 0.55 + 0.35 * pulse;
-  g.strokeStyle = "#bff0a0";
-  g.shadowColor = "#9fe06a"; g.shadowBlur = 12;
+  g.strokeStyle = KIM_COL.mark;
+  g.shadowColor = KIM_COL.eye; g.shadowBlur = 12;
   g.lineWidth = 2;
   g.setLineDash([5, 5]);
   g.lineDashOffset = -t * 30;
   g.beginPath(); g.arc(0, 0, e.r + 8 + pulse * 2, 0, TAU); g.stroke();
   g.setLineDash([]);
-  /* four bamboo notches, turning slowly */
+  /* four notches, turning slowly */
   for (let i = 0; i < 4; i++) {
     const a = t * 0.8 + i * TAU / 4;
     g.beginPath();
@@ -394,61 +412,121 @@ function drawKimWarden(P, px, py, aim, col, tint, hpFrac) {
     drawKimDrawRing(px, py, 1 - P.kimDrawT / KIM_DRAW_LIFE, P.kimDrawReach || KIM_REACH_BASE);
   }
 
-  /* the robe streams opposite the aim */
+  /* the robe streams behind him like smoke — one dark ribbon, one of old blood */
+  const sway = Math.sin(t * 2.7 + px * 0.013) * 2.2;
   cx.save();
   cx.translate(px, py);
   cx.rotate(aim + Math.PI);
-  cx.globalAlpha = 0.5;
-  cx.fillStyle = col;
+  cx.globalAlpha = 0.62;
+  cx.fillStyle = KIM_COL.robe;
   cx.beginPath();
   cx.moveTo(4, -9);
-  cx.quadraticCurveTo(20, -14, 27, -2);
-  cx.quadraticCurveTo(19, 3, 25, 11);
+  cx.quadraticCurveTo(19, -14 + sway, 28, -3 + sway);
+  cx.quadraticCurveTo(20, 2, 26, 11 - sway);
   cx.quadraticCurveTo(11, 9, 4, 9);
   cx.closePath(); cx.fill();
-  cx.globalAlpha = 1;
-  cx.restore();
-
-  /* body: a narrow swordsman's silhouette turned with the aim */
-  cx.save();
-  cx.translate(px, py);
-  cx.rotate(aim + Math.PI / 2);
-  cx.fillStyle = col;
+  cx.globalAlpha = 0.4;
+  cx.fillStyle = KIM_COL.robeHi;
   cx.beginPath();
-  cx.moveTo(-8, -7);
-  cx.quadraticCurveTo(3, -12, 11, 0);
-  cx.quadraticCurveTo(3, 12, -8, 7);
+  cx.moveTo(3, -3);
+  cx.quadraticCurveTo(14, -7 - sway, 21, 1 + sway * 0.5);
+  cx.quadraticCurveTo(13, 5, 3, 6);
   cx.closePath(); cx.fill();
-  /* the sash */
-  cx.fillStyle = "#c9b06a";
-  cx.fillRect(-5, -7, 3.5, 14);
-  drawCracks(cx, hpFrac, 11);
+  /* a thin smear of blood carried on the cloth */
+  cx.globalAlpha = 0.5;
+  cx.strokeStyle = KIM_COL.blood; cx.lineWidth = 2.4; cx.lineCap = "round";
+  cx.beginPath(); cx.moveTo(7, 5); cx.quadraticCurveTo(16, 7 + sway, 22, 4 - sway); cx.stroke();
   cx.restore();
+  cx.globalAlpha = 1;
 
-  /* the bamboo hat — a wide woven cone, seen from above */
+  /* body: a narrow swordsman's silhouette, black and soaked through */
   cx.save();
   cx.translate(px, py);
   cx.rotate(aim);
-  cx.fillStyle = "#c9a86a";
-  cx.shadowColor = "#c9a86a"; cx.shadowBlur = 5;
-  cx.beginPath(); cx.ellipse(-3, 0, 14.5, 9.5, 0, 0, TAU); cx.fill();
-  cx.shadowBlur = 0;
-  cx.strokeStyle = "#8a6d3a"; cx.lineWidth = 1.2;
-  cx.beginPath(); cx.ellipse(-3, 0, 14.5, 9.5, 0, 0, TAU); cx.stroke();
-  /* the weave */
-  for (let i = -2; i <= 2; i++) {
-    const oy = i * 2.9;
-    const half = 14.5 * Math.sqrt(Math.max(0, 1 - (oy / 9.5) ** 2));
-    cx.beginPath(); cx.moveTo(-3 - half, oy); cx.lineTo(-3 + half, oy); cx.stroke();
+  cx.fillStyle = KIM_COL.robe;
+  cx.beginPath();
+  cx.moveTo(6, -6.5);
+  cx.quadraticCurveTo(-2, -9.5, -11, -6);
+  cx.quadraticCurveTo(-14.5, 0, -11, 6);
+  cx.quadraticCurveTo(-2, 9.5, 6, 6.5);
+  cx.quadraticCurveTo(9.5, 0, 6, -6.5);
+  cx.closePath(); cx.fill();
+  cx.strokeStyle = KIM_COL.robeDark; cx.lineWidth = 1.2; cx.stroke();
+
+  /* old blood soaked into the chest and sleeve */
+  cx.fillStyle = KIM_COL.blood;
+  for (const [bx, by, br] of [[-3, -4, 3.4], [-6, 3.2, 2.6], [2.5, 4.6, 2.2], [1, -5.4, 1.8]]) {
+    cx.globalAlpha = 0.85;
+    cx.beginPath(); cx.ellipse(bx, by, br, br * 0.68, 0.5, 0, TAU); cx.fill();
   }
-  /* crown, and the shadow it lays over his eyes */
-  cx.fillStyle = "#8a6d3a";
-  cx.beginPath(); cx.ellipse(-3, 0, 5.6, 4.2, 0, 0, TAU); cx.fill();
-  cx.fillStyle = "rgba(8,10,6,0.88)";
-  cx.beginPath(); cx.ellipse(-6, 0, 4.8, 3.1, 0, 0, TAU); cx.fill();
+  cx.globalAlpha = 0.9; cx.fillStyle = KIM_COL.bloodHi;
+  cx.beginPath(); cx.ellipse(-3.4, -4.2, 1.4, 0.95, 0.5, 0, TAU); cx.fill();
+  cx.beginPath(); cx.ellipse(-5.6, 3.4, 1.1, 0.8, 0.5, 0, TAU); cx.fill();
+  cx.globalAlpha = 1;
+
+  drawCracks(cx, hpFrac, 11);
+
+  /* the bone beak, jutting out ahead of the hat */
+  cx.fillStyle = KIM_COL.mask;
+  cx.beginPath();
+  cx.moveTo(5, -4.6);
+  cx.quadraticCurveTo(12, -3.6, 19, 0);
+  cx.quadraticCurveTo(12, 3.6, 5, 4.6);
+  cx.closePath(); cx.fill();
+  cx.strokeStyle = KIM_COL.maskShade; cx.lineWidth = 0.9; cx.stroke();
+  /* the seam running down the beak */
+  cx.beginPath(); cx.moveTo(6, 0); cx.lineTo(18, 0); cx.stroke();
   cx.restore();
 
-  /* the long blade */
+  /* the hat: broad, ragged, black-brown, sitting low over the mask */
+  cx.save();
+  cx.translate(px, py);
+  cx.rotate(aim);
+  cx.fillStyle = KIM_COL.hat;
+  cx.shadowColor = KIM_COL.hat; cx.shadowBlur = 6;
+  cx.beginPath();
+  const brim = 22;
+  for (let i = 0; i < brim; i++) {
+    const a = i / brim * TAU;
+    const jag = 1 - 0.14 * Math.abs(Math.sin(i * 2.7));
+    const ex = -4 + Math.cos(a) * 13.8 * jag;
+    const ey = Math.sin(a) * 9.2 * jag;
+    i === 0 ? cx.moveTo(ex, ey) : cx.lineTo(ex, ey);
+  }
+  cx.closePath(); cx.fill();
+  cx.shadowBlur = 0;
+  cx.strokeStyle = KIM_COL.hatDark; cx.lineWidth = 1.6; cx.stroke();
+  /* the weave: two rings of rushes and a few ribs out to the brim */
+  cx.strokeStyle = KIM_COL.hatHi; cx.globalAlpha = 0.5; cx.lineWidth = 1;
+  for (const f of [0.5, 0.76]) {
+    cx.beginPath(); cx.ellipse(-4, 0, 13.8 * f, 9.2 * f, 0, 0, TAU); cx.stroke();
+  }
+  for (let i = 0; i < 8; i++) {
+    const a = i / 8 * TAU + 0.2;
+    cx.beginPath();
+    cx.moveTo(-4 + Math.cos(a) * 5.2, Math.sin(a) * 3.6);
+    cx.lineTo(-4 + Math.cos(a) * 12.6, Math.sin(a) * 8.4);
+    cx.stroke();
+  }
+  cx.globalAlpha = 1;
+  /* the crown */
+  cx.fillStyle = KIM_COL.hatDark;
+  cx.beginPath(); cx.ellipse(-4, 0, 4.8, 3.6, 0, 0, TAU); cx.fill();
+
+  /* one blue flame of an eye, burning out from under the brim */
+  const flick = 0.72 + 0.28 * Math.sin(t * 11);
+  cx.shadowColor = KIM_COL.eye; cx.shadowBlur = 14 * flick;
+  cx.fillStyle = KIM_COL.eye; cx.globalAlpha = 0.95;
+  cx.beginPath(); cx.ellipse(10.8, -1.9, 2.1, 1.4, 0.25, 0, TAU); cx.fill();
+  cx.fillStyle = KIM_COL.eyeCore; cx.globalAlpha = 1;
+  cx.beginPath(); cx.ellipse(11.1, -1.9, 0.9, 0.7, 0.25, 0, TAU); cx.fill();
+  cx.shadowBlur = 0;
+  /* the other socket, long since dark */
+  cx.fillStyle = "rgba(20,22,26,0.85)";
+  cx.beginPath(); cx.ellipse(10.2, 2.1, 1.4, 0.95, -0.25, 0, TAU); cx.fill();
+  cx.restore();
+
+  /* the long blade — pale, straight, and not yet cleaned */
   const swing = P.kimSlashT > 0 ? clamp(1 - P.kimSlashT / KIM_SLASH_LIFE, 0, 1) : 0;
   const sweep = P.kimSlashT > 0 ? Math.min(1, swing / KIM_SWEEP_SHARE) : 0;
   const armDir = P.kimSlashDir < 0 ? -1 : 1;
@@ -456,32 +534,70 @@ function drawKimWarden(P, px, py, aim, col, tint, hpFrac) {
   cx.save();
   cx.translate(px, py);
   const ba = aim + bladeSweep + (P.kimSlashT > 0 ? 0 : 0.24);
-  const hand = 7;
-  const len = 46 + 10 * Math.sin(Math.PI * sweep);
-  /* the ruling rune or warpaint tints the steel; a bare blade is bamboo-green */
-  let edge = tint || "#9fe06a";
-  if (!P.gunSkin && !(P.runes && Object.keys(P.runes).length)) edge = "#9fe06a";
-  /* the green haze along the steel, hotter when the draw is ready */
-  cx.strokeStyle = edge;
-  cx.shadowColor = edge; cx.shadowBlur = drawReady ? 16 : 11;
-  cx.lineWidth = 3; cx.lineCap = "round";
+  const hand = 8;
+  const len = 58 + 10 * Math.sin(Math.PI * sweep);
+  const cosA = Math.cos(ba), sinA = Math.sin(ba);
+  const hiltX = cosA * hand, hiltY = sinA * hand;
+  const tipX = cosA * len, tipY = sinA * len;
+  /* the ruling rune or warpaint tints the haze around the steel */
+  let edge = tint || KIM_COL.arc;
+  if (!P.gunSkin && !(P.runes && Object.keys(P.runes).length)) edge = KIM_COL.arc;
+  cx.lineCap = "round";
+  /* the dark back of the blade */
+  cx.strokeStyle = KIM_COL.steelDark;
+  cx.shadowColor = edge; cx.shadowBlur = drawReady ? 16 : 9;
+  cx.lineWidth = 3.8;
+  cx.beginPath(); cx.moveTo(hiltX, hiltY); cx.lineTo(tipX, tipY); cx.stroke();
+  /* the pale steel */
+  cx.strokeStyle = KIM_COL.steel;
+  cx.shadowBlur = drawReady ? 14 : 7; cx.lineWidth = 2.2;
+  cx.beginPath(); cx.moveTo(hiltX, hiltY);
+  cx.lineTo(tipX - cosA * 1.5, tipY - sinA * 1.5); cx.stroke();
+  /* the hot edge */
+  cx.strokeStyle = KIM_COL.steelEdge;
+  cx.shadowBlur = 4; cx.lineWidth = 0.9;
+  cx.beginPath(); cx.moveTo(hiltX, hiltY);
+  cx.lineTo(tipX - cosA * 3, tipY - sinA * 3); cx.stroke();
+  /* blood dried along the last third */
+  cx.shadowBlur = 0; cx.globalAlpha = 0.85;
+  cx.strokeStyle = KIM_COL.blood; cx.lineWidth = 1.5;
   cx.beginPath();
-  cx.moveTo(Math.cos(ba) * hand, Math.sin(ba) * hand);
-  cx.lineTo(Math.cos(ba) * len, Math.sin(ba) * len);
+  cx.moveTo(cosA * (len * 0.62) - sinA * 0.9, sinA * (len * 0.62) + cosA * 0.9);
+  cx.lineTo(cosA * (len * 0.86) - sinA * 0.9, sinA * (len * 0.86) + cosA * 0.9);
   cx.stroke();
-  /* the white edge */
-  cx.strokeStyle = "#f6ffe8";
-  cx.shadowBlur = 4; cx.lineWidth = 1;
+  cx.strokeStyle = KIM_COL.bloodHi; cx.lineWidth = 1.1;
   cx.beginPath();
-  cx.moveTo(Math.cos(ba) * (hand + 2), Math.sin(ba) * (hand + 2));
-  cx.lineTo(Math.cos(ba) * (len + 2), Math.sin(ba) * (len + 2));
+  cx.moveTo(cosA * (len * 0.70) + sinA * 0.8, sinA * (len * 0.70) - cosA * 0.8);
+  cx.lineTo(cosA * (len * 0.80) + sinA * 0.8, sinA * (len * 0.80) - cosA * 0.8);
   cx.stroke();
-  /* guard */
-  cx.shadowBlur = 0;
-  cx.strokeStyle = "#c9a86a"; cx.lineWidth = 2;
-  const gx = Math.cos(ba) * hand, gy = Math.sin(ba) * hand;
-  const perpX = Math.cos(ba + Math.PI / 2) * 4, perpY = Math.sin(ba + Math.PI / 2) * 4;
-  cx.beginPath(); cx.moveTo(gx - perpX, gy - perpY); cx.lineTo(gx + perpX, gy + perpY); cx.stroke();
+  cx.globalAlpha = 1;
+  /* the brass guard, and the wrapped grip */
+  cx.strokeStyle = "#b08d4a"; cx.lineWidth = 2.2;
+  const perpX = Math.cos(ba + Math.PI / 2) * 4.6, perpY = Math.sin(ba + Math.PI / 2) * 4.6;
+  cx.beginPath(); cx.moveTo(hiltX - perpX, hiltY - perpY); cx.lineTo(hiltX + perpX, hiltY + perpY); cx.stroke();
+  cx.strokeStyle = KIM_COL.hatDark; cx.lineWidth = 1;
+  cx.beginPath(); cx.moveTo(hiltX - perpX * 0.55, hiltY - perpY * 0.55);
+  cx.lineTo(hiltX + perpX * 0.55, hiltY + perpY * 0.55); cx.stroke();
+  cx.restore();
+
+  /* the red tassel at the pommel — it hangs against the world, not the blade */
+  const pomX = px + cosA * 3, pomY = py + sinA * 3;
+  const tsway = Math.sin(t * 5 + px * 0.02) * 2.6;
+  cx.save();
+  cx.translate(pomX, pomY);
+  cx.fillStyle = "#b08d4a";
+  cx.beginPath(); cx.ellipse(0, 0, 1.7, 1.3, 0, 0, TAU); cx.fill();
+  cx.strokeStyle = "#7d1018"; cx.lineWidth = 1.5; cx.lineCap = "round";
+  cx.beginPath(); cx.moveTo(0, 1); cx.quadraticCurveTo(tsway * 0.4, 5, tsway, 8.5); cx.stroke();
+  cx.fillStyle = "#a3161f";
+  cx.beginPath(); cx.ellipse(tsway, 9.3, 1.7, 1.2, 0, 0, TAU); cx.fill();
+  cx.strokeStyle = "#c0282f"; cx.lineWidth = 1;
+  for (let i = -2; i <= 2; i++) {
+    cx.beginPath();
+    cx.moveTo(tsway + i * 0.85, 9.6);
+    cx.lineTo(tsway + i * 1.15, 14.5 + Math.abs(i) * 0.7);
+    cx.stroke();
+  }
   cx.restore();
 
   /* the swing's crescents */

@@ -231,27 +231,86 @@ function cutDrawChar(x, y, rot, sx, sy, col, alpha, flame, charType) {
     cx.beginPath(); cx.moveTo(12, 0); cx.lineTo(35, 0); cx.stroke();
     cx.shadowBlur = 0;
   } else if (charType === "kim") {
-    /* the swordsman — narrow robe, a wide woven bamboo hat, one long green line */
-    cx.fillStyle = col;
+    /* the swordsman — a black, blood-soaked robe under a ragged woven hat,
+       a pale bone beak, one blue flame of an eye, and a long pale jikdo */
+    /* the robe's smoke trailing behind him */
+    cx.globalAlpha = alpha * 0.45;
+    cx.fillStyle = "#1b1c22";
+    cx.beginPath(); cx.moveTo(-8, -4);
+    cx.quadraticCurveTo(-22, -15, -32, -2);
+    cx.quadraticCurveTo(-23, 4, -27, 13);
+    cx.quadraticCurveTo(-14, 10, -8, 6); cx.closePath(); cx.fill();
+    cx.globalAlpha = alpha;
+    cx.fillStyle = "#1b1c22";
     cx.beginPath(); cx.moveTo(10, 0);
     cx.quadraticCurveTo(4, -11, -11, -10); cx.quadraticCurveTo(-15, 0, -11, 10);
     cx.quadraticCurveTo(4, 11, 10, 0); cx.closePath(); cx.fill();
-    cx.fillStyle = "#c9b06a"; cx.fillRect(-6, -9, 3, 18);
-    /* the hat: a wide cone with a shaded crown */
-    cx.fillStyle = "#c9a86a";
-    cx.beginPath(); cx.ellipse(-2, 0, 18, 12, 0, 0, TAU); cx.fill();
-    cx.strokeStyle = "#8a6d3a"; cx.lineWidth = 1.2;
-    cx.beginPath(); cx.ellipse(-2, 0, 18, 12, 0, 0, TAU); cx.stroke();
-    cx.fillStyle = "#8a6d3a";
-    cx.beginPath(); cx.ellipse(-2, 0, 6.5, 4.6, 0, 0, TAU); cx.fill();
-    cx.fillStyle = "rgba(8,10,6,0.85)";
-    cx.beginPath(); cx.ellipse(-6, 0, 5.4, 3.4, 0, 0, TAU); cx.fill();
-    /* the long blade, held low and forward */
-    cx.strokeStyle = "#9fe06a"; cx.shadowColor = "#9fe06a"; cx.shadowBlur = 9;
-    cx.lineWidth = 3; cx.lineCap = "round";
-    cx.beginPath(); cx.moveTo(8, 5); cx.lineTo(36, 5); cx.stroke();
-    cx.strokeStyle = "#f6ffe8"; cx.shadowBlur = 3; cx.lineWidth = 1;
-    cx.beginPath(); cx.moveTo(10, 3.6); cx.lineTo(37, 3.6); cx.stroke();
+    /* old blood soaked through the robe */
+    cx.fillStyle = "#6e1218";
+    cx.beginPath(); cx.ellipse(-3, 4, 6.5, 3.6, 0.4, 0, TAU); cx.fill();
+    cx.beginPath(); cx.ellipse(3, -4.5, 3.6, 2.2, -0.4, 0, TAU); cx.fill();
+    cx.fillStyle = "#9c2027";
+    cx.beginPath(); cx.ellipse(-4.5, 4.6, 2.8, 1.5, 0.4, 0, TAU); cx.fill();
+    /* the bone beak, out ahead of the brim */
+    cx.fillStyle = "#e4decd";
+    cx.beginPath(); cx.moveTo(8, -4.4);
+    cx.quadraticCurveTo(19, -3.2, 24, 0);
+    cx.quadraticCurveTo(19, 3.2, 8, 4.4); cx.closePath(); cx.fill();
+    cx.strokeStyle = "#a9a392"; cx.lineWidth = 1;
+    cx.beginPath(); cx.moveTo(9, 0); cx.lineTo(23, 0); cx.stroke();
+    /* the hat: broad, ragged, black-brown */
+    cx.fillStyle = "#3a332c";
+    cx.beginPath();
+    for (let i = 0; i < 22; i++) {
+      const a = i / 22 * TAU;
+      const jag = 1 - 0.14 * Math.abs(Math.sin(i * 2.7));
+      const hx = -3 + Math.cos(a) * 17.5 * jag, hy = Math.sin(a) * 11.5 * jag;
+      i === 0 ? cx.moveTo(hx, hy) : cx.lineTo(hx, hy);
+    }
+    cx.closePath(); cx.fill();
+    cx.strokeStyle = "#211d19"; cx.lineWidth = 1.6; cx.stroke();
+    /* the weave: rings and ribs */
+    cx.strokeStyle = "#6a5b49"; cx.globalAlpha = alpha * 0.5; cx.lineWidth = 1;
+    for (const f of [0.5, 0.76]) {
+      cx.beginPath(); cx.ellipse(-3, 0, 17.5 * f, 11.5 * f, 0, 0, TAU); cx.stroke();
+    }
+    for (let i = 0; i < 8; i++) {
+      const a = i / 8 * TAU + 0.2;
+      cx.beginPath();
+      cx.moveTo(-3 + Math.cos(a) * 6.4, Math.sin(a) * 4.4);
+      cx.lineTo(-3 + Math.cos(a) * 16, Math.sin(a) * 10.4);
+      cx.stroke();
+    }
+    cx.globalAlpha = alpha;
+    cx.fillStyle = "#211d19";
+    cx.beginPath(); cx.ellipse(-3, 0, 6, 4.4, 0, 0, TAU); cx.fill();
+    /* one blue flame of an eye, and the dark socket beside it */
+    cx.fillStyle = "#5ac8ff"; cx.shadowColor = "#5ac8ff"; cx.shadowBlur = 9;
+    cx.beginPath(); cx.ellipse(14.5, -2.2, 2.2, 1.5, 0.2, 0, TAU); cx.fill();
+    cx.shadowBlur = 0; cx.fillStyle = "rgba(20,22,26,0.85)";
+    cx.beginPath(); cx.ellipse(13.5, 2.3, 1.5, 1, -0.2, 0, TAU); cx.fill();
+    /* the long pale jikdo, held low and forward, blood still on it */
+    cx.strokeStyle = "#33363b"; cx.shadowColor = "#8fc7ea"; cx.shadowBlur = 8;
+    cx.lineWidth = 3.6; cx.lineCap = "round";
+    cx.beginPath(); cx.moveTo(9, 5); cx.lineTo(40, 5); cx.stroke();
+    cx.strokeStyle = "#d2d6d6"; cx.shadowBlur = 5; cx.lineWidth = 2;
+    cx.beginPath(); cx.moveTo(9, 5); cx.lineTo(39, 5); cx.stroke();
+    cx.strokeStyle = "#eef8ff"; cx.shadowBlur = 0; cx.lineWidth = 0.9;
+    cx.beginPath(); cx.moveTo(10, 4.2); cx.lineTo(38, 4.2); cx.stroke();
+    cx.strokeStyle = "#9c2027"; cx.lineWidth = 1.4;
+    cx.beginPath(); cx.moveTo(29, 5.8); cx.lineTo(37, 5.8); cx.stroke();
+    /* brass guard, and the red tassel at the pommel */
+    cx.strokeStyle = "#b08d4a"; cx.lineWidth = 2;
+    cx.beginPath(); cx.moveTo(9, 1.6); cx.lineTo(9, 8.4); cx.stroke();
+    cx.strokeStyle = "#7d1018"; cx.lineWidth = 1.2;
+    cx.beginPath(); cx.moveTo(6, 5); cx.quadraticCurveTo(4, 12, 5, 17); cx.stroke();
+    cx.fillStyle = "#a3161f";
+    cx.beginPath(); cx.ellipse(5, 17.5, 1.8, 1.3, 0, 0, TAU); cx.fill();
+    cx.strokeStyle = "#c0282f"; cx.lineWidth = 1;
+    for (let i = -2; i <= 2; i++) {
+      cx.beginPath(); cx.moveTo(5 + i * 0.9, 18);
+      cx.lineTo(5 + i * 1.2, 23 + Math.abs(i) * 0.6); cx.stroke();
+    }
     cx.shadowBlur = 0;
   } else if (charType === "john") {
     /* the legend: heroic silhouette, red cape, gold visor, the RUNEGUN */

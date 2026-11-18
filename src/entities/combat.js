@@ -389,7 +389,7 @@ function spawnShot(p, x, y, baseAim, skip) {
   /* WAYWARD PASSENGER: no bullet ever leaves the blades — every "shot" is a
      forward tear in space (entities/warp.js) */
   if (p.char === "sinner") { sinnerSlash(p, x, y, baseAim); return; }
-  /* BAMBOO-HATTED KIM: the trigger swings one long katana cut (entities/kim.js) */
+  /* BAMBOO-HATTED KIM: the trigger swings one long jikdo cut (entities/kim.js) */
   if (p.char === "kim") { kimSwing(p, x, y, baseAim); return; }
   const sanchoMelee = p.char === "sancho" && p.weaponMode !== "ranged";
   if (sanchoMelee) { sanchoSwing(p, x, y, baseAim); return; }

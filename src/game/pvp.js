@@ -53,7 +53,7 @@ const PVP_CHAR_COST = {
   alchemist: { set: { venom: 2, nova: 2, storm: 2, frost: 2, scatter: 2, heavy: 3, titan: 3 } },
   /* steel + hardblood: bleed and the healing draws are cheap */
   sancho: { set: { bleed: 1, vampire: 2, leech: 1, rapid: 1 } },
-  /* the katana has no trigger — its blade runes are a bargain, the pellet and
+  /* the jikdo has no trigger — its blade runes are a bargain, the pellet and
      projectile tree only reaches it as a thinner edge */
   kim: {
     set: { heavy: 1, swift: 1, velocity: 1, phase: 1, bleed: 2, prickle: 1 },
