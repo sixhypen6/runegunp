@@ -6,14 +6,15 @@
 
    THE DRAW — TO CLAIM THEIR BONES. Every fourth cut is a full circle of
    steel: it gains +2 Poise, always crits with bonus crit damage (+30%,
-   +2% per Poise on self, max +50%), bites harder the nearer Kim is to
-   death (+0.5% per 1% missing vitals, max +25%), MARKS the strongest
-   horror it touches, and inflicts 3 Bleed plus Paralyze (the horror is
-   stopped cold for 2s). Then it consumes ALL of Kim's Poise.
+   +2% per Poise on self, max +50%), MARKS the strongest horror it
+   touches, and inflicts 3 Bleed plus Paralyze (the horror is stopped
+   cold for 2s).
 
    POISE — felling a marked horror banks one Poise (up to five), each
-   worth +6% cut damage while it is held. Dashing banks one cut toward
-   the next draw. The draw spends every stack it finds.
+   worth +6% cut damage. Dashing banks one cut toward the next draw.
+   Poise is never lost: BEARING OF A SALSU pays for what would be
+   spent, 10 HP per stack (never below 1) — and every cut's critical
+   damage scales with Kim's missing vitals (+50% at full wound).
 
    BLEED — every cut opens a wound that keeps bleeding. The BLEED rune
    adds its stacks on top of the blade's own.
@@ -43,14 +44,16 @@ const KIM_DRAW_EVERY = 4;          // normal cuts banked before a draw
 const KIM_DRAW_MUL = 1.7;          // draw bite, as a multiple of one cut
 const KIM_DRAW_REACH = 1.16;       // draw radius, as a multiple of the blade's reach
 const KIM_DRAW_LIFE = 0.34;        // seconds the ring of steel is on screen
-const KIM_DRAW_POISE = 2;          // Poise the draw gains before it is spent
+const KIM_DRAW_POISE = 2;          // Poise the draw gains on use
 const KIM_DRAW_CRIT_BASE = 0.30;   // bonus crit damage on the draw (always crits)
 const KIM_DRAW_CRIT_PER_POISE = 0.02; // +2% crit damage per Poise on self
 const KIM_DRAW_CRIT_CAP = 0.50;    // ... capped at +50%
-const KIM_DRAW_MISSING_PER = 0.005;// +0.5% damage per 1% missing vitals
-const KIM_DRAW_MISSING_CAP = 0.25; // ... capped at +25%
 const KIM_DRAW_BLEED = 3;          // extra bleed stacks the draw opens
 const KIM_DRAW_PARALYZE = 2.0;     // seconds the ring's victims are stopped cold
+
+/* --- bearing of a salsu --- */
+const KIM_SALSU_HP_COST = 10;      // HP paid per Poise the draw would consume — the stacks are never lost
+const KIM_SALSU_MISSING_CAP = 0.50; // Bearing of a Salsu: crit damage bonus from missing vitals on every cut (max +50%)
 
 /* --- yield my flesh --- */
 const KIM_RIPOSTE_WINDOW = 4;      // seconds after a blow lands in which the next cut is the draw
@@ -238,7 +241,10 @@ function kimGainPoise(p) {
 function kimHitEnemy(p, e, x, y, forceCrit, biteMul) {
   const m = p.mods || {};
   const crit = !!forceCrit || (m.crit > 0 && Math.random() < m.crit);
-  const critMul = p.kimDrawCritMul || m.critMul || 2.2;
+  /* BEARING OF A SALSU — crit damage scales with missing vitals (max +50%) */
+  const missingFrac = p.maxHp > 0 ? clamp(1 - p.hp / p.maxHp, 0, 1) : 0;
+  const salsuMul = 1 + Math.min(KIM_SALSU_MISSING_CAP, missingFrac * 0.5);
+  const critMul = (p.kimDrawCritMul || m.critMul || 2.2) * salsuMul;
   const bite = kimBite(p, e) * (biteMul || 1) * (crit ? critMul : 1);
   damageEnemy(e, bite, {
     owner: p, x, y, melee: true, critHit: crit,
@@ -345,18 +351,24 @@ function kimSwing(p, x, y, aim) {
     /* gain +2 Poise on use, then measure everything the skill sees */
     kimBankPoise(p, KIM_DRAW_POISE);
     const spent = p.kimPoise || 0;
-    const missing = p.maxHp > 0 ? clamp(1 - p.hp / p.maxHp, 0, 1) : 0;
-    const missingMul = 1 + Math.min(KIM_DRAW_MISSING_CAP, missing * 100 * KIM_DRAW_MISSING_PER);
     const critMul = (m.critMul || 2.2) * (1 + KIM_DRAW_CRIT_BASE + Math.min(KIM_DRAW_CRIT_CAP, KIM_DRAW_CRIT_PER_POISE * spent));
     p.kimDrawCritMul = critMul;
     p.kimDrawBleed = KIM_DRAW_BLEED;
     p.kimDrawParalyze = KIM_DRAW_PARALYZE;
-    kimCutArc(p, x, y, aim, Math.PI, dr, true, true, KIM_DRAW_MUL * missingMul);
+    kimCutArc(p, x, y, aim, Math.PI, dr, true, true, KIM_DRAW_MUL);
     p.kimDrawCritMul = null;
     p.kimDrawBleed = 0;
     p.kimDrawParalyze = 0;
-    /* [Attack End] consume all Poise on self */
-    p.kimPoise = 0;
+    /* [Attack End] consume all Poise on self — BEARING OF A SALSU takes the price
+       in flesh instead: 10 HP per stack, floored at 1. The stacks are never lost. */
+    if (spent > 0) {
+      const cost = spent * KIM_SALSU_HP_COST;
+      p.hp = Math.max(1, p.hp - cost);
+      if (p === localPlayer()) {
+        floatText(p.x, p.y - 52, "BEARING OF A SALSU  −" + cost, "#ff9a9a", 13);
+        if (typeof updateHp === "function") updateHp();
+      }
+    }
     kimTrail(x, y, aim, dr, 22, true);
     Game.shake = Math.max(Game.shake, 5);
     Game.hitstop = Math.max(Game.hitstop, 0.03);
