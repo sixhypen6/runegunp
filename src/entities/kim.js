@@ -37,7 +37,7 @@ const KIM_POISE_MAX = 5;
 const KIM_POISE_DMG = 0.06;        // +6% cut damage per stack
 
 /* --- the wound --- */
-const KIM_BLEED = 1;               // innate bleed stacks on every cut; BLEED runes add on
+const KIM_BLEED = 2;               // innate bleed stacks on every cut; BLEED runes add on
 
 /* --- the blade itself --- */
 const KIM_REACH_BASE = 112;        // longer than anyone else's steel
