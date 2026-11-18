@@ -174,9 +174,11 @@ function partyWardCut() {
    RUNES — every rune stacks: mod(m, n) where n = stacks held
    ========================================================= */
 /* PUNCTURE finds the gap. The SNIPER's patient eye turns the same five stacks
-   into a guaranteed puncture, and the round that finds it strikes harder. */
+   into a guaranteed puncture, and the round that finds it strikes harder.
+   BAMBOO-HATTED KIM reads the same eye — the longest line in the room finds
+   the same seam the rifle does. */
 function punctureMod(m, n, p) {
-  const sniper = p && p.char === "sniper";
+  const sniper = p && (p.char === "sniper" || p.char === "kim");
   const step = sniper && typeof SNIPER_CRIT_STEP === "number" ? SNIPER_CRIT_STEP : 0.12;
   const cap = sniper && typeof SNIPER_CRIT_CAP === "number" ? SNIPER_CRIT_CAP : 0.6;
   m.crit = Math.min(cap, m.crit + step * n);
@@ -514,6 +516,11 @@ const SAW_VENOM_RUNE = Object.assign({}, RUNES.venom, {
 });
 /* PUNCTURE as the SNIPER reads it: the patient eye takes the same five stacks
    past everyone else's 60% ceiling — all the way to a guaranteed puncture. */
+/* PUNCTURE's ceiling is higher for the rifle — and for the longest line in
+   the room (see punctureMod) */
+const KIM_PUNCTURE_RUNE = Object.assign({}, RUNES.puncture, {
+  desc: "The patient eye finds the gap every time. Each stack adds 20% — five stacks make every cut puncture, and the cut that finds the gap strikes for ×2.5. Bosses bleed too.",
+});
 const SNIPER_PUNCTURE_RUNE = Object.assign({}, RUNES.puncture, {
   desc: "The patient eye finds the gap every time. Each stack adds 20% — five stacks make every shot puncture, and the round that finds the gap strikes for ×2.5. Bosses bleed too.",
 });
@@ -646,8 +653,9 @@ function runeDefFor(p, id) {
   /* the SHREDDER has no trigger to fire venom through, so its card has to
      describe what the blade does instead (see SAW_VENOM_RUNE) */
   if (p.char === "shredder" && id === "venom") return SAW_VENOM_RUNE;
-  /* PUNCTURE's ceiling is higher for the rifle (see punctureMod) */
+  /* PUNCTURE's ceiling is higher for the rifle and for the longest line in the room */
   if (p.char === "sniper" && id === "puncture") return SNIPER_PUNCTURE_RUNE;
+  if (p.char === "kim" && id === "puncture") return KIM_PUNCTURE_RUNE;
   return (p.char === "theUnknown" && UNK_PLAYER_RUNES[id]) ? UNK_PLAYER_RUNES[id]
     : (HIDDEN_RUNES[id] ? HIDDEN_RUNES[id] : RUNES[id]);
 }

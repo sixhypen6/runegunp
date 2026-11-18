@@ -22,8 +22,9 @@
    BLEED — every cut opens a wound that keeps bleeding. The BLEED rune
    adds its stacks on top of the blade's own.
 
-   RESENTMENT — a cut heals the wound: 10% of the damage dealt by a swing
-   returns to Kim, capped at half his vitals per swing.
+   RESENTMENT — a cut heals the wound: 10% of the damage dealt by a
+   swing returns to Kim, capped at half his vitals per swing — and a
+   critical cut heals from 25% of its bite instead.
 
    DRINK TO THE FALLEN — every horror felled by Kim banks a Drink stack
    (up to four), each worth +5% cut damage.
@@ -77,6 +78,7 @@ const KIM_BLEED = 2;               // innate bleed stacks on every cut; BLEED ru
 
 /* --- resentment --- */
 const KIM_RESENTMENT_HEAL = 0.10;  // of cut damage, returned as vitals
+const KIM_RESENTMENT_CRIT_HEAL = 0.25; // a critical cut heals a bigger share — the bones bite deeper when they bite true
 const KIM_RESENTMENT_CAP = 0.50;   // at most half of max vitals per swing
 
 /* --- drink to the fallen --- */
@@ -202,14 +204,15 @@ function kimDrinkOnKill(p) {
   }
 }
 
-/* RESENTMENT — a cut heals the wound; capped per swing in kimHealOnCut */
-function kimHealOnCut(p, dmg) {
+/* RESENTMENT — a cut heals the wound; capped per swing in kimHealOnCut.
+   A critical cut heals from a bigger share of its bite. */
+function kimHealOnCut(p, dmg, crit) {
   if (!p || !(dmg > 0)) return;
   /* GUEST: the host owns damage, so no phantom heals on the replica */
   if (typeof Net !== "undefined" && Net.role === "guest") return;
   if (p.kimSwingHeal === undefined) p.kimSwingHeal = 0;
   const cap = p.maxHp * KIM_RESENTMENT_CAP;
-  const heal = Math.min(dmg * KIM_RESENTMENT_HEAL, cap - p.kimSwingHeal);
+  const heal = Math.min(dmg * (crit ? KIM_RESENTMENT_CRIT_HEAL : KIM_RESENTMENT_HEAL), cap - p.kimSwingHeal);
   if (heal <= 0) return;
   p.kimSwingHeal += heal;
   healPlayer(p, heal, false);
@@ -255,7 +258,7 @@ function kimHitEnemy(p, e, x, y, forceCrit, biteMul) {
     knock: (m.knock || 0) * (forceCrit ? 1.6 : 1),
   });
   /* RESENTMENT — the cut heals the wound it opens */
-  kimHealOnCut(p, bite);
+  kimHealOnCut(p, bite, crit);
   /* GUEST: the host owns the world; the replica must not invent wounds or stuns */
   const guest = typeof Net !== "undefined" && Net.role === "guest";
   /* every cut opens a wound; the BLEED rune and the draw deepen it */
