@@ -12,9 +12,11 @@
 
    POISE — felling a marked horror banks one Poise (up to five), each
    worth +6% cut damage. Dashing banks one cut toward the next draw.
-   Poise is never lost: BEARING OF A SALSU pays for what would be
-   spent, 10 HP per stack (never below 1) — and every cut's critical
-   damage scales with Kim's missing vitals (+50% at full wound).
+   Poise is never lost — but the draw's gain pays in flesh: BEARING OF A
+   SALSU takes 10 HP for every stack it would spend (never below 1),
+   and only when at least one foe is struck. A flourish into empty air
+   costs nothing and banks nothing. Every cut's critical damage scales
+   with Kim's missing vitals (+50% at full wound).
 
    BLEED — every cut opens a wound that keeps bleeding. The BLEED rune
    adds its stacks on top of the blade's own.
@@ -121,6 +123,7 @@ function kimVitals(p) {
   if (p.kimDrawBleed === undefined) p.kimDrawBleed = 0;
   if (p.kimDrawParalyze === undefined) p.kimDrawParalyze = 0;
   if (p.kimRiposte === undefined) p.kimRiposte = 0;
+  if (p.kimDrawHits === undefined) p.kimDrawHits = 0;
 }
 
 /* the marked horror, from the live object (host/solo) or the synced id (guest) */
@@ -281,6 +284,7 @@ function kimCutArc(p, x, y, aim, halfArc, reach, forceCrit, mark, biteMul) {
     delta = Math.atan2(Math.sin(delta), Math.cos(delta));
     if (Math.abs(delta) > halfArc) continue;
     kimHitEnemy(p, e, x, y, forceCrit, biteMul);
+    p.kimDrawHits = (p.kimDrawHits || 0) + 1;
     /* the draw marks a horror left standing — never a corpse it just opened */
     if (e.dead || e.hp <= 0) continue;
     const hp = e.maxHp || e.hp || 0;
@@ -297,6 +301,7 @@ function kimCutArc(p, x, y, aim, halfArc, reach, forceCrit, mark, biteMul) {
     const crit = !!forceCrit || (m.crit > 0 && Math.random() < m.crit);
     hurtPlayer(foe, kimBite(p, foe) * (biteMul || 1) * (crit ? (m.critMul || 2.2) : 1),
       { x, y, knock: (m.knock || 0) * 0.6 });
+    p.kimDrawHits = (p.kimDrawHits || 0) + 1;
   }
   if (mark && best) kimSetMark(p, best);
   return best;
@@ -349,19 +354,26 @@ function kimSwing(p, x, y, aim) {
     p.kimDrawAng = aim;
     p.kimDrawReach = dr;
     /* gain +2 Poise on use, then measure everything the skill sees */
+    const before = p.kimPoise || 0;
     kimBankPoise(p, KIM_DRAW_POISE);
     const spent = p.kimPoise || 0;
     const critMul = (m.critMul || 2.2) * (1 + KIM_DRAW_CRIT_BASE + Math.min(KIM_DRAW_CRIT_CAP, KIM_DRAW_CRIT_PER_POISE * spent));
     p.kimDrawCritMul = critMul;
     p.kimDrawBleed = KIM_DRAW_BLEED;
     p.kimDrawParalyze = KIM_DRAW_PARALYZE;
+    p.kimDrawHits = 0;
     kimCutArc(p, x, y, aim, Math.PI, dr, true, true, KIM_DRAW_MUL);
+    const engaged = (p.kimDrawHits || 0) > 0;
     p.kimDrawCritMul = null;
     p.kimDrawBleed = 0;
     p.kimDrawParalyze = 0;
-    /* [Attack End] consume all Poise on self — BEARING OF A SALSU takes the price
-       in flesh instead: 10 HP per stack, floored at 1. The stacks are never lost. */
-    if (spent > 0) {
+    if (!engaged) {
+      /* a flourish at empty air — the draw engages nothing, so nothing is paid:
+         the stacks never happened, and no flesh is offered to the ledger */
+      p.kimPoise = before;
+    } else if (spent > 0) {
+      /* [Attack End] consume all Poise on self — BEARING OF A SALSU takes the price
+         in flesh instead: 10 HP per stack, floored at 1. The stacks are never lost. */
       const cost = spent * KIM_SALSU_HP_COST;
       p.hp = Math.max(1, p.hp - cost);
       if (p === localPlayer()) {
