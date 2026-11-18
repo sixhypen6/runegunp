@@ -25,6 +25,7 @@ function makePlayer(cfg, idx) {
     sinnerSlash2T: 0, sinnerSlash2Ang: 0, sinnerSlash2Dir: -1,
     /* BAMBOO-HATTED KIM: cuts banked toward THE DRAW, Poise, and the mark */
     kimDraw: 0, kimPoise: 0, kimMarkT: 0, kimMarkId: null,
+    kimDrink: 0, kimSwingHeal: 0, kimHomelandKey: null, kimHomelandArmed: true,
     kimSlashT: 0, kimDrawT: 0,
     /* REANIMATOR: the pack's command mode ("ai" hunts, "cursor" follows the mark) */
     thrallMode: "ai", thrallCursor: null,

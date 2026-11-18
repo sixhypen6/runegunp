@@ -996,6 +996,9 @@ function killEnemy(e, killer) {
   /* KIM: felling the horror THE DRAW marked banks a Poise and clears the duel */
   if (killer && killer.char === "kim" && typeof kimIsMarked === "function" && kimIsMarked(killer, e))
     kimGainPoise(killer);
+  /* KIM: the fallen feed him — one Drink stack per horror he fells */
+  if (killer && killer.char === "kim" && typeof kimDrinkOnKill === "function")
+    kimDrinkOnKill(killer);
   /* type-specific death throes (cinder's fire ring, the slaghulk breaking apart)
      fire BEFORE the ambush ledger, so anything the corpse spawns keeps the trap armed */
   const TD = ETYPES[e.type];
@@ -1312,6 +1315,12 @@ function hurtPlayer(p, dmg, src) {
     toast(p === localPlayer() ? saveName + " — THE HOUR HOLDS ITS BREATH" : "YOUR PARTNER IS SAVED");
     AudioFX.chest();
     updateHp();
+    return;
+  }
+  /* SWORDPLAY OF THE HOMELAND — once per floor, a lethal blow is refused.
+     Activates after the other lethal passives (REPRIEVE above): the warden
+     drops to 1 and the run goes on. */
+  if (p.hp <= 0 && p.char === "kim" && typeof kimSwordplaySave === "function" && kimSwordplaySave(p)) {
     return;
   }
   p.iframes = 0.9;

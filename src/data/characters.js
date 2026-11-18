@@ -99,7 +99,7 @@ const CHARS = {
     startLoadout: ["runegun"] },
   kim: { name: "BAMBOO-HATTED KIM", glyph: "ᛁ", color: "#a9c6d8", cost: 44000,
     melee: true,
-    desc: "A drifting swordsman under a woven hat, his black robe soaked through with old blood. Purely melee — one long, very narrow cut of a pale jikdo, and every cut opens a bleeding wound. Every fourth cut is THE DRAW: a full circle of the blade that always crits and MARKS the strongest horror it touches; that horror takes +30% from every following cut for 8s. Felling a marked horror banks POISE (up to 5), and each stack sharpens every cut by +6%. Dashing banks one cut toward the next draw.",
+    desc: "A drifting swordsman under a woven hat, his black robe soaked through with old blood. Purely melee — one long, very narrow cut of a pale jikdo, and every cut opens a bleeding wound. Every fourth cut is THE DRAW: a full circle of the blade that always crits and MARKS the strongest horror it touches; that horror takes +30% from every following cut for 8s. A cut heals him for 10% of its damage (up to half his vitals per swing). Felling a marked horror banks POISE (up to 5), each stack sharpening every cut by +6%. Any horror he fells feeds DRINK TO THE FALLEN (up to 4 stacks, +5% cut damage each). And once per floor, a blow that should fell him leaves him at 1 vitality — SWORDPLAY OF THE HOMELAND. Dashing banks one cut toward the next draw.",
     hp: 105, speed: 285, dashCd: 1.0, startRunes: 0, rerolls: 3, runeSlots: 5,
     weaponBase: { dmg: 22, rate: 3.3, size: 16, speed: 400, knock: 90 } },
   fortress: { name: "FORTRESS", glyph: "ᛝ", color: "#bcd0ff", cost: 65000,

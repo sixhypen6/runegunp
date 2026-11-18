@@ -16,6 +16,15 @@
    BLEED — every cut opens a wound that keeps bleeding. The BLEED rune
    adds its stacks on top of the blade's own.
 
+   RESENTMENT — a cut heals the wound: 10% of the damage dealt by a swing
+   returns to Kim, capped at half his vitals per swing.
+
+   DRINK TO THE FALLEN — every horror felled by Kim banks a Drink stack
+   (up to four), each worth +5% cut damage.
+
+   SWORDPLAY OF THE HOMELAND — once per floor, a blow that brings him to
+   0 instead leaves him at 1 vitality.
+
    The blade answers the projectile runes through the shared melee remap
    (data/runes.js: meleeWeaponMods / bladeReading); the fan/lane/rear
    runes become cuts exactly as they do for the Wayward Passenger.
@@ -38,6 +47,17 @@ const KIM_POISE_DMG = 0.06;        // +6% cut damage per stack
 
 /* --- the wound --- */
 const KIM_BLEED = 2;               // innate bleed stacks on every cut; BLEED runes add on
+
+/* --- resentment --- */
+const KIM_RESENTMENT_HEAL = 0.10;  // of cut damage, returned as vitals
+const KIM_RESENTMENT_CAP = 0.50;   // at most half of max vitals per swing
+
+/* --- drink to the fallen --- */
+const KIM_DRINK_MAX = 4;           // max stacks, one per horror Kim fells
+const KIM_DRINK_DMG = 0.05;        // +5% cut damage per stack
+
+/* --- swordplay of the homeland --- */
+const KIM_HOMELAND_HP = 1;         // once per floor, a lethal blow is answered with 1 vitality
 
 /* --- the blade itself --- */
 const KIM_REACH_BASE = 112;        // longer than anyone else's steel
@@ -69,6 +89,10 @@ function kimVitals(p) {
   if (p.kimMarkId === undefined) p.kimMarkId = null;
   if (p.kimSlashT === undefined) p.kimSlashT = 0;
   if (p.kimDrawT === undefined) p.kimDrawT = 0;
+  if (p.kimDrink === undefined) p.kimDrink = 0;
+  if (p.kimSwingHeal === undefined) p.kimSwingHeal = 0;
+  if (p.kimHomelandKey === undefined) p.kimHomelandKey = null;
+  if (p.kimHomelandArmed === undefined) p.kimHomelandArmed = true;
 }
 
 /* the marked horror, from the live object (host/solo) or the synced id (guest) */
@@ -95,10 +119,75 @@ function kimClearMark(p) {
   p.kimMark = null; p.kimMarkId = null; p.kimMarkT = 0;
 }
 
-/* one cut's bite: the blade, deepened by Poise, sharpened against the mark */
+/* the floor's key — floor index and loop pass; a change re-arms Swordplay */
+function kimHomelandKey() {
+  return (Game.mapIdx == null ? 0 : Game.mapIdx) + ":" + (Game.loop || 0);
+}
+
+/* is Swordplay of the Homeland still standing on this floor? */
+function kimHomelandArmed(p) {
+  if (!p || p.char !== "kim") return false;
+  if (p.kimHomelandKey !== kimHomelandKey()) return true;   // fresh floor, still armed
+  return !!p.kimHomelandArmed;
+}
+
+/* once per floor, a lethal blow finds nothing — the blade does not kneel */
+function kimSwordplaySave(p) {
+  if (!p || p.char !== "kim") return false;
+  const key = kimHomelandKey();
+  if (p.kimHomelandKey !== key) { p.kimHomelandKey = key; p.kimHomelandArmed = true; }
+  if (!p.kimHomelandArmed) return false;
+  p.kimHomelandArmed = false;
+  p.hp = KIM_HOMELAND_HP;
+  if (p === localPlayer()) {
+    if (typeof screenFlash === "function") screenFlash(0.35, "90,200,255");
+    if (typeof haptic === "function") haptic(90);
+  }
+  shockwaves.push({ x: p.x, y: p.y, r: 8, max: 220, speed: 500, dmg: 0,
+    hostile: false, color: "#8fd0f0", hitSet: new Set() });
+  for (let i = 0; i < 16; i++) {
+    const a = i / 16 * TAU;
+    particles.push({ x: p.x, y: p.y, vx: Math.cos(a) * rnd(120, 260), vy: Math.sin(a) * rnd(120, 260),
+      t: 0, life: rnd(0.35, 0.7), r: rnd(2, 4), color: pick(["#8fd0f0", "#dff3ff", "#5ac8ff"]) });
+  }
+  floatText(p.x, p.y - 34, "SWORDPLAY OF THE HOMELAND", KIM_COL.mark, 17);
+  if (typeof toast === "function")
+    toast(p === localPlayer() ? "SWORDPLAY OF THE HOMELAND — THE BLADE DOES NOT KNEEL"
+      : "YOUR PARTNER IS HELD BY THE BLADE");
+  AudioFX.chest();
+  if (typeof updateHp === "function") updateHp();
+  Game.shake = Math.max(Game.shake, 12);
+  return true;
+}
+
+/* DRINK TO THE FALLEN — felling a horror banks one stack (up to KIM_DRINK_MAX) */
+function kimDrinkOnKill(p) {
+  if (!p || p.char !== "kim") return;
+  if ((p.kimDrink || 0) < KIM_DRINK_MAX) {
+    p.kimDrink = (p.kimDrink || 0) + 1;
+    if (p === localPlayer())
+      floatText(p.x, p.y - 44, "DRINK " + p.kimDrink + "/" + KIM_DRINK_MAX, KIM_COL.mark);
+  }
+}
+
+/* RESENTMENT — a cut heals the wound; capped per swing in kimHealOnCut */
+function kimHealOnCut(p, dmg) {
+  if (!p || !(dmg > 0)) return;
+  /* GUEST: the host owns damage, so no phantom heals on the replica */
+  if (typeof Net !== "undefined" && Net.role === "guest") return;
+  if (p.kimSwingHeal === undefined) p.kimSwingHeal = 0;
+  const cap = p.maxHp * KIM_RESENTMENT_CAP;
+  const heal = Math.min(dmg * KIM_RESENTMENT_HEAL, cap - p.kimSwingHeal);
+  if (heal <= 0) return;
+  p.kimSwingHeal += heal;
+  healPlayer(p, heal, false);
+}
+
+/* one cut's bite: the blade, deepened by Poise, sharpened against the mark,
+   sweetened by the Drink stacks the fallen have paid for */
 function kimBite(p, e) {
   const m = p.mods || {};
-  let bite = meleeBite(m) * (1 + (p.kimPoise || 0) * KIM_POISE_DMG);
+  let bite = meleeBite(m) * (1 + (p.kimPoise || 0) * KIM_POISE_DMG) * (1 + (p.kimDrink || 0) * KIM_DRINK_DMG);
   if (kimIsMarked(p, e)) bite *= 1 + KIM_MARK_BONUS;
   return bite;
 }
@@ -119,10 +208,13 @@ function kimHitEnemy(p, e, x, y, forceCrit, biteMul) {
   const m = p.mods || {};
   const crit = !!forceCrit || (m.crit > 0 && Math.random() < m.crit);
   const critMul = m.critMul || 2.2;
-  damageEnemy(e, kimBite(p, e) * (biteMul || 1) * (crit ? critMul : 1), {
+  const bite = kimBite(p, e) * (biteMul || 1) * (crit ? critMul : 1);
+  damageEnemy(e, bite, {
     owner: p, x, y, melee: true, critHit: crit,
     knock: (m.knock || 0) * (forceCrit ? 1.6 : 1),
   });
+  /* RESENTMENT — the cut heals the wound it opens */
+  kimHealOnCut(p, bite);
   /* every cut opens a wound; the BLEED rune deepens it */
   if (!e.dead) {
     const stacks = KIM_BLEED + (m.bleed || 0);
@@ -186,6 +278,7 @@ function kimTrail(x, y, aim, reach, amount, draw) {
 function kimSwing(p, x, y, aim) {
   const m = p.mods;
   kimVitals(p);
+  p.kimSwingHeal = 0;
   const reach = KIM_REACH_BASE + Math.max(0, (m.size || 4) - 4) * 0.8;
   const arcs = Math.max(1, m.meleeArcs || 1);
   const twin = Math.max(0, m.meleeTwin || 0);
@@ -298,6 +391,8 @@ function updateKimCue(p) {
   const ready = banked >= KIM_DRAW_EVERY;
   let txt = "IAI " + pips + (ready ? " · DRAW READY" : "");
   txt += " · POISE " + (p.kimPoise || 0) + "/" + KIM_POISE_MAX;
+  if ((p.kimDrink || 0) > 0) txt += " · DRINK " + p.kimDrink + "/" + KIM_DRINK_MAX;
+  if (kimHomelandArmed(p)) txt += " · SWORDPLAY";
   if (p.kimMarkT > 0) txt += " · MARK " + p.kimMarkT.toFixed(1) + "s";
   const cls = "on" + (ready ? " ready" : "");
   if (lastKimCue !== txt + cls) {
