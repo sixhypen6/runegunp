@@ -13,10 +13,11 @@
    POISE — felling a marked horror banks one Poise (up to five), each
    worth +6% cut damage. Dashing banks one cut toward the next draw.
    Poise is never lost — but the draw's gain pays in flesh: BEARING OF A
-   SALSU takes 10 HP for every stack it would spend (never below 1),
-   and only when at least one foe is struck. A flourish into empty air
-   costs nothing and banks nothing. Every cut's critical damage scales
-   with Kim's missing vitals (+50% at full wound).
+   SALSU takes 5 HP for every stack a banked draw would spend (never
+   below 1, and only when at least one foe is struck). A riposte's draw
+   is never billed. A flourish into empty air costs nothing and banks
+   nothing. Every cut's critical damage scales with Kim's missing
+   vitals (+50% at full wound).
 
    BLEED — every cut opens a wound that keeps bleeding. The BLEED rune
    adds its stacks on top of the blade's own.
@@ -54,7 +55,7 @@ const KIM_DRAW_BLEED = 3;          // extra bleed stacks the draw opens
 const KIM_DRAW_PARALYZE = 2.0;     // seconds the ring's victims are stopped cold
 
 /* --- bearing of a salsu --- */
-const KIM_SALSU_HP_COST = 10;      // HP paid per Poise the draw would consume — the stacks are never lost
+const KIM_SALSU_HP_COST = 5;       // HP paid per Poise the draw would consume — the stacks are never lost
 const KIM_SALSU_MISSING_CAP = 0.50; // Bearing of a Salsu: crit damage bonus from missing vitals on every cut (max +50%)
 
 /* --- yield my flesh --- */
@@ -371,9 +372,11 @@ function kimSwing(p, x, y, aim) {
       /* a flourish at empty air — the draw engages nothing, so nothing is paid:
          the stacks never happened, and no flesh is offered to the ledger */
       p.kimPoise = before;
+    } else if (riposte) {
+      /* the riposte is the wage for eating a blow — it never bills him */
     } else if (spent > 0) {
       /* [Attack End] consume all Poise on self — BEARING OF A SALSU takes the price
-         in flesh instead: 10 HP per stack, floored at 1. The stacks are never lost. */
+         in flesh instead: 5 HP per stack, floored at 1. The stacks are never lost. */
       const cost = spent * KIM_SALSU_HP_COST;
       p.hp = Math.max(1, p.hp - cost);
       if (p === localPlayer()) {
