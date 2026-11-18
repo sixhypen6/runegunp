@@ -87,6 +87,13 @@
     color:#a9c6d8;font-variant-numeric:tabular-nums;text-shadow:0 0 8px rgba(90,200,255,.4)}
   #kimCue.on{display:block}
   #kimCue.ready{color:#e6f7ff;text-shadow:0 0 10px rgba(90,200,255,.85)}
+  /* THE INDEX NURSEFATHER's PRESCRIPT pips, KARMIC and the flower's clock */
+  #yiCue{display:none;margin-top:6px;font-size:calc(10px * var(--text-scale, 1));letter-spacing:.16em;
+    color:#d9b65c;font-variant-numeric:tabular-nums;text-shadow:0 0 8px rgba(217,182,92,.42)}
+  #yiCue.on{display:block}
+  #yiCue.unlock1{color:#f2e3a0;text-shadow:0 0 8px rgba(255,223,138,.75)}
+  #yiCue.unlock2{color:#ffedb8;text-shadow:0 0 10px rgba(255,223,138,.9)}
+  #yiCue.payout{color:#ffedb8;text-shadow:0 0 12px rgba(126,192,255,.95)}
   /* the saloon's rounds — amber, with the sober clock draining below it */
   #drunkHud{display:none;margin-top:7px;max-width:min(320px,44vw);font-variant-numeric:tabular-nums}
   #drunkHud.on{display:block}
@@ -774,6 +781,7 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
     <div id="reprieveCue"></div>
     <div id="warpCue"></div>
     <div id="kimCue"></div>
+    <div id="yiCue"></div>
     <div id="drunkHud"><div id="drunkName"></div><div id="drunkBar"><div id="drunkFill"></div></div><div id="drunkTime"></div></div>
   </div>
   <div class="wave-wrap">
@@ -1579,6 +1587,7 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
 <script src="src/entities/reanimator.js"></script>
 <script src="src/entities/warp.js"></script>
 <script src="src/entities/kim.js"></script>
+<script src="src/entities/yi.js"></script>
 <script src="src/entities/bosses.js"></script>
 <script src="src/entities/deep.js"></script>
 <script src="src/entities/unknown.js"></script>

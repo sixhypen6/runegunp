@@ -326,6 +326,57 @@ function cutDrawChar(x, y, rot, sx, sy, col, alpha, flame, charType) {
     cx.fillStyle = gun; cx.beginPath(); cx.arc(28, 0, 3.2, 0, TAU); cx.fill();
     cx.strokeStyle = "#aa8844"; cx.lineWidth = 1.5;
     cx.beginPath(); cx.moveTo(19, -4.5); cx.lineTo(19, 4.5); cx.stroke();
+  } else if (charType === "yi") {
+    /* THE INDEX NURSEFATHER — a black coat trailing smoke, white gloves, one gold eye */
+    /* the coat's smoke breathing behind him */
+    cx.globalAlpha = alpha * 0.5;
+    cx.fillStyle = "#17171c";
+    cx.beginPath(); cx.moveTo(-8, -4);
+    cx.quadraticCurveTo(-22, -15, -33, -2);
+    cx.quadraticCurveTo(-23, 4, -26, 13);
+    cx.quadraticCurveTo(-13, 11, -8, 6); cx.closePath(); cx.fill();
+    cx.globalAlpha = alpha;
+    cx.fillStyle = "#17171c";
+    cx.beginPath(); cx.moveTo(10, 0);
+    cx.quadraticCurveTo(4, -10, -10, -9); cx.quadraticCurveTo(-14, 0, -10, 9);
+    cx.quadraticCurveTo(4, 10, 10, 0); cx.closePath(); cx.fill();
+    /* old dark blood across the coat */
+    cx.fillStyle = "#a3212a";
+    cx.beginPath(); cx.ellipse(-4, 4, 6, 3.3, 0.4, 0, TAU); cx.fill();
+    cx.fillStyle = "#c9353d";
+    cx.beginPath(); cx.ellipse(-5, 4.5, 2.5, 1.4, 0.4, 0, TAU); cx.fill();
+    /* white shirt and black cravat, gold badge */
+    cx.fillStyle = "#f2efe8";
+    cx.beginPath(); cx.moveTo(9, -4); cx.lineTo(2.5, 0); cx.lineTo(9, 4); cx.closePath(); cx.fill();
+    cx.fillStyle = "#22222a";
+    cx.beginPath(); cx.moveTo(9, -1.3); cx.lineTo(2.5, 0); cx.lineTo(9, 1.3); cx.closePath(); cx.fill();
+    cx.fillStyle = "#d9b65c";
+    cx.beginPath(); cx.arc(0, -3, 1.4, 0, TAU); cx.fill();
+    /* white gloves */
+    cx.fillStyle = "#f2efe8";
+    cx.beginPath(); cx.ellipse(9, -6, 2.4, 1.7, 0.5, 0, TAU); cx.fill();
+    cx.beginPath(); cx.ellipse(9, 6, 2.4, 1.7, -0.5, 0, TAU); cx.fill();
+    /* the face: black veil and one burning gold eye */
+    cx.fillStyle = "#0d0d11";
+    cx.beginPath(); cx.ellipse(4.4, 0, 3.8, 3.3, 0, 0, TAU); cx.fill();
+    cx.fillStyle = "#ffdf8a"; cx.shadowColor = "#ffdf8a"; cx.shadowBlur = 8;
+    cx.beginPath(); cx.ellipse(6.5, -1.4, 1.1, 0.68, 0.4, 0, TAU); cx.fill();
+    cx.shadowBlur = 0;
+    /* the chained blade, low and forward */
+    cx.strokeStyle = "#0d0d11"; cx.shadowColor = "#d9b65c"; cx.shadowBlur = 7;
+    cx.lineWidth = 3.6; cx.lineCap = "round";
+    cx.beginPath(); cx.moveTo(9, 5); cx.lineTo(40, 5); cx.stroke();
+    cx.strokeStyle = "#dde0e4"; cx.shadowBlur = 4; cx.lineWidth = 1.9;
+    cx.beginPath(); cx.moveTo(9, 5); cx.lineTo(39, 5); cx.stroke();
+    cx.strokeStyle = "#fff"; cx.shadowBlur = 0; cx.lineWidth = 0.85;
+    cx.beginPath(); cx.moveTo(10, 4.3); cx.lineTo(37, 4.3); cx.stroke();
+    /* gold guard */
+    cx.strokeStyle = "#d9b65c"; cx.lineWidth = 2;
+    cx.beginPath(); cx.moveTo(9, 1.7); cx.lineTo(9, 8.3); cx.stroke();
+    /* a loop of chain from the hilt, swinging free */
+    cx.strokeStyle = "#33343c"; cx.lineWidth = 1.4;
+    cx.beginPath(); cx.moveTo(6, 5); cx.quadraticCurveTo(2, 13, 4, 20); cx.stroke();
+    cx.shadowBlur = 0;
   } else if (charType === "fortress") {
     /* octagon war-machine, central hub, three barrels forward */
     cx.beginPath();

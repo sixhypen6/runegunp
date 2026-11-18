@@ -391,6 +391,8 @@ function spawnShot(p, x, y, baseAim, skip) {
   if (p.char === "sinner") { sinnerSlash(p, x, y, baseAim); return; }
   /* BAMBOO-HATTED KIM: the trigger swings one long jikdo cut (entities/kim.js) */
   if (p.char === "kim") { kimSwing(p, x, y, baseAim); return; }
+  /* THE INDEX NURSEFATHER: one swing of the pattern (entities/yi.js) */
+  if (p.char === "yi") { yiSwing(p, x, y, baseAim); return; }
   const sanchoMelee = p.char === "sancho" && p.weaponMode !== "ranged";
   if (sanchoMelee) { sanchoSwing(p, x, y, baseAim); return; }
   /* the shredder's debris must live long enough to cross its saw's reach even
@@ -996,6 +998,12 @@ function killEnemy(e, killer) {
   /* KIM: felling the horror THE DRAW marked banks a Poise and clears the duel */
   if (killer && killer.char === "kim" && typeof kimIsMarked === "function" && kimIsMarked(killer, e))
     kimGainPoise(killer);
+  /* THE INDEX NURSEFATHER: the PRESCRIPT's marked horror falls — the account is settled,
+     no matter whose blade dealt the killing blow */
+  if (typeof players !== "undefined") for (const p of players) {
+    if (p && p.char === "yi" && typeof yiIsMarked === "function" && yiIsMarked(p, e))
+      yiFallenMark(p, e);
+  }
   /* KIM: the fallen feed him — one Drink stack per horror he fells */
   if (killer && killer.char === "kim" && typeof kimDrinkOnKill === "function")
     kimDrinkOnKill(killer);

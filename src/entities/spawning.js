@@ -27,6 +27,10 @@ function makePlayer(cfg, idx) {
     kimDraw: 0, kimPoise: 0, kimMarkT: 0, kimMarkId: null,
     kimDrink: 0, kimSwingHeal: 0, kimHomelandKey: null, kimHomelandArmed: true, kimRiposte: 0,
     kimSlashT: 0, kimDrawT: 0,
+    /* THE INDEX NURSEFATHER (Yi Sang): Grace, Karmic Consequence, the Prescript mark,
+       the weapon wheel, and his gloom-bleed */
+    yiGrace: 0, yiKarmic: 0, yiMarkT: 0, yiMarkCd: 0, yiMarkId: null,
+    yiWeapon: 0, yiSlashT: 0, yiSlashAng: 0, yiSlashDir: 1, yiSlashReach: 100, yiPoise: 0,
     /* REANIMATOR: the pack's command mode ("ai" hunts, "cursor" follows the mark) */
     thrallMode: "ai", thrallCursor: null,
     curses: {}, brandTick: 0, shield: 0, shieldMax: 0, shieldT: 0,

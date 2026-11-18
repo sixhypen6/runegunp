@@ -59,6 +59,13 @@ const PVP_CHAR_COST = {
     set: { heavy: 1, swift: 1, velocity: 1, phase: 1, bleed: 2, prickle: 1 },
     mul: { scatter: 2, rapid: 2, twin: 2, pierce: 2, ricochet: 2, seeker: 2, splinter: 2, frost: 2, ember: 2 },
   },
+  /* the twin pattern has no trigger either — blade runes are its language,
+     the projectile tree only reaches him as a thinner edge; the gloom
+     and the edge are what the Oracle lets him keep */
+  yi: {
+    set: { heavy: 1, swift: 1, velocity: 1, bleed: 2, prickle: 1, quarry: 1 },
+    mul: { scatter: 2, rapid: 2, twin: 2, pierce: 2, ricochet: 2, seeker: 2, splinter: 2, ember: 2, nova: 2 },
+  },
 };
 
 /* the Reanimator now enters a duel WITH a pack (see pvpSeedNecroPack), so it

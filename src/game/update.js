@@ -223,8 +223,11 @@ function updatePlayer(p, inp, dt) {
   if (isLocal && typeof updateSanchoCue === "function") updateSanchoCue(p);
   if (isLocal && typeof updateWarpCue === "function") updateWarpCue(p);
   if (isLocal && typeof updateKimCue === "function") updateKimCue(p);
+  if (isLocal && typeof updateYiCue === "function") updateYiCue(p);
   /* BAMBOO-HATTED KIM: the swing's afterglow and the mark's clock */
   if (typeof kimTick === "function") kimTick(p, dt);
+  /* THE INDEX NURSEFATHER: Grace, Karmic, the mark's clock, and his gloom */
+  if (typeof yiTick === "function") yiTick(p, dt);
   /* DOWNED: a slow crawl toward help — no dash, no gun, no interactions */
   if (p.downed) {
     p.x += mx * p.speed * 0.35 * dt;
@@ -910,6 +913,21 @@ function update(dt) {
           Game.bloodfeast = Math.min(999, (Game.bloodfeast || 0) + tick);
           if (particles.length < 520) particles.push({ x: e.x + rnd(-6, 6), y: e.y + rnd(-6, 6),
             vx: rnd(-18, 18), vy: rnd(-55, -18), t: 0, life: 0.25, r: 2.5, color: "#ff4d5e" });
+        }
+      }
+      if (e.dead) { enemies.splice(i, 1); continue; }
+    }
+    /* GLOOM — the STILETTO's bleed: it never closes */
+    if (e.gloomT > 0) {
+      e.gloomT -= dt;
+      e.gloomTick = (e.gloomTick || 0) - dt;
+      if (e.gloomTick <= 0) {
+        e.gloomTick = 1;
+        const tick = e.gloomDps || 0;
+        if (tick > 0) {
+          damageEnemy(e, tick, e.gloomBy ? { owner: e.gloomBy, gloomTick: true } : undefined);
+          if (particles.length < 520) particles.push({ x: e.x + rnd(-6, 6), y: e.y + rnd(-6, 6),
+            vx: rnd(-18, 18), vy: rnd(-55, -18), t: 0, life: 0.25, r: 2.5, color: "#8f6bff" });
         }
       }
       if (e.dead) { enemies.splice(i, 1); continue; }
