@@ -75,7 +75,10 @@ const PLAYER_FIELDS = ["x", "y", "vx", "vy", "hp", "maxHp", "shield", "shieldMax
   "seekerCd", "seekerMarkX", "seekerMarkY",
   "warpCd", "warpSpeedStacks", "warpSpeedT",
   "sinnerSlashT", "sinnerSlashAng", "sinnerSlashReach", "sinnerSlashDir",
-  "sinnerSlash2T", "sinnerSlash2Ang", "sinnerSlash2Dir"];
+  "sinnerSlash2T", "sinnerSlash2Ang", "sinnerSlash2Dir",
+  "kimDraw", "kimDrawT", "kimDrawAng", "kimDrawReach",
+  "kimSlashT", "kimSlashAng", "kimSlashReach", "kimSlashDir",
+  "kimPoise", "kimMarkId", "kimMarkT"];
 
 const NUM3 = v => typeof v === "number" ? Math.round(v * 100) / 100 : v;
 const QI = v => Math.round(v) || 0;                       // whole pixels

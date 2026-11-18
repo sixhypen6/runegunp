@@ -230,6 +230,29 @@ function cutDrawChar(x, y, rot, sx, sy, col, alpha, flame, charType) {
     cx.strokeStyle = "#cc0000"; cx.shadowColor = "#ff334d"; cx.shadowBlur = 8; cx.lineWidth = 4; cx.lineCap = "round";
     cx.beginPath(); cx.moveTo(12, 0); cx.lineTo(35, 0); cx.stroke();
     cx.shadowBlur = 0;
+  } else if (charType === "kim") {
+    /* the swordsman — narrow robe, a wide woven bamboo hat, one long green line */
+    cx.fillStyle = col;
+    cx.beginPath(); cx.moveTo(10, 0);
+    cx.quadraticCurveTo(4, -11, -11, -10); cx.quadraticCurveTo(-15, 0, -11, 10);
+    cx.quadraticCurveTo(4, 11, 10, 0); cx.closePath(); cx.fill();
+    cx.fillStyle = "#c9b06a"; cx.fillRect(-6, -9, 3, 18);
+    /* the hat: a wide cone with a shaded crown */
+    cx.fillStyle = "#c9a86a";
+    cx.beginPath(); cx.ellipse(-2, 0, 18, 12, 0, 0, TAU); cx.fill();
+    cx.strokeStyle = "#8a6d3a"; cx.lineWidth = 1.2;
+    cx.beginPath(); cx.ellipse(-2, 0, 18, 12, 0, 0, TAU); cx.stroke();
+    cx.fillStyle = "#8a6d3a";
+    cx.beginPath(); cx.ellipse(-2, 0, 6.5, 4.6, 0, 0, TAU); cx.fill();
+    cx.fillStyle = "rgba(8,10,6,0.85)";
+    cx.beginPath(); cx.ellipse(-6, 0, 5.4, 3.4, 0, 0, TAU); cx.fill();
+    /* the long blade, held low and forward */
+    cx.strokeStyle = "#9fe06a"; cx.shadowColor = "#9fe06a"; cx.shadowBlur = 9;
+    cx.lineWidth = 3; cx.lineCap = "round";
+    cx.beginPath(); cx.moveTo(8, 5); cx.lineTo(36, 5); cx.stroke();
+    cx.strokeStyle = "#f6ffe8"; cx.shadowBlur = 3; cx.lineWidth = 1;
+    cx.beginPath(); cx.moveTo(10, 3.6); cx.lineTo(37, 3.6); cx.stroke();
+    cx.shadowBlur = 0;
   } else if (charType === "john") {
     /* the legend: heroic silhouette, red cape, gold visor, the RUNEGUN */
     cx.fillStyle = "#8a1a1a"; cx.globalAlpha = alpha * 0.8;

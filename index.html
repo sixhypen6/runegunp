@@ -82,6 +82,11 @@
   #warpCue.on{display:block}
   #warpCue.ready{color:#f0dcff;text-shadow:0 0 10px rgba(200,107,255,.8)}
   #warpCue.rush{color:#e6c8ff}
+  /* BAMBOO-HATTED KIM's IAI pips, POISE and the mark's clock */
+  #kimCue{display:none;margin-top:6px;font-size:calc(10px * var(--text-scale, 1));letter-spacing:.16em;
+    color:#b8cf9a;font-variant-numeric:tabular-nums;text-shadow:0 0 8px rgba(143,174,107,.45)}
+  #kimCue.on{display:block}
+  #kimCue.ready{color:#e4ffc4;text-shadow:0 0 10px rgba(159,224,106,.85)}
   /* the saloon's rounds — amber, with the sober clock draining below it */
   #drunkHud{display:none;margin-top:7px;max-width:min(320px,44vw);font-variant-numeric:tabular-nums}
   #drunkHud.on{display:block}
@@ -768,6 +773,7 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
     <div id="thrallCue"></div>
     <div id="reprieveCue"></div>
     <div id="warpCue"></div>
+    <div id="kimCue"></div>
     <div id="drunkHud"><div id="drunkName"></div><div id="drunkBar"><div id="drunkFill"></div></div><div id="drunkTime"></div></div>
   </div>
   <div class="wave-wrap">
@@ -1572,6 +1578,7 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
 <script src="src/entities/enemies.js"></script>
 <script src="src/entities/reanimator.js"></script>
 <script src="src/entities/warp.js"></script>
+<script src="src/entities/kim.js"></script>
 <script src="src/entities/bosses.js"></script>
 <script src="src/entities/deep.js"></script>
 <script src="src/entities/unknown.js"></script>

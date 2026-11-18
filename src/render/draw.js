@@ -1556,6 +1556,7 @@ function draw() {
   }
   if (chaosLast) drawChaosLastMark(cx, chaosLast);
   drawSniperLock(cx);
+  if (typeof drawKimMark === "function") drawKimMark(cx);
   drawThrallCursor(cx);
 
   /* pets */
@@ -1620,7 +1621,7 @@ function drawWarden(P) {
       cx.setLineDash([]); cx.globalAlpha = 1;
     }
     if (!blink && P.veilT <= 0) {
-      const col = P.dashT > 0 ? "#5ee6ff" : P.char === "sancho" ? "#b5162a" : P.char === "sinner" ? "#5a0f22" : skinColorFor(P);
+      const col = P.dashT > 0 ? "#5ee6ff" : P.char === "sancho" ? "#b5162a" : P.char === "sinner" ? "#5a0f22" : P.char === "kim" ? "#7f9a5a" : skinColorFor(P);
       const hpFrac = P.maxHp > 0 ? clamp(P.hp / P.maxHp, 0, 1) : 1;
       cx.shadowColor = col; cx.shadowBlur = 14; cx.globalAlpha = 1;
       /* the barrels: gun warpaint wins outright; bare metal takes the ruling rune's hue */
@@ -1674,6 +1675,10 @@ function drawWarden(P) {
       } else if (P.char === "sinner") {
         /* WAYWARD PASSENGER — masked drifter, tendrils, two tear-blades */
         drawSinnerWarden(P, px, py, aim, col, tint, hpFrac);
+
+      } else if (P.char === "kim") {
+        /* BAMBOO-HATTED KIM — woven hat, robe, and one very long green blade */
+        drawKimWarden(P, px, py, aim, col, tint, hpFrac);
 
       } else if (P.char === "wraith") {
         /* Diamond body + three ghostly trailing tendrils + piercing eye */

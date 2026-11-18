@@ -222,6 +222,9 @@ function updatePlayer(p, inp, dt) {
   }
   if (isLocal && typeof updateSanchoCue === "function") updateSanchoCue(p);
   if (isLocal && typeof updateWarpCue === "function") updateWarpCue(p);
+  if (isLocal && typeof updateKimCue === "function") updateKimCue(p);
+  /* BAMBOO-HATTED KIM: the swing's afterglow and the mark's clock */
+  if (typeof kimTick === "function") kimTick(p, dt);
   /* DOWNED: a slow crawl toward help — no dash, no gun, no interactions */
   if (p.downed) {
     p.x += mx * p.speed * 0.35 * dt;
@@ -270,6 +273,8 @@ function updatePlayer(p, inp, dt) {
     if (p.char === "sancho") p.dashHitSet = null;   // each pass gets one hit per horror
     /* PHASE on the Passenger arms a crossed pair of slashes for mid-dash */
     if (p.char === "sinner") p.sinnerPhaseDone = false;
+    /* KIM: a dash banks one cut toward the next DRAW */
+    if (p.char === "kim") kimDashCharge(p);
     AudioFX.dash();
   }
   if (p.dashT > 0) {

@@ -538,6 +538,29 @@ const SINNER_MIRROR_RUNE = Object.assign({}, RUNES.mirror, {
 const SINNER_WARP_RUNE = Object.assign({}, RUNES.warp, {
   desc: "The Passenger's rift — [R] opens four rifts around the nearest foe and shreds through them. For the WAYWARD PASSENGER each stack also runs the chain +1 pass per 2 stacks, holds the rifts open +0.75s longer, and lets the rush hold +1 stack (up to +3).",
 });
+/* BAMBOO-HATTED KIM reads the same blade runes, but his cut is one long line:
+   the fan stays narrow and deep, the lanes run the whole reach, and the rear
+   cut is the same steel pulled back the other way. */
+const KIM_SCATTER_RUNE = Object.assign({}, RUNES.scatter, {
+  desc: "The line becomes a fan: +2 thinner cuts per stack, tiled across a wider sweep, each keeping the blade's full bite. Still a katana's arc — long, not a spray.",
+});
+const KIM_TWIN_RUNE = Object.assign({}, RUNES.twin, {
+  desc: "One extra parallel cut lane per stack, offset beside the first and running the blade's whole reach. Each lane strikes at full bite.",
+});
+const KIM_MIRROR_RUNE = Object.assign({}, RUNES.mirror, {
+  desc: "The cut comes back: one rear sweep per stack — the same long blade pulled the other way, at 80% reach and the rune's own bite.",
+});
+/* HEAVY / RAPID / VELOCITY as a blade reads them. There is no slug, no
+   projectile and no bullet speed — only weight, cadence and edge. */
+const MELEE_HEAVY_RUNE = Object.assign({}, RUNES.heavy, {
+  desc: "A heavier cut: per stack the edge bites ×1.9, throws ×1.6 farther and reaches a little longer, but the blade recovers at 70% speed. One slow, ruinous line.",
+});
+const MELEE_RAPID_RUNE = Object.assign({}, RUNES.rapid, {
+  desc: "Per stack the cuts come 45% faster, each a touch softer, and the sweep opens a fraction. Cadence past the cap pays back as damage — never above parity.",
+});
+const MELEE_VELOCITY_RUNE = Object.assign({}, RUNES.velocity, {
+  desc: "Per stack the cut bites 8% harder. A blade has no bullet to hurry — VELOCITY spends itself entirely on the edge.",
+});
 /* SANCHO carries steel AND the blood bow: her cards must read true in either
    stance, so each says what the rune does to a sweep and to an arrow. */
 const SANCHO_SCATTER_RUNE = Object.assign({}, RUNES.scatter, {
@@ -593,9 +616,13 @@ function runeDefFor(p, id) {
   }
   /* a blade answers the projectile runes with cuts, not pellets */
   if (usesMeleeRuneRemap(p)) {
-    if (id === "scatter") return SINNER_SCATTER_RUNE;
-    if (id === "twin") return SINNER_TWIN_RUNE;
-    if (id === "mirror") return SINNER_MIRROR_RUNE;
+    const kim = p.char === "kim";
+    if (id === "scatter") return kim ? KIM_SCATTER_RUNE : SINNER_SCATTER_RUNE;
+    if (id === "twin") return kim ? KIM_TWIN_RUNE : SINNER_TWIN_RUNE;
+    if (id === "mirror") return kim ? KIM_MIRROR_RUNE : SINNER_MIRROR_RUNE;
+    if (id === "heavy") return MELEE_HEAVY_RUNE;
+    if (id === "rapid") return MELEE_RAPID_RUNE;
+    if (id === "velocity") return MELEE_VELOCITY_RUNE;
   }
   /* WARP is the Passenger's signature tear — its card reads like one only for it */
   if (p.char === "sinner" && id === "warp") return SINNER_WARP_RUNE;

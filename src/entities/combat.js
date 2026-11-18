@@ -389,6 +389,8 @@ function spawnShot(p, x, y, baseAim, skip) {
   /* WAYWARD PASSENGER: no bullet ever leaves the blades — every "shot" is a
      forward tear in space (entities/warp.js) */
   if (p.char === "sinner") { sinnerSlash(p, x, y, baseAim); return; }
+  /* BAMBOO-HATTED KIM: the trigger swings one long katana cut (entities/kim.js) */
+  if (p.char === "kim") { kimSwing(p, x, y, baseAim); return; }
   const sanchoMelee = p.char === "sancho" && p.weaponMode !== "ranged";
   if (sanchoMelee) { sanchoSwing(p, x, y, baseAim); return; }
   /* the shredder's debris must live long enough to cross its saw's reach even
@@ -991,6 +993,9 @@ function killEnemy(e, killer) {
   if (paid > 0 && (e.boss || e.ambush || floaters.length < FLOATER_SOFT))
     floatText(e.x, e.y - 16, "+" + paid, "#ffd23d", e.boss || e.ambush ? 16 : 11);
   if (km && km.leech && !killer.downed) { killer.hp = Math.min(killer.maxHp, killer.hp + km.leech); updateHp(); }
+  /* KIM: felling the horror THE DRAW marked banks a Poise and clears the duel */
+  if (killer && killer.char === "kim" && typeof kimIsMarked === "function" && kimIsMarked(killer, e))
+    kimGainPoise(killer);
   /* type-specific death throes (cinder's fire ring, the slaghulk breaking apart)
      fire BEFORE the ambush ledger, so anything the corpse spawns keeps the trap armed */
   const TD = ETYPES[e.type];
