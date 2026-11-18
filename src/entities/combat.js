@@ -1276,11 +1276,22 @@ function hurtPlayer(p, dmg, src) {
   if (typeof gauntletDmgMul === "function") dmg *= gauntletDmgMul();
   /* AEGIS: wards bleed the force from the blow before it lands */
   if (p.mods.dr) dmg *= 1 - p.mods.dr;
+  /* YIELD MY FLESH — while Poise stands at 3 or more, each stack turns aside
+     3% of the blow (max -15%) — the meat refuses to answer */
+  if (p.char === "kim" && (p.kimPoise || 0) >= 3)
+    dmg *= 1 - Math.min(KIM_FLESH_CAP, (p.kimPoise || 0) * KIM_FLESH_PER_POISE);
   /* ONE HIT: any blow that lands is the last. BULWARK is checked above (the shield
      eats the hit outright) and REPRIEVE below (a lethal blow is refused), exactly
      as the challenge promises — only the warden's own wards may answer. */
   if (Game.challenge === "onehit" && dmg > 0) dmg *= 1000000;
   p.hp -= dmg;
+  /* STRUCK — the blow lands, so the next cut is the draw, counter or no counter
+     (Yield My Flesh: [Clash Lose] — after being hit, use To Claim Their Bones) */
+  if (p.char === "kim") {
+    p.kimRiposte = KIM_RIPOSTE_WINDOW;
+    if (p === localPlayer())
+      floatText(p.x, p.y - 28, "RIPOSTE", "#ffe36e", 13);
+  }
   Game.flawless = false;                               // the run is scarred — no FLAWLESS bounty from here on
   /* REPRIEVE: a lethal blow is refused. The hour holds its breath — the horde
      freezes mid-step, the wound closes, and a brief ward keeps the next hit from
@@ -1343,7 +1354,7 @@ function hurtPlayer(p, dmg, src) {
   }
   if (p === localPlayer()) screenFlash(0.25);
   Game.shake = Math.max(Game.shake, 8);
-  if (src && src.x !== undefined) { const a = angTo(src.x, src.y, p.x, p.y); p.x += Math.cos(a) * 14; p.y += Math.sin(a) * 14; }
+  if (src && src.x !== undefined && !(p.char === "kim" && (p.kimDrawT || 0) > 0)) { const a = angTo(src.x, src.y, p.x, p.y); p.x += Math.cos(a) * 14; p.y += Math.sin(a) * 14; }
   if (p === localPlayer()) {
     const bar = document.querySelector(".hp-bar");
     if (bar) { bar.classList.remove("hurt"); void bar.offsetWidth; bar.classList.add("hurt"); }

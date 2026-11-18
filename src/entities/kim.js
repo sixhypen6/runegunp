@@ -27,6 +27,11 @@
    SWORDPLAY OF THE HOMELAND — once per floor, a blow that brings him to
    0 instead leaves him at 1 vitality.
 
+   YIELD MY FLESH — a blow struck opens a window: the next cut within 4s
+   is the draw, counter or no counter. While Poise stands at 3 or more,
+   each stack also turns aside 3% of incoming damage (cap 15% at five
+   stacks), and the draw cannot be knocked from its own arc.
+
    The blade answers the projectile runes through the shared melee remap
    (data/runes.js: meleeWeaponMods / bladeReading); the fan/lane/rear
    runes become cuts exactly as they do for the Wayward Passenger.
@@ -46,6 +51,12 @@ const KIM_DRAW_MISSING_PER = 0.005;// +0.5% damage per 1% missing vitals
 const KIM_DRAW_MISSING_CAP = 0.25; // ... capped at +25%
 const KIM_DRAW_BLEED = 3;          // extra bleed stacks the draw opens
 const KIM_DRAW_PARALYZE = 2.0;     // seconds the ring's victims are stopped cold
+
+/* --- yield my flesh --- */
+const KIM_RIPOSTE_WINDOW = 4;      // seconds after a blow lands in which the next cut is the draw
+const KIM_FLESH_POISE_MIN = 3;     // above this many stacks the flesh starts to turn hits aside
+const KIM_FLESH_PER_POISE = 0.03;  // -3% damage taken per stack while Poise ≥ 3
+const KIM_FLESH_CAP = 0.15;        // ... capped at -15%
 
 /* --- the mark --- */
 const KIM_MARK_TIME = 8;           // seconds the draw's mark holds
@@ -106,6 +117,7 @@ function kimVitals(p) {
   if (p.kimDrawCritMul === undefined) p.kimDrawCritMul = null;
   if (p.kimDrawBleed === undefined) p.kimDrawBleed = 0;
   if (p.kimDrawParalyze === undefined) p.kimDrawParalyze = 0;
+  if (p.kimRiposte === undefined) p.kimRiposte = 0;
 }
 
 /* the marked horror, from the live object (host/solo) or the synced id (guest) */
@@ -321,9 +333,11 @@ function kimSwing(p, x, y, aim) {
 
   /* banking toward the draw — a dash banks one cut on its own */
   p.kimDraw = (p.kimDraw || 0) + 1;
+  const riposte = (p.kimRiposte || 0) > 0;
   /* TO CLAIM THEIR BONES — the draw's whole work, the Meursault skill */
-  if (p.kimDraw >= KIM_DRAW_EVERY) {
-    p.kimDraw = 0;
+  if (riposte || p.kimDraw >= KIM_DRAW_EVERY) {
+    p.kimRiposte = 0;
+    p.kimDraw = p.kimDraw >= KIM_DRAW_EVERY ? 0 : p.kimDraw;
     const dr = reach * KIM_DRAW_REACH;
     p.kimDrawT = KIM_DRAW_LIFE;
     p.kimDrawAng = aim;
@@ -403,12 +417,13 @@ function kimDashCharge(p) {
   p.kimDraw = Math.min(KIM_DRAW_EVERY, (p.kimDraw || 0) + 1);
 }
 
-/* per-frame bookkeeping: the swing's afterglow and the mark's clock */
+/* per-frame bookkeeping: the swing's afterglow, the mark's clock, and the riposte's window */
 function kimTick(p, dt) {
   if (!p) return;
   kimVitals(p);
   p.kimSlashT = Math.max(0, p.kimSlashT - dt);
   p.kimDrawT = Math.max(0, p.kimDrawT - dt);
+  p.kimRiposte = Math.max(0, (p.kimRiposte || 0) - dt);
   if (p.kimMarkT > 0) {
     p.kimMarkT = Math.max(0, p.kimMarkT - dt);
     const tgt = p.kimMark;
@@ -433,6 +448,7 @@ function updateKimCue(p) {
   let txt = "IAI " + pips + (ready ? " · DRAW READY" : "");
   txt += " · POISE " + (p.kimPoise || 0) + "/" + KIM_POISE_MAX;
   if ((p.kimDrink || 0) > 0) txt += " · DRINK " + p.kimDrink + "/" + KIM_DRINK_MAX;
+  if ((p.kimRiposte || 0) > 0) txt += " · RIPOSTE";
   if (kimHomelandArmed(p)) txt += " · SWORDPLAY";
   if (p.kimMarkT > 0) txt += " · MARK " + p.kimMarkT.toFixed(1) + "s";
   const cls = "on" + (ready ? " ready" : "");
