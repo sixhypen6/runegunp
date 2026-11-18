@@ -75,7 +75,7 @@ function makeUnknownBoss() {
     type: "boss", boss: true, kind: UNK_KIND, x: UNK_X, y: UNK_Y - 18, r: 52, hp, maxHp: hp,
     color: "#c9b8ff", score: 400,
     vx: 0, vy: 0, slowMul: 1, slowT: 0, burnT: 0, burnDps: 0, burnTick: 0, hitFlash: 0, spawnT: 0,
-    paralyzeT: 0,
+    paralyzeT: 0, paralyzeImmuneT: 0,
     ambush: false, ghost: true, noclip: true, untargetable: false, airborne: false,
     phase: 1, atk: "idle", at: 0, spd: 0, baseSpd: 0, speed: 0,
     /* the shared boss-VFX pass reads these on every warden */

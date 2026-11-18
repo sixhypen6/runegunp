@@ -7,13 +7,14 @@
    THE DRAW — TO CLAIM THEIR BONES. Every fourth cut is a full circle of
    steel: it gains +2 Poise, always crits with bonus crit damage (+30%,
    +2% per Poise on self, max +50%), MARKS the strongest horror it
-   touches, and inflicts 3 Bleed plus Paralyze (the horror is stopped
-   cold for 2s).
+   touches, and inflicts 3 Bleed plus Paralyze on that same strongest
+   horror (1.2s stop — and the nerve cannot be stopped again for 3s
+   after it recovers).
 
    POISE — felling a marked horror banks one Poise (up to five), each
    worth +6% cut damage. Dashing banks one cut toward the next draw.
    Poise is never lost — but the draw's gain pays in flesh: BEARING OF A
-   SALSU takes 5 HP for every stack a banked draw would spend (never
+   SALSU takes 3 HP for every stack a banked draw would spend (never
    below 1, and only when at least one foe is struck). A riposte's draw
    is never billed. A flourish into empty air costs nothing and banks
    nothing. Every cut's critical damage scales with Kim's missing
@@ -53,10 +54,11 @@ const KIM_DRAW_CRIT_BASE = 0.30;   // bonus crit damage on the draw (always crit
 const KIM_DRAW_CRIT_PER_POISE = 0.02; // +2% crit damage per Poise on self
 const KIM_DRAW_CRIT_CAP = 0.50;    // ... capped at +50%
 const KIM_DRAW_BLEED = 3;          // extra bleed stacks the draw opens
-const KIM_DRAW_PARALYZE = 2.0;     // seconds the ring's victims are stopped cold
+const KIM_DRAW_PARALYZE = 1.2;     // seconds the strongest horror struck by the draw is stopped
+const KIM_PARALYZE_IMMUNE = 3.0;   // seconds of immunity AFTER recovery — the nerve refuses a second stop that soon
 
 /* --- bearing of a salsu --- */
-const KIM_SALSU_HP_COST = 5;       // HP paid per Poise the draw would consume — the stacks are never lost
+const KIM_SALSU_HP_COST = 3;       // HP paid per Poise the draw would consume — the stacks are never lost
 const KIM_SALSU_MISSING_CAP = 0.50; // Bearing of a Salsu: crit damage bonus from missing vitals on every cut (max +50%)
 
 /* --- yield my flesh --- */
@@ -268,11 +270,6 @@ function kimHitEnemy(p, e, x, y, forceCrit, biteMul) {
     e.bleedDps = Math.max(e.bleedDps || 0, bleedDps(stacks));
     e.bleedBy = p;
   }
-  /* PARALYZE — the draw stops the nerve dead in its tracks */
-  if (!e.dead && !guest && (p.kimDrawParalyze || 0) > 0) {
-    e.paralyzeT = Math.max(e.paralyzeT || 0, p.kimDrawParalyze);
-    floatText(e.x, e.y - e.r - 24, "PARALYZED", "#ffe36e");
-  }
   if (!e.dead) applyMeleeElements(p, e, m);
 }
 
@@ -308,6 +305,16 @@ function kimCutArc(p, x, y, aim, halfArc, reach, forceCrit, mark, biteMul) {
     p.kimDrawHits = (p.kimDrawHits || 0) + 1;
   }
   if (mark && best) kimSetMark(p, best);
+  /* PARALYZE — the nerve of the STRONGEST horror the draw struck is stopped,
+     never the whole crowd — and a nerve that was just stopped refuses to be
+     stopped again for a while (the horror acts, uninterrupted, between strikes) */
+  if (p.kimDrawParalyze > 0 && best && !(typeof Net !== "undefined" && Net.role === "guest")) {
+    if (!(best.paralyzeImmuneT > 0) && !(best.paralyzeT > 0)) {
+      best.paralyzeT = p.kimDrawParalyze;
+      best.paralyzeImmuneT = KIM_PARALYZE_IMMUNE;
+      floatText(best.x, best.y - best.r - 24, "PARALYZED", "#ffe36e");
+    }
+  }
   return best;
 }
 
@@ -379,7 +386,7 @@ function kimSwing(p, x, y, aim) {
       /* the riposte is the wage for eating a blow — it never bills him */
     } else if (spent > 0) {
       /* [Attack End] consume all Poise on self — BEARING OF A SALSU takes the price
-         in flesh instead: 5 HP per stack, floored at 1. The stacks are never lost. */
+         in flesh instead: 3 HP per stack, floored at 1. The stacks are never lost. */
       const cost = spent * KIM_SALSU_HP_COST;
       p.hp = Math.max(1, p.hp - cost);
       if (p === localPlayer()) {

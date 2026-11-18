@@ -946,6 +946,8 @@ function update(dt) {
       else if (hasHostileTarget(e)) ETYPES[e.type].ai(e, dt);
       else thrallFollowAI(e);
     } else ETYPES[e.type].ai(e, dt);
+    /* the nerve refuses a second stop too soon — immunity only runs its course once the horror is acting again */
+    if (e.paralyzeImmuneT > 0 && e.paralyzeT <= 0) e.paralyzeImmuneT -= dt;
     deepMoveEnemy(e, dt);   // e.x/e.y += velocity — mired by stasis fields, skidding on black ice
     /* a slaghulk mid-leap sails clean over the rocks; a shade simply drifts through them —
        both still honor the arena's outer walls */
