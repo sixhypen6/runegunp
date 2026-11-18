@@ -141,6 +141,10 @@ function drawEnemyBars(e) {
   cx.shadowBlur = 0;
   if (e.burnT > 0) { cx.fillStyle = "#ff4d2e"; cx.fillRect(e.x - 4, e.y - e.r - 12, 8, 4); }
   if (e.slowT > 0) { cx.fillStyle = "#5ee6ff"; cx.fillRect(e.x - 4, e.y - e.r - 18, 8, 4); }
+  if (e.paralyzeT > 0) {
+    /* a stun bar, hung on the same frame as burn and chill, in nerve-yellow */
+    cx.fillStyle = "#ffe36e"; cx.fillRect(e.x - 4, e.y - e.r - 24, 8, 4);
+  }
   if (e.hp < e.maxHp && !e.boss) {
     cx.fillStyle = "rgba(0,0,0,0.6)"; cx.fillRect(e.x - e.r, e.y + e.r + 4, e.r * 2, 3);
     cx.fillStyle = e.team === "p" ? "#9d6bff" : e.ambush ? "#ff4d5e" : "#e8e2d0";

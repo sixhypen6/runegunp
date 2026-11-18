@@ -931,8 +931,11 @@ function update(dt) {
       }
       if (e.dead) { enemies.splice(i, 1); continue; }
     }
-    /* DREAD: a terrified foe drops everything and flees, blind */
-    if (e.fearT > 0 && !e.boss) {
+    /* PARALYZE — the nerve cannot fire: no drift, no AI, no attack while it holds */
+    if (e.paralyzeT > 0) {
+      e.paralyzeT -= dt;
+      e.vx = 0; e.vy = 0;
+    } else if (e.fearT > 0 && !e.boss) {
       e.fearT -= dt;
       const FP = combatTarget(e);
       const fa = angTo(FP.x, FP.y, e.x, e.y);

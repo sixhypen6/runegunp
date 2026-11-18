@@ -608,7 +608,7 @@ function spawnEnemy(type, x, y) {
   const s = diffScale() * (Game.hardMode ? 1.5 : 1) * partyHpMul();   // HARD + bigger parties: more vitality
   const e = { type, x, y, r: T.r, hp: T.hp * s, maxHp: T.hp * s,
     speed: T.speed * (1 + depth() * 0.04), color: T.color,
-    vx: 0, vy: 0, slowMul: 1, slowT: 0, burnT: 0, burnDps: 0, burnTick: 0,
+    vx: 0, vy: 0, slowMul: 1, slowT: 0, burnT: 0, burnDps: 0, burnTick: 0, paralyzeT: 0,
     hitFlash: 0, spawnT: 0.7, ambush: false, ghost: false, boss: false, buffed: false, wrath: false,
     rime: false, sear: false };
   /* bodies bound to a warden (phylacteries, reflections, the posse) are never empowered */

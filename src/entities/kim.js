@@ -4,14 +4,16 @@
    sheathed jikdo — a straight blade with a red tassel at the pommel —
    and the trigger swings it.
 
-   THE DRAW — every fourth cut is a full circle of steel instead of a
-   forward arc: guaranteed critical, longer reach, and it MARKS the
-   strongest horror it touches. A marked horror takes +30% from every
-   following cut until the mark fades or the horror falls.
+   THE DRAW — TO CLAIM THEIR BONES. Every fourth cut is a full circle of
+   steel: it gains +2 Poise, always crits with bonus crit damage (+30%,
+   +2% per Poise on self, max +50%), bites harder the nearer Kim is to
+   death (+0.5% per 1% missing vitals, max +25%), MARKS the strongest
+   horror it touches, and inflicts 3 Bleed plus Paralyze (the horror is
+   stopped cold for 2s). Then it consumes ALL of Kim's Poise.
 
    POISE — felling a marked horror banks one Poise (up to five), each
-   worth +6% cut damage for the rest of the descent. Dashing banks one
-   cut toward the next draw.
+   worth +6% cut damage while it is held. Dashing banks one cut toward
+   the next draw. The draw spends every stack it finds.
 
    BLEED — every cut opens a wound that keeps bleeding. The BLEED rune
    adds its stacks on top of the blade's own.
@@ -36,6 +38,14 @@ const KIM_DRAW_EVERY = 4;          // normal cuts banked before a draw
 const KIM_DRAW_MUL = 1.7;          // draw bite, as a multiple of one cut
 const KIM_DRAW_REACH = 1.16;       // draw radius, as a multiple of the blade's reach
 const KIM_DRAW_LIFE = 0.34;        // seconds the ring of steel is on screen
+const KIM_DRAW_POISE = 2;          // Poise the draw gains before it is spent
+const KIM_DRAW_CRIT_BASE = 0.30;   // bonus crit damage on the draw (always crits)
+const KIM_DRAW_CRIT_PER_POISE = 0.02; // +2% crit damage per Poise on self
+const KIM_DRAW_CRIT_CAP = 0.50;    // ... capped at +50%
+const KIM_DRAW_MISSING_PER = 0.005;// +0.5% damage per 1% missing vitals
+const KIM_DRAW_MISSING_CAP = 0.25; // ... capped at +25%
+const KIM_DRAW_BLEED = 3;          // extra bleed stacks the draw opens
+const KIM_DRAW_PARALYZE = 2.0;     // seconds the ring's victims are stopped cold
 
 /* --- the mark --- */
 const KIM_MARK_TIME = 8;           // seconds the draw's mark holds
@@ -93,6 +103,9 @@ function kimVitals(p) {
   if (p.kimSwingHeal === undefined) p.kimSwingHeal = 0;
   if (p.kimHomelandKey === undefined) p.kimHomelandKey = null;
   if (p.kimHomelandArmed === undefined) p.kimHomelandArmed = true;
+  if (p.kimDrawCritMul === undefined) p.kimDrawCritMul = null;
+  if (p.kimDrawBleed === undefined) p.kimDrawBleed = 0;
+  if (p.kimDrawParalyze === undefined) p.kimDrawParalyze = 0;
 }
 
 /* the marked horror, from the live object (host/solo) or the synced id (guest) */
@@ -192,6 +205,12 @@ function kimBite(p, e) {
   return bite;
 }
 
+/* banking Poise without the duelling ceremony — the draw's own gain */
+function kimBankPoise(p, n) {
+  if (!p || !(n > 0)) return;
+  p.kimPoise = Math.min(KIM_POISE_MAX, (p.kimPoise || 0) + n);
+}
+
 /* felling the marked horror banks a Poise and ends the duel */
 function kimGainPoise(p) {
   if (!p) return;
@@ -207,7 +226,7 @@ function kimGainPoise(p) {
 function kimHitEnemy(p, e, x, y, forceCrit, biteMul) {
   const m = p.mods || {};
   const crit = !!forceCrit || (m.crit > 0 && Math.random() < m.crit);
-  const critMul = m.critMul || 2.2;
+  const critMul = p.kimDrawCritMul || m.critMul || 2.2;
   const bite = kimBite(p, e) * (biteMul || 1) * (crit ? critMul : 1);
   damageEnemy(e, bite, {
     owner: p, x, y, melee: true, critHit: crit,
@@ -215,12 +234,19 @@ function kimHitEnemy(p, e, x, y, forceCrit, biteMul) {
   });
   /* RESENTMENT — the cut heals the wound it opens */
   kimHealOnCut(p, bite);
-  /* every cut opens a wound; the BLEED rune deepens it */
-  if (!e.dead) {
-    const stacks = KIM_BLEED + (m.bleed || 0);
+  /* GUEST: the host owns the world; the replica must not invent wounds or stuns */
+  const guest = typeof Net !== "undefined" && Net.role === "guest";
+  /* every cut opens a wound; the BLEED rune and the draw deepen it */
+  if (!e.dead && !guest) {
+    const stacks = KIM_BLEED + (m.bleed || 0) + (p.kimDrawBleed || 0);
     e.bleedT = Math.max(e.bleedT || 0, bleedTime(stacks));
     e.bleedDps = Math.max(e.bleedDps || 0, bleedDps(stacks));
     e.bleedBy = p;
+  }
+  /* PARALYZE — the draw stops the nerve dead in its tracks */
+  if (!e.dead && !guest && (p.kimDrawParalyze || 0) > 0) {
+    e.paralyzeT = Math.max(e.paralyzeT || 0, p.kimDrawParalyze);
+    floatText(e.x, e.y - e.r - 24, "PARALYZED", "#ffe36e");
   }
   if (!e.dead) applyMeleeElements(p, e, m);
 }
@@ -293,19 +319,34 @@ function kimSwing(p, x, y, aim) {
   p.kimSlashDir = dir;
   p.kimSlashLanes = null;
 
-  /* THE DRAW — banked on three cuts (or a dash), spent on the next swing */
+  /* banking toward the draw — a dash banks one cut on its own */
   p.kimDraw = (p.kimDraw || 0) + 1;
+  /* TO CLAIM THEIR BONES — the draw's whole work, the Meursault skill */
   if (p.kimDraw >= KIM_DRAW_EVERY) {
     p.kimDraw = 0;
     const dr = reach * KIM_DRAW_REACH;
     p.kimDrawT = KIM_DRAW_LIFE;
     p.kimDrawAng = aim;
     p.kimDrawReach = dr;
-    kimCutArc(p, x, y, aim, Math.PI, dr, true, true, KIM_DRAW_MUL);
+    /* gain +2 Poise on use, then measure everything the skill sees */
+    kimBankPoise(p, KIM_DRAW_POISE);
+    const spent = p.kimPoise || 0;
+    const missing = p.maxHp > 0 ? clamp(1 - p.hp / p.maxHp, 0, 1) : 0;
+    const missingMul = 1 + Math.min(KIM_DRAW_MISSING_CAP, missing * 100 * KIM_DRAW_MISSING_PER);
+    const critMul = (m.critMul || 2.2) * (1 + KIM_DRAW_CRIT_BASE + Math.min(KIM_DRAW_CRIT_CAP, KIM_DRAW_CRIT_PER_POISE * spent));
+    p.kimDrawCritMul = critMul;
+    p.kimDrawBleed = KIM_DRAW_BLEED;
+    p.kimDrawParalyze = KIM_DRAW_PARALYZE;
+    kimCutArc(p, x, y, aim, Math.PI, dr, true, true, KIM_DRAW_MUL * missingMul);
+    p.kimDrawCritMul = null;
+    p.kimDrawBleed = 0;
+    p.kimDrawParalyze = 0;
+    /* [Attack End] consume all Poise on self */
+    p.kimPoise = 0;
     kimTrail(x, y, aim, dr, 22, true);
     Game.shake = Math.max(Game.shake, 5);
     Game.hitstop = Math.max(Game.hitstop, 0.03);
-    if (p === localPlayer()) floatText(p.x, p.y - 34, "DRAW", KIM_COL.mark);
+    if (p === localPlayer()) floatText(p.x, p.y - 34, "TO CLAIM THEIR BONES", KIM_COL.mark, 19);
     AudioFX.slam();
     return true;
   }
