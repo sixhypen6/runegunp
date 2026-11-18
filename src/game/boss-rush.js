@@ -180,11 +180,22 @@ function bossRushWin() {
   Game.gauntletWon = true;
   Game.gauntletTime = Math.floor(Game.time || 0);
   const mm = Math.floor(Game.gauntletTime / 60), ss = String(Game.gauntletTime % 60).padStart(2, "0");
+  /* record the fastest bracket per warden — UNLESS co-op link or dev tools */
+  if (!(typeof Net !== "undefined" && Net.active) && !Game.devRun) {
+    if (!Meta.gauntletBests) Meta.gauntletBests = {};
+    const w = localPlayer();
+    const prev = Number(Meta.gauntletBests[w && w.char]) || 0;
+    if (w && w.char && (!prev || Game.gauntletTime < prev)) {
+      Meta.gauntletBests[w.char] = Game.gauntletTime;
+      metaSave();
+    }
+  }
+  const mm2 = Math.floor(Game.gauntletTime / 60), ss2 = String(Game.gauntletTime % 60).padStart(2, "0");
   $("gauntletWinTitle").textContent = "THE GAUNTLET IS COMPLETE";
   $("gauntletWinMeta").textContent = "ALL NINE SEATS ARE TAKEN — THE ALTAR HAS NO MORE TO SELL";
   $("gauntletWinBody").innerHTML =
     '<div style="letter-spacing:.15em;color:var(--dim);line-height:2.1">'
-    + 'TIME <span style="color:var(--bone)">' + mm + ":" + ss + '</span><br>'
+    + 'TIME <span style="color:var(--bone)">' + mm2 + ":" + ss2 + '</span><br>'
     + 'SOULS BANKED THIS BRACKET <span style="color:var(--gold)">' + Math.round(Game.score || 0) + '</span><br>'
     + 'EVERY WARDEN <span style="color:var(--bone)">FALLEN</span>'
     + '</div>';

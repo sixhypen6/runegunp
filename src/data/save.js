@@ -63,6 +63,10 @@ const Meta = {
      another warden. Shape: mode → charId → record (same tag fields as bests*). */
   charBests: { normal: {}, hard: {}, classic: {}, chaos: {} },
   autoPick: {},      // per-character: { [charId]: { on: bool, reroll: bool, rerollMax: number, pri: { [runeId]: 0-4 }, reqs: { [runeId]: "req" | ["req1","req2"] } } 0=off,1=low,2=mid,3=high,4=ALWAYS; reqs block auto-pick until obtained this run
+  /* THE GAUNTLET — boss-rush brackets. Per-warden seconds for the fastest
+     complete bracket (0/absent = never finished). Pure local ledger; the FB
+     board has no gauntlet mode yet. */
+  gauntletBests: {},
   bests: {            // personal records (local leaderboard — you vs your own past runs)
     score: 0,               // max Game.score
     survivedSec: 0,         // longest single run, floor(Game.time)
@@ -177,6 +181,7 @@ function wipeProgress() {
   Meta.slainFlawless = {};
   Meta.runesSeen = {};
   Meta.speedBests = {};
+  Meta.gauntletBests = {};
   Meta.charBests = { normal: {}, hard: {}, classic: {}, chaos: {} };
   Meta.bests = freshAllBests();
   Meta.bestsHard = freshModeBests();
@@ -217,6 +222,12 @@ function metaLoad() {
       if (Meta.slain["boss:8"] && !Meta.unlocked["char:theUnknown"]) Meta.unlocked["char:theUnknown"] = true;
       if (d.char && CHARS[d.char]) Meta.char = d.char;
       if (d.skin && SKINS[d.skin]) Meta.skin = d.skin;
+      if (d.gauntletBests && typeof d.gauntletBests === "object") {
+        for (const k in d.gauntletBests) {
+          if (CHARS[k] && typeof d.gauntletBests[k] === "number" && d.gauntletBests[k] > 0 && d.gauntletBests[k] <= 86400000)
+            Meta.gauntletBests[k] = d.gauntletBests[k];
+        }
+      }
       if (d.gunSkin && SKINS[d.gunSkin]) Meta.gunSkin = d.gunSkin;
       if (d.pet && PTYPES[d.pet]) Meta.pet = d.pet;
       /* the equipped set must name things the save actually owns — a wipe (or

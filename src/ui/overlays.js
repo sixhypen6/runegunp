@@ -1001,9 +1001,74 @@ async function renderLeaderboard() {
   }
 }
 
+/* ---------- THE GAUNTLET — local brackets board (no Firebase) ---------- */
+function renderGauntletBoard() {
+  const list = $("lbList");
+  list.innerHTML = "";
+  list.classList.toggle("all", false);
+  list.classList.toggle("hard", false);
+  list.classList.toggle("classic", false);
+  list.classList.toggle("chaos", false);
+  list.classList.toggle("clear", true);
+  const sub = $("lbSubtitle");
+  const who = lbChar ? lbCharName(lbChar) : "ALL WARDENS";
+  sub.textContent = "THE GAUNTLET · " + who + " · BRACKET TIME";
+  sub.style.color = "var(--gold)";
+  /* build the rows: filter to the selected warden if any */
+  const records = [];
+  for (const cid in (Meta.gauntletBests || {})) {
+    const ms = Number(Meta.gauntletBests[cid]) || 0;
+    if (ms > 0) records.push({ cid, ms });
+  }
+  if (lbChar) {
+    const single = records.filter(r => r.cid === lbChar);
+    records.length = 0;
+    if (single.length) records.push(...single);
+  }
+  if (!records.length) {
+    const whoTxt = lbChar ? "WITH " + lbCharName(lbChar) : "";
+    list.innerHTML = "<div class='lb-empty'>THE BRACKET IS UNANSWERED" + (whoTxt ? " " + whoTxt : "YET") + " — FELL EVERY WARDEN ONCE</div>";
+    return;
+  }
+  records.sort((a, b) => a.ms - b.ms);
+  records.forEach((r, i) => {
+    const d = document.createElement("div");
+    d.className = "lb-row" + (r.cid === (Meta.char || "gunsmith") ? " me" : "");
+    const rank = document.createElement("span");
+    rank.className = "lb-rank";
+    rank.textContent = "#" + (i + 1);
+    const name = document.createElement("span");
+    name.className = "lb-name";
+    const glyph = (typeof CHARS !== "undefined" && CHARS[r.cid] && CHARS[r.cid].glyph) ? CHARS[r.cid].glyph + "  " : "";
+    name.textContent = glyph + lbCharName(r.cid);
+    if (r.cid === (Meta.char || "gunsmith")) name.textContent += " · YOU";
+    const val = document.createElement("span");
+    val.className = "lb-score";
+    val.textContent = fmtRunTime(r.ms / 1000);
+    d.appendChild(rank); d.appendChild(name); d.appendChild(val);
+    list.appendChild(d);
+  });
+}
+
 /* repaint the board + warden picker (and the mode's skin), then refetch */
 function lbSync() {
   lbBuildSelectors();
+  if (lbMode === "gauntlet") {
+    const sel = $("lbCharWrap");
+    if (sel) sel.style.display = "";
+    $("lbMetricScore").disabled = true;
+    $("lbMetricClear").disabled = true;
+    $("lbMetricClear").classList.add("on");
+    $("lbMetricScore").classList.remove("on");
+    $("lbTabGlobal").disabled = true;
+    $("lbTabNearby").disabled = true;
+    for (const m of LB_MODES.concat(["gauntlet"])) {
+      const btn = $(lbBoardId(m));
+      if (btn) btn.classList.toggle("on", m === "gauntlet");
+    }
+    renderGauntletBoard();
+    return;
+  }
   /* Play Games has no ALL/CLASSIC/CHAOS boards, so a mode that cannot pay off
      falls back to the board it does have instead of leaving a dead tab. */
   if (!Leaderboard.modeSupported(lbMode)) lbMode = "normal";
@@ -1101,6 +1166,8 @@ LB_MODES.forEach(mode => {
   const btn = $(lbBoardId(mode));
   if (btn) btn.addEventListener("click", () => lbShowBoard(mode));
 });
+/* the gauntlet tab is a LOCAL records board — no Firebase, so it is wired on its own */
+$("lbBoardGauntlet").addEventListener("click", () => { lbMode = "gauntlet"; lbSync(); });
 $("lbCharSel").addEventListener("change", e => lbShowChar(e.target.value));
 $("lbMetricScore").addEventListener("click", () => lbShowMetric("score"));
 $("lbMetricClear").addEventListener("click", () => lbShowMetric("clear"));
