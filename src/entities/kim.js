@@ -13,6 +13,9 @@
    worth +6% cut damage for the rest of the descent. Dashing banks one
    cut toward the next draw.
 
+   BLEED — every cut opens a wound that keeps bleeding. The BLEED rune
+   adds its stacks on top of the blade's own.
+
    The blade answers the projectile runes through the shared melee remap
    (data/runes.js: meleeWeaponMods / bladeReading); the fan/lane/rear
    runes become cuts exactly as they do for the Wayward Passenger.
@@ -32,6 +35,9 @@ const KIM_MARK_BONUS = 0.30;       // every following cut into the marked horror
 /* --- poise --- */
 const KIM_POISE_MAX = 5;
 const KIM_POISE_DMG = 0.06;        // +6% cut damage per stack
+
+/* --- the wound --- */
+const KIM_BLEED = 1;               // innate bleed stacks on every cut; BLEED runes add on
 
 /* --- the blade itself --- */
 const KIM_REACH_BASE = 112;        // longer than anyone else's steel
@@ -117,9 +123,11 @@ function kimHitEnemy(p, e, x, y, forceCrit, biteMul) {
     owner: p, x, y, melee: true, critHit: crit,
     knock: (m.knock || 0) * (forceCrit ? 1.6 : 1),
   });
-  if (!e.dead && m.bleed > 0) {
-    e.bleedT = Math.max(e.bleedT || 0, bleedTime(m.bleed));
-    e.bleedDps = Math.max(e.bleedDps || 0, bleedDps(m.bleed));
+  /* every cut opens a wound; the BLEED rune deepens it */
+  if (!e.dead) {
+    const stacks = KIM_BLEED + (m.bleed || 0);
+    e.bleedT = Math.max(e.bleedT || 0, bleedTime(stacks));
+    e.bleedDps = Math.max(e.bleedDps || 0, bleedDps(stacks));
     e.bleedBy = p;
   }
   if (!e.dead) applyMeleeElements(p, e, m);
