@@ -77,7 +77,7 @@ function makeBoss(kind, x, y, hpMul) {
       : 650 * prof.hpMul * (1 + depth() * 0.55) * (1 + Game.wave * 0.03) * (Game.hardMode ? 1.5 : 1) * hpMul * partyBossHpMul(),
     color: FLOORS[kind].wallGlow, score: 400,
     vx: 0, vy: 0, slowMul: 1, slowT: 0, burnT: 0, burnDps: 0, burnTick: 0, paralyzeT: 0,
-    paralyzeImmuneT: 0,
+    paralyzeImmuneT: 0, fragT: 0, fragStacks: 0, defDown: 0, defDownT: 0, gloomT: 0,
     hitFlash: 0, spawnT: 1.4, ambush: false, ghost: false,
     speed: prof.spd, baseSpd: prof.spd, phase: 1, atk: "idle", at: 2, spin: 0, minionT: 6, spd: prof.spd,
     graves: [], vents: [], airborne: false,

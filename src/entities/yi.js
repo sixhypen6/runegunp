@@ -38,7 +38,7 @@
 
 /* --- the Prescript --- */
 const YI_MARK_CD = 9;              // seconds between marks landing
-const YI_MARK_FIRST = 4;           // the first mark comes early — the Oracle is patient, not slow
+const YI_MARK_FIRST = 1.6;         // the first mark comes fast — the Oracle does not wait long
 const YI_MARK_TIME = 12;           // the mark's window before the Oracle loses interest
 const YI_MARK_BONUS = 0.20;        // the marked horror takes +20% from every cut
 
@@ -63,29 +63,84 @@ const YI_SLASH_LIFE = 0.22;
 const YI_SWEEP_SHARE = 0.5;
 const YI_TWIN_GAP = 34;
 const YI_TWIN_HALF = 0.18;
-const YI_WEAPONS = ["HATCHET", "STILETTO", "BASTARD SWORD"];
-const YI_WEAPON_HATCHET = 0, YI_WEAPON_STILETTO = 1, YI_WEAPON_BASTARD = 2;
 
-/* --- the man himself ---
-   Black suit, white shirt and gloves, one gold eye, a wound
-   the mask can never quite close. Almost no color —
-   except the glint of gold. */
+/* --- the nine vessels of the Oracle Device (Caduceus) --- */
+const YI_WEAPON_HATCHET = 0;      // Blunt — hacking ribs with a bone hatchet
+const YI_WEAPON_STILETTO = 1;     // Pierce — penetrating lungs with a stiletto
+const YI_WEAPON_BASTARD = 2;      // Slash — cleaving shoulder and skull with a bastard sword
+const YI_WEAPON_RAPIER = 3;       // Pierce — punching ten holes with a rapier
+const YI_WEAPON_HAMMER = 4;       // Blunt — caving in the back of the skull with a hammer
+const YI_WEAPON_GREATSWORD = 5;   // Slash — rending body with a greatsword
+const YI_WEAPON_LANCE = 6;        // Pierce — boring a 20-inch hole with a lance
+const YI_WEAPON_WHIP = 7;         // Blunt — ripping flesh to strips with a whip
+const YI_WEAPON_SCYTHE = 8;       // Slash — lacerating through space with a scythe
+
+const YI_WEAPONS = [
+  "HATCHET", "STILETTO", "BASTARD SWORD", "RAPIER", "HAMMER",
+  "GREATSWORD", "LANCE", "WHIP", "SCYTHE",
+];
+const YI_WEAPON_BLUNT = [YI_WEAPON_HATCHET, YI_WEAPON_HAMMER, YI_WEAPON_WHIP];
+const YI_WEAPON_PIERCE = [YI_WEAPON_STILETTO, YI_WEAPON_RAPIER, YI_WEAPON_LANCE];
+const YI_WEAPON_SLASH = [YI_WEAPON_BASTARD, YI_WEAPON_GREATSWORD, YI_WEAPON_SCYTHE];
+
+const YI_HATCHET_KNOCK = 1.5;       // more knockback on the heavy cuts
+const YI_HATCHET_SLOW = 0.6;
+const YI_STILETTO_GLOOM_T = 3;
+const YI_STILETTO_GLOOM_DPS = 7;
+const YI_BASTARD_DMG = 1.15;        // +15% damage
+const YI_RAPIER_DEFDOWN = 0.25;     // -25% damage dealt by target
+const YI_RAPIER_DEFDOWN_TIME = 3;
+const YI_RAPIER_DEFDOWN_MAX = 2;
+const YI_HAMMER_STAGGER = 1.1;      // target can't act for this long
+const YI_GREATSWORD_DMG = 1.2;      // +20% damage
+const YI_LANCE_DMG = 1.15;          // +15% damage
+const YI_WHIP_DMG = 1.15;           // +15% damage
+const YI_FRAG_DMG = 0.25;           // target takes +25% damage per Fragility stack
+const YI_FRAG_TIME = 4;
+const YI_FRAG_MAX = 2;
+const YI_SCYTHE_DMG = 1.3;          // +30% damage, guaranteed crit
+const YI_OFFENSE_DMG = 0.25;        // each Offense stack adds +25% damage
+const YI_OFFENSE_MAX = 2;
+const YI_OFFENSE_TIME = 3;
+
+/* --- the arc's color tracks the weapon it was swung with --- */
+function yiArcColor(w) {
+  switch (w) {
+    case YI_WEAPON_HATCHET:   return "#e0915a"; // copper
+    case YI_WEAPON_STILETTO:  return "#8f6bff"; // gloom violet
+    case YI_WEAPON_BASTARD:   return "#f2f4f6"; // pale steel
+    case YI_WEAPON_RAPIER:    return "#b9c8e2"; // cold steel-blue
+    case YI_WEAPON_HAMMER:    return "#9e9ea2"; // iron
+    case YI_WEAPON_GREATSWORD:return "#d4d8de"; // greatsword steel
+    case YI_WEAPON_LANCE:     return "#a8d4ff"; // pale blue lance
+    case YI_WEAPON_WHIP:      return "#ff9a3d"; // hot whip
+    case YI_WEAPON_SCYTHE:    return "#b8f6ff"; // scythe-white
+    default:                  return "#f2f4f6";
+  }
+}
+function yiArcTail(w) {
+  switch (w) {
+    case YI_WEAPON_HATCHET:   return "#c07a44";
+    case YI_WEAPON_STILETTO:  return "#5f3bd8";
+    case YI_WEAPON_BASTARD:   return "#c8ccd2";
+    case YI_WEAPON_RAPIER:    return "#8290ac";
+    case YI_WEAPON_HAMMER:    return "#646468";
+    case YI_WEAPON_GREATSWORD:return "#a6abb4";
+    case YI_WEAPON_LANCE:     return "#6a93b8";
+    case YI_WEAPON_WHIP:      return "#c06624";
+    case YI_WEAPON_SCYTHE:    return "#7ad4e4";
+    default:                  return "#c8ccd2";
+  }
+}
 const YI_COL = {
   suit: "#17171c", suitHi: "#2b2b33", suitDark: "#0d0d11",
   shirt: "#f2efe8", glove: "#f2efe8", skin: "#efe7da",
   gold: "#d9b65c", glass: "#ffdf8a", glassDeep: "#a97a2f",
   blood: "#a3212a", bloodHi: "#c9353d",
-  blunt: "#e0915a", bluntHi: "#c07a44",   // hatchet copper
-  pierce: "#8f6bff", pierceHi: "#5f3bd8", // stiletto gloom
-  slash: "#f2f4f6", slashHi: "#c8ccd2",   // bastard sword pale
   gloom: "#7a5bd8",
   arc: "#ffe9a8", arcEdge: "#fffdf2", arcTail: "#caa95c",
   mark: "#7ec0ff", markCore: "#101016",
 };
-
-/* --- the arc's color tracks the weapon it was swung with --- */
-function yiArcColor(w) { return w === YI_WEAPON_HATCHET ? YI_COL.blunt : w === YI_WEAPON_STILETTO ? YI_COL.pierce : YI_COL.slash; }
-function yiArcTail(w)  { return w === YI_WEAPON_HATCHET ? YI_COL.bluntHi : w === YI_WEAPON_STILETTO ? YI_COL.pierceHi : YI_COL.slashHi; }
 
 function yiVitals(p) {
   if (!p) return;
@@ -100,6 +155,8 @@ function yiVitals(p) {
   if (p.yiSlashDir === undefined) p.yiSlashDir = 1;
   if (p.yiSlashReach === undefined) p.yiSlashReach = YI_REACH_BASE;
   if (p.yiPoise === undefined) p.yiPoise = 0;
+  if (p.yiOffenseS === undefined) p.yiOffenseS = 0;
+  if (p.yiOffenseT === undefined) p.yiOffenseT = 0;
 }
 
 /* the marked horror, from the live object (host/solo) or the synced id (guest) */
@@ -151,12 +208,15 @@ function yiGraceTier(p) {
 }
 function yiGraceBonus(p) { return YI_GRACE_TIER_DMG[yiGraceTier(p)]; }
 
-/* one cut's bite — Poise sharpens, Grace deepens, Karmic drags */
+/* one cut's bite — Poise sharpens, Grace deepens, Karmic drags, the BASTARD SWORD
+   hones his Offense stacks */
 function yiBite(p) {
   const m = p.mods || {};
+  const off = Math.min(YI_OFFENSE_MAX, p.yiOffenseS || 0);
   const bite = meleeBite(m)
     * (1 + (p.yiPoise || 0) * YI_POISE_DMG)
     * (1 + yiGraceBonus(p))
+    * (1 + off * YI_OFFENSE_DMG)
     * (1 - Math.min(0.4, (p.yiKarmic || 0) * YI_KARMIC_PER_STACK));
   return bite;
 }
@@ -176,23 +236,32 @@ function yiFallenMark(p, e) {
   AudioFX.chest();
 }
 
-/* one wound, with every blade rider in one place — crit and Poise are the riders here */
+/* one wound, with every blade rider in one place */
 function yiHitEnemy(p, e, x, y, forceCrit, biteMul, weapon) {
   const m = p.mods || {};
-  const crit = !!forceCrit || (m.crit > 0 && Math.random() < m.crit);
+  let crit = !!forceCrit || (m.crit > 0 && Math.random() < m.crit);
+  if (weapon === YI_WEAPON_SCYTHE) crit = true;          // the scythe always finds the gap
   const critMul = m.critMul || 2.2;
   const bitEm = yiIsMarked(p, e) ? YI_MARK_BONUS : 0;
-  const bite = yiBite(p) * (biteMul || 1) * (1 + bitEm)
-    * (weapon === YI_WEAPON_BASTARD ? 1.18 : 1)
+  const weapDmg = weapon === YI_WEAPON_BASTARD ? YI_BASTARD_DMG
+                : weapon === YI_WEAPON_GREATSWORD ? YI_GREATSWORD_DMG
+                : weapon === YI_WEAPON_LANCE ? YI_LANCE_DMG
+                : weapon === YI_WEAPON_WHIP ? YI_WHIP_DMG
+                : weapon === YI_WEAPON_SCYTHE ? YI_SCYTHE_DMG
+                : 1;
+  let bite = yiBite(p) * (biteMul || 1) * (1 + bitEm)
+    * weapDmg
     * (crit ? critMul : 1);
+  /* target is Fragile — it takes +25% damage for every stack */
+  if (e.fragT > 0 && e.fragStacks > 0) bite *= 1 + YI_FRAG_DMG * e.fragStacks;
   damageEnemy(e, bite, {
     owner: p, x, y, melee: true, critHit: crit,
-    knock: (m.knock || 0) * (weapon === YI_WEAPON_HATCHET ? 1.5 : 1) * (forceCrit ? 1.6 : 1),
+    knock: (m.knock || 0) * (weapon === YI_WEAPON_HATCHET ? YI_HATCHET_KNOCK : 1) * (forceCrit ? 1.6 : 1),
   });
   /* every landed cut banks Poise — [On Hit] in his kit — and a critical banks an extra;
      the Oracle counts true strikes, and Yi Sang stacks them like a debt-book */
   if (!e.dead && (p.yiPoise || 0) < YI_POISE_MAX) {
-    const gain = crit ? 2 : 1;   // crit = 1 + [On Crit] extra, matching his S3's [On Crit] Gain +2
+    const gain = crit ? 2 : 1;   // crit = 1 + [On Crit] extra
     p.yiPoise = Math.min(YI_POISE_MAX, (p.yiPoise || 0) + gain);
     if (p === localPlayer() && (crit || p.yiPoise >= YI_POISE_MAX))
       floatText(e.x, e.y - e.r - 16, "POISE " + p.yiPoise + "/" + YI_POISE_MAX, "#d9b65c", 13);
@@ -201,15 +270,44 @@ function yiHitEnemy(p, e, x, y, forceCrit, biteMul, weapon) {
   if (!e.dead && yiIsMarked(p, e) && (p.yiGrace || 0) < YI_GRACE_MAX) {
     p.yiGrace = (p.yiGrace || 0) + 1;
   }
-  /* the gloom-bleed the STILETTO opens — it never closes */
+  /* [Hatchet] — bruise the target into a sluggish step */
+  if (!e.dead && weapon === YI_WEAPON_HATCHET) {
+    e.slowT = Math.max(e.slowT || 0, YI_HATCHET_SLOW);
+  }
+  /* [Stiletto] — a gloom-bleed that never closes */
   if (!e.dead && weapon === YI_WEAPON_STILETTO) {
-    e.gloomT = Math.max(e.gloomT || 0, 3);
-    e.gloomDps = Math.max(e.gloomDps || 0, 7);
+    e.gloomT = Math.max(e.gloomT || 0, YI_STILETTO_GLOOM_T);
+    e.gloomDps = Math.max(e.gloomDps || 0, YI_STILETTO_GLOOM_DPS);
     e.gloomBy = p;
   }
-  /* the drag of HATCHET */
-  if (!e.dead && weapon === YI_WEAPON_HATCHET) {
-    e.slowT = Math.max(e.slowT || 0, 0.6);
+  /* [Bastard Sword] — hone for two stacks of Offense (Hermes answers the honing) */
+  if (!e.dead && weapon === YI_WEAPON_BASTARD) {
+    p.yiOffenseS = Math.min(YI_OFFENSE_MAX, (p.yiOffenseS || 0) + 1);
+    p.yiOffenseT = YI_OFFENSE_TIME;
+    if (p === localPlayer())
+      floatText(p.x, p.y - 40, "OFFENSE " + p.yiOffenseS + "/" + YI_OFFENSE_MAX, "#ffedb8", 13);
+  }
+  /* [Rapier] — puncture the armor of Catche's guard — it takes the next hits softer too;
+     in our terms, the enemy's blows deal less damage */
+  if (!e.dead && weapon === YI_WEAPON_RAPIER) {
+    e.defDown = Math.min(YI_RAPIER_DEFDOWN_MAX, (e.defDown || 0) + 1);
+    e.defDownT = YI_RAPIER_DEFDOWN_TIME;
+    if (p === localPlayer())
+      floatText(e.x, e.y - e.r - 26, "DEFENCE DOWN", "#b9c8e2", 12);
+  }
+  /* [Hammer] — caving in the skull leaves the victim unable to act */
+  if (!e.dead && weapon === YI_WEAPON_HAMMER) {
+    e.paralyzeT = Math.max(e.paralyzeT || 0, YI_HAMMER_STAGGER);
+    if (p === localPlayer())
+      floatText(e.x, e.y - e.r - 26, "STAGGERED", "#ffffff", 13);
+  }
+  /* [Greatsword, Lance, Whip] — lay a Fragility into the foe;
+     fragile flesh gives way to every blade that lands */
+  if (!e.dead && (weapon === YI_WEAPON_GREATSWORD || weapon === YI_WEAPON_LANCE || weapon === YI_WEAPON_WHIP)) {
+    e.fragT = Math.max(e.fragT || 0, YI_FRAG_TIME);
+    e.fragStacks = Math.min(YI_FRAG_MAX, (e.fragStacks || 0) + 1);
+    if (p === localPlayer())
+      floatText(e.x, e.y - e.r - 26, "FRAGILE ×" + e.fragStacks, "#ff9a3d", 12);
   }
   if (!e.dead) applyMeleeElements(p, e, m);
 }
@@ -251,6 +349,11 @@ function yiTick(p, dt) {
   if (!p) return;
   yiVitals(p);
   p.yiSlashT = Math.max(0, p.yiSlashT - dt);
+  /* the BASTARD SWORD hones but for a while */
+  if (p.yiOffenseT > 0) {
+    p.yiOffenseT -= dt;
+    if (p.yiOffenseT <= 0) p.yiOffenseS = 0;
+  }
   if (p.yiMarkT > 0) {
     p.yiMarkT = Math.max(0, p.yiMarkT - dt);
     if (p.yiMarkT <= 0 && p.yiMark) {
@@ -297,8 +400,8 @@ function yiSwing(p, x, y, aim) {
   p.yiSlashDir = dir;
   p.yiSlashLanes = null;
 
-  /* the Oracle rules its weapon — one of three is handed down this swing */
-  const weapon = (Math.random() * 3) | 0;
+  /* the Oracle rules its weapon — one of nine is handed down this swing */
+  const weapon = (Math.random() * 9) | 0;
   p.yiWeapon = weapon;
 
   const mark = p.yiMarkT > 0;
@@ -438,45 +541,50 @@ function drawYiMark(g) {
   if (!P || P.char !== "yi") return;
   const e = yiMarkedFoe(P);
   if (!e) return;
-  const t = Game.time, pulse = 0.5 + 0.5 * Math.sin(t * 5.2);
-  const R = e.r + 11 + pulse * 2;
+  const t = Game.time, pulse = 0.6 + 0.4 * Math.sin(t * 5.2);
+  const R = (e.r + 15) * (1 + 0.08 * pulse);
   g.save();
   g.translate(e.x, e.y);
   g.rotate(t * 0.55);
-  /* a slow outer ring, like a seal pressed into paper */
-  g.globalAlpha = 0.45 + 0.25 * pulse;
-  g.strokeStyle = "#5aa0e0";
-  g.shadowColor = "#5aa0e0"; g.shadowBlur = 12;
-  g.lineWidth = 2;
-  g.setLineDash([4, 4]);
-  g.lineDashOffset = -t * 22;
-  g.beginPath(); g.arc(0, 0, R + 4, 0, TAU); g.stroke();
+  /* a slow outer ring — heavy dashed arc, like a seal burnt into the floor */
+  g.globalAlpha = 0.85;
+  g.strokeStyle = "#8ed0ff";
+  g.shadowColor = "#5aa0e0"; g.shadowBlur = 26;
+  g.lineWidth = 3.4;
+  g.setLineDash([7, 5]);
+  g.lineDashOffset = -t * 26;
+  g.beginPath(); g.arc(0, 0, R + 5, 0, TAU); g.stroke();
   g.setLineDash([]);
+  /* a solid inner rim, like a candle's edge */
+  g.globalAlpha = 0.9;
+  g.shadowBlur = 14;
+  g.lineWidth = 2;
+  g.beginPath(); g.arc(0, 0, R, 0, TAU); g.stroke();
   /* six petals — the flower of the Index, two rotated layers of three */
   for (let layer = 0; layer < 2; layer++) {
     const off = layer * (Math.PI / 3);
-    const size = layer === 0 ? 1 : 0.72;
-    g.fillStyle = layer === 0 ? "#7ec0ff" : "#a8d4ff";
-    g.shadowColor = "#5aa0e0"; g.shadowBlur = 14 + 8 * pulse;
-    g.globalAlpha = 0.72 + 0.26 * pulse;
+    const size = layer === 0 ? 1 : 0.78;
+    g.fillStyle = layer === 0 ? "#86c8ff" : "#c8e4ff";
+    g.shadowColor = "#5aa0e0"; g.shadowBlur = 28;
+    g.globalAlpha = 0.9;
     for (let i = 0; i < 3; i++) {
       const a = off + i * (TAU / 3);
       g.save();
       g.rotate(a);
       g.beginPath();
-      g.ellipse(0, -R * 0.52, R * 0.34 * size, R * 0.68 * size, 0, 0, TAU);
+      g.ellipse(0, -R * 0.55, R * 0.46 * size, R * 0.88 * size, 0, 0, TAU);
       g.fill();
       g.restore();
     }
   }
-  /* the heart — a small darker disc, the mark's center */
-  g.shadowBlur = 16;
-  g.fillStyle = "#e8f6ff";
-  g.globalAlpha = 0.9;
-  g.beginPath(); g.arc(0, 0, R * 0.26, 0, TAU); g.fill();
-  g.fillStyle = "#5aa0e0";
-  g.shadowBlur = 0;
-  g.beginPath(); g.arc(0, 0, R * 0.13, 0, TAU); g.fill();
+  /* the heart — big bright disc, the mark's center */
+  g.shadowBlur = 26;
+  g.fillStyle = "#f0f8ff";
+  g.globalAlpha = 1;
+  g.beginPath(); g.arc(0, 0, R * 0.32, 0, TAU); g.fill();
+  g.shadowColor = "#2e64a0"; g.shadowBlur = 4;
+  g.fillStyle = "#4e8cd0";
+  g.beginPath(); g.arc(0, 0, R * 0.17, 0, TAU); g.fill();
   g.restore();
   g.globalAlpha = 1; g.shadowBlur = 0;
 }

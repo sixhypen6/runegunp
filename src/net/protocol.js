@@ -81,7 +81,8 @@ const PLAYER_FIELDS = ["x", "y", "vx", "vy", "hp", "maxHp", "shield", "shieldMax
   "kimPoise", "kimMarkId", "kimMarkT",
   "kimDrink", "kimHomelandArmed", "kimRiposte",
   "yiSlashT", "yiSlashAng", "yiSlashReach", "yiSlashDir",
-  "yiGrace", "yiKarmic", "yiPoise", "yiMarkId", "yiMarkT", "yiWeapon"];
+  "yiGrace", "yiKarmic", "yiPoise", "yiMarkId", "yiMarkT", "yiWeapon",
+  "yiOffenseS", "yiOffenseT"];
 
 const NUM3 = v => typeof v === "number" ? Math.round(v * 100) / 100 : v;
 const QI = v => Math.round(v) || 0;                       // whole pixels

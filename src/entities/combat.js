@@ -1279,6 +1279,9 @@ function hurtPlayer(p, dmg, src) {
   if (p.shield > 0) { shieldBurst(p); return; }   // shield soaks the hit, then detonates
   /* WRATHFUL horrors — and everything they hurl — strike half again as hard */
   if (src && src.wrath) dmg *= WRATH_DMG_MUL;
+  /* THE INDEX NURSEFATHER's RAPIER: defence punctured, blows from that foe land softer */
+  const yiRab = (typeof YI_RAPIER_DEFDOWN === "number") ? YI_RAPIER_DEFDOWN : 0.25;
+  if (src && src.defDown > 0) dmg *= 1 - Math.min(0.5, src.defDown * yiRab);
   dmg *= partyDmgMul();
   /* the gauntlet's own bite: +12% per cleared warden — solo or shared */
   if (typeof gauntletDmgMul === "function") dmg *= gauntletDmgMul();

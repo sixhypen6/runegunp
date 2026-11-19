@@ -145,6 +145,14 @@ function drawEnemyBars(e) {
     /* a stun bar, hung on the same frame as burn and chill, in nerve-yellow */
     cx.fillStyle = "#ffe36e"; cx.fillRect(e.x - 4, e.y - e.r - 24, 8, 4);
   }
+  if (e.fragT > 0) {
+    /* fragility — a warm orange sliver: the meat is ripe */
+    cx.fillStyle = "#ff9a3d"; cx.fillRect(e.x - 4, e.y - e.r - 30, 8, 4);
+  }
+  if (e.defDownT > 0) {
+    /* Defence Down — a steel-blue sliver */
+    cx.fillStyle = "#b9c8e2"; cx.fillRect(e.x - 4, e.y - e.r - 36, 8, 4);
+  }
   if (e.hp < e.maxHp && !e.boss) {
     cx.fillStyle = "rgba(0,0,0,0.6)"; cx.fillRect(e.x - e.r, e.y + e.r + 4, e.r * 2, 3);
     cx.fillStyle = e.team === "p" ? "#9d6bff" : e.ambush ? "#ff4d5e" : "#e8e2d0";

@@ -932,6 +932,16 @@ function update(dt) {
       }
       if (e.dead) { enemies.splice(i, 1); continue; }
     }
+    /* FRAGILITY — blade/break timers tick for the Lance/Greatsword/Whip victims */
+    if (e.fragT > 0) {
+      e.fragT -= dt;
+      if (e.fragT <= 0) e.fragStacks = 0;
+    }
+    /* DEFENCE DOWN — rapier pierce victims hit softer for a spell */
+    if (e.defDownT > 0) {
+      e.defDownT -= dt;
+      if (e.defDownT <= 0) e.defDown = 0;
+    }
     /* STILLPOINT: any warden's time bubble keeps nearby foes mired */
     for (const p of alivePlayers()) {
       if (p.mods.timeField && dist2(e.x, e.y, p.x, p.y) < p.mods.timeR ** 2) { e.slowT = Math.max(e.slowT, 0.12); break; }
