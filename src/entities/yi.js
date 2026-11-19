@@ -534,7 +534,98 @@ function drawYiSlashArc(px, py, ang, reach, k, alpha, dir, arcScale, weapon, che
   cx.globalAlpha = 1; cx.shadowBlur = 0;
 }
 
-/* the marked horror, seen by its own Yi Sang only — the Index's flower, six burning petals around a blue heart */
+/* a rail of light thrown by a piercing weapon — a straight lance out from the arm on the strike.
+   kind: 'thrust' style — white hot core, colour to the sides, a punched tail behind it. */
+function drawYiStabFx(px, py, ang, reach, k, weapon) {
+  const col = yiArcColor(weapon);
+  const colTail = yiArcTail(weapon);
+  /* three breaths: windup has almost nothing, the strike is the full beam, the afterburner fades it */
+  const tip = reach + 22;
+  const prog = Math.pow(clamp(k, 0, 1), 1.25);
+  const fade = k < 0.22 ? k / 0.22 : 1 - Math.max(0, (k - 0.55)) * 1.7;
+  if (fade <= 0.02) return;
+  cx.save();
+  cx.translate(px, py);
+  cx.rotate(ang);
+  cx.lineCap = "round";
+  /* the colour bloom */
+  cx.globalAlpha = fade * 0.38;
+  cx.strokeStyle = col; cx.shadowColor = col; cx.shadowBlur = 24;
+  cx.lineWidth = 7.5;
+  cx.beginPath(); cx.moveTo(-14, 0); cx.lineTo(tip * (0.35 + 0.65 * prog), 0); cx.stroke();
+  /* a hot core */
+  cx.globalAlpha = fade * 0.95;
+  cx.strokeStyle = "#ffffff"; cx.shadowBlur = 12; cx.lineWidth = 2.4;
+  cx.beginPath(); cx.moveTo(-8, 0); cx.lineTo(tip * (0.5 + 0.5 * prog), 0); cx.stroke();
+  /* the punched tail — short wedges behind the beam that shrink with the strike */
+  cx.shadowBlur = 0;
+  cx.strokeStyle = colTail;
+  cx.globalAlpha = fade * 0.72;
+  const tailLen = 26 * (1 - prog * 0.6);
+  for (let i = -1; i <= 1; i++) {
+    if (i === 0) continue;
+    cx.lineWidth = Math.abs(i) === 1 ? 3.4 : 1.4;
+    cx.beginPath();
+    cx.moveTo(-(12 + tailLen * 0.55), i * 3.4);
+    cx.lineTo(-(4 + tailLen * 0.3), i * 1.2);
+    cx.stroke();
+  }
+  /* the tip flare at the strike moment */
+  if (prog > 0.42 && prog < 0.92) {
+    const f = 1 - Math.abs(prog - 0.68) * 2.6;
+    if (f > 0) {
+      cx.globalAlpha = fade * f * 0.85;
+      cx.fillStyle = "#ffffff"; cx.shadowColor = "#ffffff"; cx.shadowBlur = 16;
+      cx.beginPath(); cx.ellipse(tip * (0.5 + 0.5 * prog), 0, 9 * f, 4.6 * f, 0, 0, TAU); cx.fill();
+    }
+  }
+  cx.restore();
+  cx.globalAlpha = 1; cx.shadowBlur = 0;
+}
+
+/* a slam burst raised by a crushing weapon — a shockwave ring and radiating spokes
+   at the far point of the blow */
+function drawYiSlamFx(px, py, ang, reach, k, weapon) {
+  const col = yiArcColor(weapon);
+  const colTail = yiArcTail(weapon);
+  /* the burst appears in the first half of the strike and collapses by the end */
+  const appear = k < 0.24 ? k / 0.24 : 1 - Math.max(0, k - 0.52) * 1.75;
+  if (appear <= 0.02) return;
+  const grow = 8 + (1 - Math.abs(k - 0.22) * 1.6) * 16;
+  const cxP = px + Math.cos(ang) * reach * 0.78;
+  const cyP = py + Math.sin(ang) * reach * 0.78;
+  cx.save();
+  cx.translate(cxP, cyP);
+  cx.lineCap = "round";
+  /* the shockwave ring */
+  cx.shadowColor = col; cx.shadowBlur = 14;
+  cx.globalAlpha = appear * 0.85;
+  cx.strokeStyle = col; cx.lineWidth = 4.4;
+  cx.beginPath(); cx.arc(0, 0, grow, 0, TAU); cx.stroke();
+  cx.globalAlpha = appear * 0.95;
+  cx.strokeStyle = "#ffffff"; cx.shadowBlur = 6; cx.lineWidth = 1.6;
+  cx.beginPath(); cx.arc(0, 0, grow * 0.88, 0, TAU); cx.stroke();
+  /* radiating spokes — six cracks fly outwards */
+  cx.shadowBlur = 0;
+  cx.strokeStyle = colTail;
+  for (let i = 0; i < 7; i++) {
+    const a = ang + (i / 7 - 0.5) * 1.8;
+    const inner = grow * 0.75, outer = grow * (1.35 + (i % 2) * 0.35);
+    cx.globalAlpha = appear * (0.72 + (i % 2) * 0.25);
+    cx.lineWidth = i % 2 ? 1.1 : 2.3;
+    cx.beginPath();
+    cx.moveTo(Math.cos(a) * inner, Math.sin(a) * inner);
+    cx.lineTo(Math.cos(a) * outer, Math.sin(a) * outer);
+    cx.stroke();
+  }
+  cx.globalAlpha = appear * 0.6;
+  cx.fillStyle = "#fff";
+  cx.beginPath(); cx.arc(0, 0, grow * 0.42, 0, TAU); cx.fill();
+  cx.restore();
+  cx.globalAlpha = 1; cx.shadowBlur = 0;
+}
+
+/* the marked horror, seen by its own Yi Sang only — the flower of the Index, six burning petals around a blue heart */
 function drawYiMark(g) {
   if (typeof localPlayer !== "function") return;
   const P = localPlayer();
@@ -663,10 +754,20 @@ function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
   const sweep = P.yiSlashT > 0 ? Math.min(1, swing / YI_SWEEP_SHARE) : 0;
   const armDir = P.yiSlashDir < 0 ? -1 : 1;
   const bladeSweep = armDir * (-0.75 + 1.5 * sweep);
+  const weapon = P.yiWeapon == null ? YI_WEAPON_BASTARD : P.yiWeapon;
+  const isPierce = YI_WEAPON_PIERCE.indexOf(weapon) >= 0;
+  const isSlash = YI_WEAPON_SLASH.indexOf(weapon) >= 0;
+  const isBlunt = YI_WEAPON_BLUNT.indexOf(weapon) >= 0;
+  /* pierce weapons thrust straight forward — no arc of the arm */
+  const armExt = isPierce ? Math.sin(Math.PI * Math.min(1, sweep * 1.02)) * 7 : 0;
+  /* blunt weapons crashes down from above — raised, then swung through */
+  const bluntSweep = isBlunt ? (-1.42 + 2.08 * Math.min(1, sweep * 1.12)) : bladeSweep;
   cx.save();
   cx.translate(px, py);
-  const ba = aim + bladeSweep + (P.yiSlashT > 0 ? 0 : 0.22);
-  const weapon = P.yiWeapon == null ? YI_WEAPON_BASTARD : P.yiWeapon;
+  if (isPierce) cx.translate(Math.cos(aim) * armExt, Math.sin(aim) * armExt);
+  const ba = isPierce
+    ? aim + (P.yiSlashT > 0 ? 0 : 0.06)
+    : aim + (isBlunt ? armDir * bluntSweep : bladeSweep) + (P.yiSlashT > 0 ? 0 : 0.22);
   const cosA = Math.cos(ba), sinA = Math.sin(ba);
   const hand = 7;
   /* each weapon carries its own length — a rapier is long and thin, a hammer is beastly */
@@ -770,32 +871,44 @@ function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
     cx.strokeStyle = "#5a5a62"; cx.shadowBlur = 0; cx.lineWidth = 1.1;
     cx.beginPath(); cx.moveTo(hiltX + cosA * (len * 0.32), hiltY + sinA * (len * 0.32)); cx.lineTo(hiltX + cosA * (len * 0.66), hiltY + sinA * (len * 0.66)); cx.stroke();
   } else if (weapon === YI_WEAPON_LANCE) {
-    /* the great boring cone — straight shaft, faceted tip, a smelter's spear */
-    cx.strokeStyle = "#1a1a22"; cx.lineWidth = 4;
-    cx.beginPath(); cx.moveTo(hiltX, hiltY); cx.lineTo(cosA * (len * 0.70), sinA * (len * 0.70)); cx.stroke();
-    /* the cone: seven faces — wide at base, needle at tip */
+    /* the bullhorn — the great boring cone widens to the end, not a point.
+       Faceted, iron-dark, with a luminous slit down the centre. */
     const perpA = ba + Math.PI / 2;
     const px = Math.cos(perpA), py = Math.sin(perpA);
-    const base = len - 2, tip = len + 6;
-    cx.fillStyle = "#20202a"; cx.strokeStyle = "#2b2b33"; cx.lineWidth = 1.3;
+    /* the shaft — dark rod */
+    cx.strokeStyle = "#1a1a22"; cx.lineWidth = 4;
+    cx.beginPath(); cx.moveTo(hiltX, hiltY); cx.lineTo(cosA * (len * 0.74), sinA * (len * 0.74)); cx.stroke();
+    /* the cone: widest at the striking face, narrowing to the shaft join */
+    const coneBase = len * 0.70;
+    const coneTip = len + 3;
+    /* outer dark facet */
+    cx.fillStyle = "#181820"; cx.strokeStyle = "#2b2b33"; cx.lineWidth = 1.3;
     cx.beginPath();
-    cx.moveTo(cosA * (base * 0.70) - px * 6, sinA * (base * 0.70) - py * 6);
-    cx.lineTo(cosA * (base * 0.70) + px * 6, sinA * (base * 0.70) + py * 6);
-    cx.lineTo(cosA * tip + px * 0.9, sinA * tip + py * 0.9);
+    cx.moveTo(cosA * coneBase - px * 2.6, sinA * coneBase - py * 2.6);
+    cx.lineTo(cosA * coneBase + px * 2.6, sinA * coneBase + py * 2.6);
+    cx.lineTo(cosA * coneTip + px * 10.4, sinA * coneTip + py * 10.4);
+    cx.lineTo(cosA * coneTip - px * 10.4, sinA * coneTip - py * 10.4);
     cx.closePath(); cx.fill();
     cx.stroke();
-    /* pale face down the cone */
-    cx.shadowColor = edge; cx.shadowBlur = 9;
-    cx.fillStyle = "#2c2c36";
+    /* faceted plates on the cone face */
+    cx.fillStyle = "#22222c";
     cx.beginPath();
-    cx.moveTo(cosA * (base * 0.72) - px * 1.4, sinA * (base * 0.72) - py * 1.4);
-    cx.lineTo(cosA * (base * 0.72) + px * 1.4, sinA * (base * 0.72) + py * 1.4);
-    cx.lineTo(cosA * (tip * 0.92) + px * 0.4, sinA * (tip * 0.92) + py * 0.4);
+    cx.moveTo(cosA * (coneBase + 4) - px * 0.7, sinA * (coneBase + 4) - py * 0.7);
+    cx.lineTo(cosA * (coneBase + 4) + px * 0.7, sinA * (coneBase + 4) + py * 0.7);
+    cx.lineTo(cosA * coneTip + px * 7.2, sinA * coneTip + py * 7.2);
+    cx.lineTo(cosA * coneTip - px * 7.2, sinA * coneTip - py * 7.2);
     cx.closePath(); cx.fill();
+    /* the luminous slit down the centre — the part that bores */
+    cx.shadowColor = edge; cx.shadowBlur = 16;
+    cx.strokeStyle = "#d8e8f0"; cx.lineWidth = 1.8;
+    cx.beginPath(); cx.moveTo(cosA * (coneBase + 1), sinA * (coneBase + 1));
+    cx.lineTo(cosA * (coneTip - 1), sinA * (coneTip - 1)); cx.stroke();
+    cx.fillStyle = "#e8f4f8";
+    cx.beginPath(); cx.ellipse(cosA * (coneTip - 1.2), sinA * (coneTip - 1.2), 3.6, 2.1, perpA, 0, TAU); cx.fill();
     cx.shadowBlur = 0;
-    /* gold tip */
-    cx.strokeStyle = YI_COL.gold; cx.lineWidth = 1.6;
-    cx.beginPath(); cx.moveTo(cosA * (tip * 0.86), sinA * (tip * 0.86)); cx.lineTo(cosA * tip, sinA * tip); cx.stroke();
+    /* gold ring at the shaft-face junction */
+    cx.strokeStyle = YI_COL.gold; cx.lineWidth = 1.7;
+    cx.beginPath(); cx.ellipse(cosA * coneBase, sinA * coneBase, 3.2, 2.1, perpA, 0, TAU); cx.stroke();
   } else if (weapon === YI_WEAPON_WHIP) {
     /* a coiling length of black iron — links with gold filigree, a barbed dart at the end */
     const segments = 7;
@@ -870,11 +983,21 @@ function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
   cx.beginPath(); cx.moveTo(hiltX - perpX2, hiltY - perpY2); cx.lineTo(hiltX + perpX2, hiltY + perpY2); cx.stroke();
   cx.restore();
 
-  /* the swing's crescents */
+  /* the swing's FX — slash : crescents ; pierce : a stabbing rail of light ; blunt : a slam burst */
   const reach = P.yiSlashReach || YI_REACH_BASE;
+  const weaponFx = P.yiWeapon == null ? YI_WEAPON_BASTARD : P.yiWeapon;
+  const isPierceFx = YI_WEAPON_PIERCE.indexOf(weaponFx) >= 0;
+  const isBluntFx = YI_WEAPON_BLUNT.indexOf(weaponFx) >= 0;
+  const isSlashFx = YI_WEAPON_SLASH.indexOf(weaponFx) >= 0;
   const dir = P.yiSlashDir < 0 ? -1 : 1;
   if (P.yiSlashT > 0) {
-    if (P.yiSlashLanes && P.yiSlashLanes.length) {
+    if (isPierceFx) {
+      const k = clamp(1 - P.yiSlashT / YI_SLASH_LIFE, 0, 1);
+      drawYiStabFx(px, py, P.yiSlashAng, reach, k, weaponFx);
+    } else if (isBluntFx) {
+      const k = clamp(1 - P.yiSlashT / YI_SLASH_LIFE, 0, 1);
+      drawYiSlamFx(px, py, P.yiSlashAng, reach, k, weaponFx);
+    } else if (P.yiSlashLanes && P.yiSlashLanes.length) {
       for (const L of P.yiSlashLanes) {
         const k = clamp(1 - (P.yiSlashT - (L.delay || 0)) / YI_SLASH_LIFE, 0, 1);
         drawYiSlashArc(px + (L.dx || 0), py + (L.dy || 0), L.ang, reach, k,
