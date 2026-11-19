@@ -20,10 +20,11 @@
    POISE — every critical banks a Poise (max 5); +6% cut
    damage per stack, same book Kim keeps.
 
-   THE ORACLE DEVICE — each cut rolls one of three weapons:
-   HATCHET (copper: heavy knock, drags the horror slow),
-   STILETTO (gloom-violet: a gloom-bleed that never closes),
-   or BASTARD SWORD (pale steel: +18% damage).
+   THE ORACLE DEVICE — a vial of black metallic liquid at his throat.
+   Each cut it pours out whichever weapon the Prescript demands
+   (Hermes breathes through it): a HATCHET (copper: heavy knock,
+   drags the horror slow), a STILETTO (gloom-violet: a gloom-bleed
+   that never closes), or a BASTARD SWORD (pale steel: +18% damage).
 
    The blade answers the projectile runes through the shared
    melee remap (data/runes.js: meleeWeaponMods /
@@ -544,7 +545,7 @@ function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
   cx.shadowBlur = 0; cx.globalAlpha = 1;
   cx.restore();
 
-  /* the chained blade — black steel with a gold edge */
+  /* the chained blade — it is not a chain, it is the tail of the vial */
   const swing = P.yiSlashT > 0 ? clamp(1 - P.yiSlashT / YI_SLASH_LIFE, 0, 1) : 0;
   const sweep = P.yiSlashT > 0 ? Math.min(1, swing / YI_SWEEP_SHARE) : 0;
   const armDir = P.yiSlashDir < 0 ? -1 : 1;
