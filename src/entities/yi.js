@@ -17,8 +17,11 @@
    him instead: +2 Karmic Consequence (max 10, −4% damage
    per stack).
 
-   POISE — every critical banks a Poise (max 5); +6% cut
-   damage per stack, same book Kim keeps.
+   POISE — every cut banks a Poise, a critical banks two (max 5);
+   +6% cut damage per stack. The kit's [On Hit] builds paid out
+   in one strike's worth per blow, because our Yi Sang attacks
+   alone, without coin-luck or skill-dashboards — the blade is
+   the account.
 
    THE ORACLE DEVICE — a vial of black metallic liquid at his throat.
    Each cut it pours out whichever weapon the Prescript demands
@@ -186,10 +189,12 @@ function yiHitEnemy(p, e, x, y, forceCrit, biteMul, weapon) {
     owner: p, x, y, melee: true, critHit: crit,
     knock: (m.knock || 0) * (weapon === YI_WEAPON_HATCHET ? 1.5 : 1) * (forceCrit ? 1.6 : 1),
   });
-  /* every critical banks a Poise — the Oracle counts true strikes */
-  if (crit && !e.dead && (p.yiPoise || 0) < YI_POISE_MAX) {
-    p.yiPoise = (p.yiPoise || 0) + 1;
-    if (p === localPlayer())
+  /* every landed cut banks Poise — [On Hit] in his kit — and a critical banks an extra;
+     the Oracle counts true strikes, and Yi Sang stacks them like a debt-book */
+  if (!e.dead && (p.yiPoise || 0) < YI_POISE_MAX) {
+    const gain = crit ? 2 : 1;   // crit = 1 + [On Crit] extra, matching his S3's [On Crit] Gain +2
+    p.yiPoise = Math.min(YI_POISE_MAX, (p.yiPoise || 0) + gain);
+    if (p === localPlayer() && (crit || p.yiPoise >= YI_POISE_MAX))
       floatText(e.x, e.y - e.r - 16, "POISE " + p.yiPoise + "/" + YI_POISE_MAX, "#d9b65c", 13);
   }
   /* cut into the mark, and the Oracle grants you more of it */
