@@ -835,6 +835,126 @@ function drawYiMark(g) {
 }
 
 /* the warden's body — drawn from drawWarden() */
+/* with nothing to cut, the Oracle's weapon stays in its base form — the Vial does not
+   take a shape until the Prescript shows it a target on screen */
+function yiHasQuarry(p) {
+  if (typeof enemies !== "undefined" && enemies) {
+    const cam = Game.cam || { x: 0, y: 0 };
+    const pad = 30;
+    const L = cam.x - pad, T = cam.y - pad;
+    const R = cam.x + VW + pad, B = cam.y + VH + pad;
+    for (const e of enemies) {
+      if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p") continue;
+      if (e.x >= L && e.x <= R && e.y >= T && e.y <= B) return true;
+    }
+  }
+  if (Game.pvpMode && typeof players !== "undefined") {
+    for (const foe of players) {
+      if (foe === p || foe.hp <= 0 || foe.downed || foe.gone) continue;
+      return true;
+    }
+  }
+  return false;
+}
+
+/* the base form — a sealed canister of the black liquid, gold-banded, on a gold chain,
+   hovering above his open glove */
+function drawYiVial(px, py, aim, t) {
+  cx.save();
+  cx.translate(px, py);
+  cx.rotate(aim);
+  /* the open glove beneath it, fingers fanned */
+  cx.fillStyle = YI_COL.glove;
+  cx.strokeStyle = "#8f8a80"; cx.lineWidth = 0.7;
+  cx.beginPath(); cx.ellipse(9.6, -4.2, 2.7, 1.9, 0.12, 0, TAU); cx.fill(); cx.stroke();
+  for (let i = 0; i < 3; i++) {
+    cx.beginPath();
+    cx.ellipse(11.7 + i * 0.35, -5.7 + i * 1.15, 1.05, 0.66, 0.18, 0, TAU);
+    cx.fill(); cx.stroke();
+  }
+  /* he tosses the Vial and catches it again — the base form never quite sits still.
+     This is the same pose as the evade frame: the canister hanging above the open palm. */
+  const period = 3.4;
+  const u = (t % period) / period;
+  const toss = u < 0.42 ? 0 : Math.sin(Math.PI * (u - 0.42) / 0.58);
+  const drift = toss * 1.4;
+  const lift = toss * 7.2;
+  const inHand = -8.2;
+  cx.globalAlpha = 0.26 * (1 - toss * 0.8);
+  cx.fillStyle = YI_COL.gold;
+  cx.beginPath(); cx.ellipse(9.6, -4.2, 3.0, 0.9, 0, 0, TAU); cx.fill();
+  cx.globalAlpha = 1;
+  /* the thread of the throw */
+  if (toss > 0.08) {
+    cx.globalAlpha = 0.22 * toss;
+    cx.strokeStyle = YI_COL.gold; cx.lineWidth = 0.8;
+    cx.setLineDash([1.4, 2.6]);
+    cx.beginPath();
+    cx.moveTo(9.6, -5.4);
+    cx.quadraticCurveTo(9.6 + drift * 0.4, inHand - lift * 0.5, 9.6 + drift, inHand - lift + 2.0);
+    cx.stroke();
+    cx.setLineDash([]);
+    cx.globalAlpha = 1;
+  }
+
+  /* the Vial itself, mid-toss */
+  cx.save();
+  cx.translate(9.6 + drift, inHand - lift);
+  cx.rotate(-0.24 + toss * 0.85 + Math.sin(t * 1.6) * 0.04 * (1 - toss));
+  /* the gold chain handle, looped above the canister */
+  const arc = (u) => {
+    const a = (1 - u) * (1 - u), b = 2 * (1 - u) * u, c = u * u;
+    return [a * 6.6 + c * -6.8, a * -1.8 + b * -15.2 + c * -1.8];
+  };
+  cx.strokeStyle = "#c9a44e"; cx.shadowColor = YI_COL.gold; cx.shadowBlur = 0;
+  cx.lineWidth = 0.8;
+  for (let i = 0; i < 9; i++) {
+    const u = (i + 0.5) / 9;
+    const p0 = arc(u - 0.012), p1 = arc(u + 0.012);
+    const ang = Math.atan2(p1[1] - p0[1], p1[0] - p0[0]) + (i % 2 ? Math.PI / 2 : 0);
+    cx.save();
+    cx.translate(p0[0], p0[1]); cx.rotate(ang);
+    cx.beginPath(); cx.ellipse(0, 0, 1.0, 0.45, 0, 0, TAU);
+    cx.stroke();
+    cx.restore();
+  }
+  /* the clasp where the chain meets the cap */
+  cx.fillStyle = "#24252c"; cx.strokeStyle = YI_COL.gold; cx.lineWidth = 0.9;
+  cx.beginPath(); cx.arc(6.6, -1.8, 1.05, 0, TAU); cx.fill(); cx.stroke();
+
+  /* the canister body */
+  const r = 2.75, half = 7.6;
+  cx.shadowColor = "#8a7440"; cx.shadowBlur = 3;
+  cx.fillStyle = "#24252c"; cx.strokeStyle = "#6a6d78"; cx.lineWidth = 0.8;
+  cx.beginPath();
+  cx.moveTo(-half, -r); cx.lineTo(half, -r);
+  cx.quadraticCurveTo(half + 1.9, 0, half, r);
+  cx.lineTo(-half, r);
+  cx.quadraticCurveTo(-half - 1.9, 0, -half, -r);
+  cx.closePath(); cx.fill(); cx.stroke();
+  cx.shadowBlur = 0;
+  const grd = cx.createLinearGradient(0, -r, 0, r);
+  grd.addColorStop(0, "#e2e5ea"); grd.addColorStop(0.42, "#a8abb4"); grd.addColorStop(1, "#555761");
+  cx.fillStyle = grd;
+  cx.beginPath(); cx.rect(-half + 0.7, -r + 0.75, half * 2 - 1.4, r * 2 - 1.5); cx.fill();
+  /* gold bands */
+  cx.fillStyle = YI_COL.gold; cx.shadowColor = YI_COL.gold; cx.shadowBlur = 2.5;
+  for (const bx of [-4.6, 4.6]) cx.fillRect(bx - 0.8, -r + 0.5, 1.6, r * 2 - 1.0);
+  /* seam, sheen and the dark window of liquid */
+  cx.shadowBlur = 0;
+  cx.strokeStyle = "#3c3d45"; cx.lineWidth = 0.7;
+  cx.beginPath(); cx.moveTo(-half + 1, 0.5); cx.lineTo(half - 1, 0.5); cx.stroke();
+  cx.strokeStyle = "#f4f6fa"; cx.globalAlpha = 0.7; cx.lineWidth = 0.8;
+  cx.beginPath(); cx.moveTo(-half + 1.2, -r + 1.15); cx.lineTo(half - 1.2, -r + 1.15); cx.stroke();
+  cx.globalAlpha = 1;
+  cx.fillStyle = "#0e0e16";
+  cx.beginPath(); cx.ellipse(0, 0.15, 2.1, 1.2, 0, 0, TAU); cx.fill();
+  cx.fillStyle = "#2b2b3a";
+  cx.beginPath(); cx.ellipse(-1.1, -0.85, 0.75, 0.45, 0, 0, TAU); cx.fill();
+  cx.restore();
+  cx.restore();
+}
+
 function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
   const t = Game.time;
 
@@ -902,6 +1022,13 @@ function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
   cx.beginPath(); cx.ellipse(6.7, 1.4, 0.85, 0.5, -0.35, 0, TAU); cx.fill();
   cx.shadowBlur = 0; cx.globalAlpha = 1;
   cx.restore();
+
+  /* nothing to cut — the Vial keeps its base form and he tosses it over his palm */
+  if (!(P.yiSlashT > 0) && !yiHasQuarry(P)) {
+    drawYiVial(px, py, aim, t);
+    cx.globalAlpha = 1; cx.shadowBlur = 0;
+    return;
+  }
 
   /* the Vial congeals — one of nine weapons this swing answers the Prescript with */
   const swing = P.yiSlashT > 0 ? clamp(1 - P.yiSlashT / YI_SLASH_LIFE, 0, 1) : 0;
