@@ -532,6 +532,51 @@ function drawYiSlashArc(px, py, ang, reach, k, alpha, dir, arcScale, weapon, che
   cx.globalAlpha = fade * 0.2;
   cx.strokeStyle = colTail; cx.shadowBlur = 0; cx.lineWidth = 1.2;
   cx.beginPath(); cx.arc(0, 0, R + 5, lo, hi); cx.stroke();
+  /* the greatsword sheds black shards and smoke along its whole pass */
+  if (weapon === YI_WEAPON_GREATSWORD && !cheap) {
+    for (let i = 0; i < 5; i++) {
+      const a = lo + (hi - lo) * ((i + 0.5) / 5);
+      const rr = R + 6 + Math.sin(i * 2.1) * 5;
+      const sz = 3.4 + (i % 3) * 1.6;
+      cx.globalAlpha = fade * 0.7;
+      cx.fillStyle = "#0b0b11"; cx.strokeStyle = col; cx.lineWidth = 0.8;
+      cx.shadowColor = col; cx.shadowBlur = 6;
+      cx.save();
+      cx.translate(Math.cos(a) * rr, Math.sin(a) * rr);
+      cx.rotate(a + 1.1);
+      cx.beginPath();
+      cx.moveTo(-sz, 0); cx.lineTo(0, -sz * 0.5); cx.lineTo(sz * 0.8, 0); cx.lineTo(0, sz * 0.42);
+      cx.closePath(); cx.fill(); cx.stroke();
+      cx.restore();
+    }
+    cx.globalAlpha = fade * 0.4;
+    cx.strokeStyle = "#2a2a36"; cx.shadowColor = col; cx.shadowBlur = 8; cx.lineWidth = 2.0;
+    const mid = (lo + hi) * 0.5;
+    for (let i = 0; i < 2; i++) {
+      const a = mid + (i ? 0.16 : -0.16);
+      const c0 = Math.cos(a), s0 = Math.sin(a);
+      cx.beginPath();
+      cx.moveTo(c0 * (R - 4), s0 * (R - 4));
+      cx.quadraticCurveTo(c0 * (R + 9) - s0 * 6, s0 * (R + 9) + c0 * 6,
+                          c0 * (R + 16) - s0 * 2, s0 * (R + 16) + c0 * 2);
+      cx.stroke();
+    }
+  }
+  /* the scythe leaves pale splinters of the cut hanging in the air */
+  if (weapon === YI_WEAPON_SCYTHE && !cheap) {
+    cx.shadowColor = col; cx.shadowBlur = 10;
+    for (let i = 0; i < 4; i++) {
+      const a = lo + (hi - lo) * ((i + 0.4) / 4);
+      const rr = R + 9 + (i % 2) * 6;
+      const c0 = Math.cos(a), s0 = Math.sin(a);
+      cx.globalAlpha = fade * 0.8;
+      cx.strokeStyle = i % 2 ? "#e8fbff" : col; cx.lineWidth = 1.2;
+      cx.beginPath();
+      cx.moveTo(c0 * rr, s0 * rr);
+      cx.lineTo(c0 * (rr + 10) - s0 * 3, s0 * (rr + 10) + c0 * 3);
+      cx.stroke();
+    }
+  }
   cx.restore();
   cx.globalAlpha = 1; cx.shadowBlur = 0;
 }
@@ -579,6 +624,30 @@ function drawYiStabFx(px, py, ang, reach, k, weapon) {
       cx.globalAlpha = fade * f * 0.85;
       cx.fillStyle = "#ffffff"; cx.shadowColor = "#ffffff"; cx.shadowBlur = 16;
       cx.beginPath(); cx.ellipse(tip * (0.5 + 0.5 * prog), 0, 9 * f, 4.6 * f, 0, 0, TAU); cx.fill();
+    }
+  }
+  /* the lance punches a blue star through the hole and drags smoke behind the wound */
+  if (weapon === YI_WEAPON_LANCE) {
+    const bx = tip * (0.5 + 0.5 * prog);
+    const sf = Math.max(0, 1 - Math.abs(prog - 0.62) * 2.2);
+    if (sf > 0) {
+      cx.globalAlpha = fade * sf * 0.9;
+      cx.strokeStyle = col; cx.shadowColor = col; cx.shadowBlur = 18; cx.lineWidth = 2.0;
+      for (let i = 0; i < 4; i++) {
+        const a = i * Math.PI / 2 + 0.4;
+        cx.beginPath();
+        cx.moveTo(bx + Math.cos(a) * 4, Math.sin(a) * 4);
+        cx.lineTo(bx + Math.cos(a) * 18, Math.sin(a) * 18);
+        cx.stroke();
+      }
+    }
+    cx.globalAlpha = fade * 0.28; cx.strokeStyle = "#2a3240"; cx.shadowBlur = 0; cx.lineWidth = 3;
+    for (let i = 0; i < 2; i++) {
+      const sw2 = Math.sin(i * 2.4 + prog * 6) * 5;
+      cx.beginPath();
+      cx.moveTo(bx * 0.5, i ? 8 : -8);
+      cx.quadraticCurveTo(bx * 0.3, (i ? 14 : -14) + sw2, bx * 0.12, (i ? 4 : -4) + sw2 * 0.6);
+      cx.stroke();
     }
   }
   cx.restore();
@@ -952,55 +1021,158 @@ function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
     cx.shadowBlur = 0; cx.strokeStyle = YI_COL.gold; cx.lineWidth = 1.4;
     cx.beginPath(); cx.moveTo(cosA * (len * 0.52), sinA * (len * 0.52)); cx.lineTo(cosA * (len * 0.58), sinA * (len * 0.58)); cx.stroke();
   } else if (weapon === YI_WEAPON_GREATSWORD) {
-    /* the flat wall — big flat face, thick body, massive brow */
-    cx.strokeStyle = "#14141a"; cx.lineWidth = 5;
-    cx.beginPath(); cx.moveTo(hiltX, hiltY); cx.lineTo(tipX, tipY); cx.stroke();
-    cx.strokeStyle = "#dadee4"; cx.shadowBlur = 13; cx.lineWidth = 3.4;
-    cx.beginPath(); cx.moveTo(hiltX + cosA * 3, hiltY + sinA * 3); cx.lineTo(tipX - cosA * 2, tipY - sinA * 2); cx.stroke();
-    cx.strokeStyle = YI_COL.arcEdge; cx.shadowBlur = 6; cx.lineWidth = 1.3;
-    cx.beginPath(); cx.moveTo(hiltX + cosA * 5, hiltY + sinA * 5); cx.lineTo(tipX - cosA * 4, tipY - sinA * 4); cx.stroke();
-    /* a mark down the fuller */
-    cx.strokeStyle = "#5a5a62"; cx.shadowBlur = 0; cx.lineWidth = 1.1;
-    cx.beginPath(); cx.moveTo(hiltX + cosA * (len * 0.32), hiltY + sinA * (len * 0.32)); cx.lineTo(hiltX + cosA * (len * 0.66), hiltY + sinA * (len * 0.66)); cx.stroke();
-  } else if (weapon === YI_WEAPON_LANCE) {
-    /* the bullhorn — the great boring cone widens to the end, not a point.
-       Faceted, iron-dark, with a luminous slit down the centre. */
+    /* THE COLOSSAL — a black slab nearly as wide as his shoulders, tapering over its whole
+       length to a needle point. A long grey plane down one face, three swept guard thorns,
+       a barbed pommel-spike behind the fist, and smoke peeling off the spine. */
     const perpA = ba + Math.PI / 2;
-    const px = Math.cos(perpA), py = Math.sin(perpA);
-    /* the shaft — dark rod */
-    cx.strokeStyle = "#1a1a22"; cx.lineWidth = 4;
-    cx.beginPath(); cx.moveTo(hiltX, hiltY); cx.lineTo(cosA * (len * 0.74), sinA * (len * 0.74)); cx.stroke();
-    /* the cone: widest at the striking face, narrowing to the shaft join */
-    const coneBase = len * 0.70;
-    const coneTip = len + 3;
-    /* outer dark facet */
-    cx.fillStyle = "#181820"; cx.strokeStyle = "#2b2b33"; cx.lineWidth = 1.3;
+    const pxn = Math.cos(perpA), pyn = Math.sin(perpA);
+    const at = (a, b) => [cosA * a + pxn * b, sinA * a + pyn * b];
+    const root = 8, wid = 9.0, tipL = len;
+    cx.shadowColor = edge; cx.shadowBlur = 12;
+    /* the slab */
+    cx.fillStyle = "#16161f"; cx.strokeStyle = "#454552"; cx.lineWidth = 1.2;
     cx.beginPath();
-    cx.moveTo(cosA * coneBase - px * 2.6, sinA * coneBase - py * 2.6);
-    cx.lineTo(cosA * coneBase + px * 2.6, sinA * coneBase + py * 2.6);
-    cx.lineTo(cosA * coneTip + px * 10.4, sinA * coneTip + py * 10.4);
-    cx.lineTo(cosA * coneTip - px * 10.4, sinA * coneTip - py * 10.4);
+    cx.moveTo(...at(root, -wid * 0.7));
+    cx.lineTo(...at(root + 4, -wid));
+    cx.quadraticCurveTo(...at(tipL * 0.56, -wid * 0.5), ...at(tipL, 0));
+    cx.quadraticCurveTo(...at(tipL * 0.54, wid * 0.46), ...at(root + 4, wid));
+    cx.lineTo(...at(root, wid * 0.7));
+    cx.closePath(); cx.fill(); cx.stroke();
+    /* the grey plane down the face — a narrow band of flat steel */
+    cx.fillStyle = "#5f5f6d"; cx.shadowBlur = 0;
+    cx.beginPath();
+    cx.moveTo(...at(root + 5, -wid * 0.30));
+    cx.lineTo(...at(root + 5, wid * 0.30));
+    cx.lineTo(...at(tipL * 0.84, wid * 0.04));
+    cx.lineTo(...at(tipL * 0.82, -wid * 0.07));
     cx.closePath(); cx.fill();
+    /* a darker inset inside the plane, like the reference's second facet */
+    cx.fillStyle = "#3a3a46";
+    cx.beginPath();
+    cx.moveTo(...at(root + 7, -wid * 0.16));
+    cx.lineTo(...at(root + 7, wid * 0.10));
+    cx.lineTo(...at(tipL * 0.60, wid * 0.02));
+    cx.lineTo(...at(tipL * 0.58, -wid * 0.03));
+    cx.closePath(); cx.fill();
+    /* the cutting edge, cold and lit */
+    cx.strokeStyle = YI_COL.arcEdge; cx.shadowColor = edge; cx.shadowBlur = 9; cx.lineWidth = 1.2;
+    cx.beginPath();
+    cx.moveTo(...at(root + 4.5, wid * 0.96));
+    cx.quadraticCurveTo(...at(tipL * 0.54, wid * 0.44), ...at(tipL - 1.4, 0.4));
     cx.stroke();
-    /* faceted plates on the cone face */
-    cx.fillStyle = "#22222c";
+    /* the notch where the edge steps in near the guard */
+    cx.strokeStyle = "#0c0c12"; cx.lineWidth = 1.6; cx.shadowBlur = 0;
+    cx.beginPath(); cx.moveTo(...at(root + 10, wid * 0.74)); cx.lineTo(...at(root + 8.6, wid * 0.34)); cx.stroke();
+    /* three swept guard thorns, the outer pair longest */
+    cx.fillStyle = "#0b0b11"; cx.strokeStyle = "#3a3a46"; cx.lineWidth = 0.9;
+    for (let i = 0; i < 3; i++) {
+      const bx = 5.5 + i * 5.2;
+      const span = 15.5 - i * 3.0;
+      const back = 7.0 + i * 3.4;
+      for (const sd of [1, -1]) {
+        cx.beginPath();
+        cx.moveTo(...at(bx, sd * 1.6));
+        cx.lineTo(...at(bx - back, sd * span));
+        cx.lineTo(...at(bx - back * 0.35, sd * span * 0.5));
+        cx.lineTo(...at(bx + 2.6, sd * 3.2));
+        cx.closePath(); cx.fill(); cx.stroke();
+      }
+    }
+    /* the pommel-spike — a great barbed thorn behind the fist */
+    cx.fillStyle = "#0b0b11"; cx.strokeStyle = "#3a3a46";
     cx.beginPath();
-    cx.moveTo(cosA * (coneBase + 4) - px * 0.7, sinA * (coneBase + 4) - py * 0.7);
-    cx.lineTo(cosA * (coneBase + 4) + px * 0.7, sinA * (coneBase + 4) + py * 0.7);
-    cx.lineTo(cosA * coneTip + px * 7.2, sinA * coneTip + py * 7.2);
-    cx.lineTo(cosA * coneTip - px * 7.2, sinA * coneTip - py * 7.2);
+    cx.moveTo(...at(-2, -2.6));
+    cx.lineTo(...at(-12, -3.4));
+    cx.lineTo(...at(-26, 0));
+    cx.lineTo(...at(-12, 3.4));
+    cx.lineTo(...at(-2, 2.6));
+    cx.closePath(); cx.fill(); cx.stroke();
+    /* its barbs */
+    for (const sd of [1, -1]) {
+      cx.beginPath();
+      cx.moveTo(...at(-9, sd * 2.4));
+      cx.lineTo(...at(-16, sd * 7.6));
+      cx.lineTo(...at(-7.4, sd * 2.0));
+      cx.closePath(); cx.fill(); cx.stroke();
+    }
+    /* the chain of gold links at the grip */
+    cx.fillStyle = YI_COL.gold; cx.shadowBlur = 5; cx.shadowColor = YI_COL.gold;
+    for (let i = 0; i < 3; i++) {
+      const gp = at(-4 - i * 3.6, i % 2 ? 2.6 : -2.6);
+      cx.beginPath(); cx.arc(gp[0], gp[1], 1.05, 0, TAU); cx.fill();
+    }
+    /* black smoke peeling off the spine */
+    cx.shadowColor = edge; cx.shadowBlur = 0;
+    cx.strokeStyle = "#242430"; cx.lineWidth = 2.0; cx.lineCap = "round";
+    for (let i = 0; i < 3; i++) {
+      const f = 0.34 + i * 0.2;
+      const w0 = Math.sin(t * 4.1 + i * 2.1) * 3.2;
+      const sp = at(tipL * f, -wid * 0.55 - 2.4);
+      cx.beginPath();
+      cx.moveTo(sp[0], sp[1]);
+      cx.quadraticCurveTo(sp[0] - cosA * 5 + pxn * (w0 - 3), sp[1] - sinA * 5 + pyn * (w0 - 3),
+                          sp[0] - cosA * 12 + pxn * w0 * 1.7, sp[1] - sinA * 12 + pyn * w0 * 1.7);
+      cx.stroke();
+    }
+  } else if (weapon === YI_WEAPON_LANCE) {
+    /* THE BORER — the reed of black liquid runs through the fist and ends at once in a
+       colossal kite head: a socket that flares into a wide belly, then a long straight
+       taper to a blue-hot needle. Four pale ribs fan from the socket into the blade. */
+    const perpA = ba + Math.PI / 2;
+    const pxn = Math.cos(perpA), pyn = Math.sin(perpA);
+    const at = (a, b) => [cosA * a + pxn * b, sinA * a + pyn * b];
+    /* the reed — he grips it just behind the head */
+    cx.strokeStyle = "#15151d"; cx.lineWidth = 3.0; cx.lineCap = "round";
+    cx.beginPath(); cx.moveTo(...at(-12, 0)); cx.lineTo(...at(12, 0)); cx.stroke();
+    cx.strokeStyle = "#4c5464"; cx.lineWidth = 0.9;
+    cx.beginPath(); cx.moveTo(...at(-11, -0.7)); cx.lineTo(...at(11, -0.7)); cx.stroke();
+    /* the head */
+    const socket = 9, belly = len * 0.44, wide = 11.4, tipL = len + 6;
+    const headPath = new Path2D();
+    headPath.moveTo(...at(socket, -1.4));
+    headPath.quadraticCurveTo(...at(socket + 5, -5.4), ...at(belly, -wide));
+    headPath.lineTo(...at(tipL, 0));
+    headPath.lineTo(...at(belly, wide));
+    headPath.quadraticCurveTo(...at(socket + 5, 5.4), ...at(socket, 1.4));
+    headPath.closePath();
+    cx.shadowColor = edge; cx.shadowBlur = 13;
+    cx.fillStyle = "#0c0c13"; cx.strokeStyle = "#2f3744"; cx.lineWidth = 1.1;
+    cx.fill(headPath); cx.stroke(headPath);
+    /* the grey plane on the lower face */
+    cx.fillStyle = "#2e2e3b"; cx.shadowBlur = 0;
+    cx.beginPath();
+    cx.moveTo(...at(socket + 2, 0.5));
+    cx.lineTo(...at(belly, wide * 0.62));
+    cx.lineTo(...at(tipL * 0.9, wide * 0.10));
+    cx.lineTo(...at(tipL * 0.86, -wide * 0.06));
     cx.closePath(); cx.fill();
-    /* the luminous slit down the centre — the part that bores */
-    cx.shadowColor = edge; cx.shadowBlur = 16;
-    cx.strokeStyle = "#d8e8f0"; cx.lineWidth = 1.8;
-    cx.beginPath(); cx.moveTo(cosA * (coneBase + 1), sinA * (coneBase + 1));
-    cx.lineTo(cosA * (coneTip - 1), sinA * (coneTip - 1)); cx.stroke();
-    cx.fillStyle = "#e8f4f8";
-    cx.beginPath(); cx.ellipse(cosA * (coneTip - 1.2), sinA * (coneTip - 1.2), 3.6, 2.1, perpA, 0, TAU); cx.fill();
-    cx.shadowBlur = 0;
-    /* gold ring at the shaft-face junction */
-    cx.strokeStyle = YI_COL.gold; cx.lineWidth = 1.7;
-    cx.beginPath(); cx.ellipse(cosA * coneBase, sinA * coneBase, 3.2, 2.1, perpA, 0, TAU); cx.stroke();
+    /* four pale ribs fanning out of the socket — the reference's white struts */
+    cx.save(); cx.clip(headPath);
+    cx.strokeStyle = edge; cx.shadowColor = edge; cx.shadowBlur = 8; cx.lineWidth = 0.9;
+    for (let i = 0; i < 4; i++) {
+      const alongEnd = socket + (belly - socket) * (0.58 + i * 0.14);
+      cx.globalAlpha = 0.9 - i * 0.14;
+      cx.beginPath();
+      cx.moveTo(...at(socket + 1.2, 0));
+      cx.lineTo(...at(alongEnd, wide * (0.72 - i * 0.16) * (i % 2 ? 1 : -1)));
+      cx.stroke();
+    }
+    cx.restore();
+    cx.globalAlpha = 1;
+    /* the long lit edges and the needle point */
+    cx.strokeStyle = edge; cx.shadowBlur = 12; cx.lineWidth = 1.15;
+    cx.beginPath();
+    cx.moveTo(...at(belly, -wide)); cx.lineTo(...at(tipL, 0));
+    cx.moveTo(...at(belly, wide)); cx.lineTo(...at(tipL, 0));
+    cx.stroke();
+    cx.fillStyle = "#eaf6ff";
+    cx.beginPath(); cx.arc(...at(tipL, 0), 1.7, 0, TAU); cx.fill();
+    /* the silver crossguard just ahead of the fist */
+    cx.shadowBlur = 0; cx.strokeStyle = "#9aa2b0"; cx.lineWidth = 1.5;
+    cx.beginPath(); cx.moveTo(...at(11, -7.4)); cx.lineTo(...at(11, 7.4)); cx.stroke();
+    /* gold ferrule at the grip */
+    cx.strokeStyle = YI_COL.gold; cx.lineWidth = 1.6;
+    cx.beginPath(); cx.ellipse(hiltX, hiltY, 3.2, 2.0, perpA, 0, TAU); cx.stroke();
   } else if (weapon === YI_WEAPON_WHIP) {
     /* THE LASH — eight straight rods of black iron joined by four-point spike collars,
        ending in a broad barbed arrowhead. Gold ring where it leaves the glove.
@@ -1093,39 +1265,100 @@ function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
     cx.strokeStyle = YI_COL.gold; cx.lineWidth = 1.5;
     cx.beginPath(); cx.ellipse(hiltX, hiltY, 4.2, 2.2, ba + Math.PI / 2, 0, TAU); cx.stroke();
   } else if (weapon === YI_WEAPON_SCYTHE) {
-    /* the long haft with the great sweeping blade — crescent of a god */
-    cx.strokeStyle = "#14141a"; cx.lineWidth = 3.4;
-    cx.beginPath(); cx.moveTo(hiltX, hiltY); cx.lineTo(cosA * (len * 0.78), sinA * (len * 0.78)); cx.stroke();
-    cx.strokeStyle = "#2a2a30"; cx.lineWidth = 1.8;
-    cx.beginPath(); cx.moveTo(hiltX + cosA * 4, hiltY + sinA * 4); cx.lineTo(cosA * (len * 0.78), sinA * (len * 0.78)); cx.stroke();
-    /* the scythe blade — a crescent, drawn from the haft outwards */
-    const sc = len;
+    /* THE REAPER — a crooked black haft banded with arrowhead ferrules, a forked butt-spike,
+       and a huge sickle: a broad black leaf curling over him, pale along its inner edge. */
     const perpA = ba + Math.PI / 2;
-    const perpX = Math.cos(perpA), perpY = Math.sin(perpA);
-    const bladeLen = 42;
+    const pxn = Math.cos(perpA), pyn = Math.sin(perpA);
+    const at = (a, b) => [cosA * a + pxn * b, sinA * a + pyn * b];
+    const headAt = len * 0.60;
+    /* the crooked haft — five joints, each nudged off the line */
+    const haft = [];
+    for (let i = 0; i <= 5; i++) {
+      const f = i / 5;
+      haft.push(at(-18 + f * (headAt + 18), Math.sin(f * 4.0) * 1.9));
+    }
+    cx.lineCap = "round";
+    cx.strokeStyle = "#0d0d14"; cx.lineWidth = 3.6;
+    cx.beginPath(); cx.moveTo(haft[0][0], haft[0][1]);
+    for (let i = 1; i < haft.length; i++) cx.lineTo(haft[i][0], haft[i][1]);
+    cx.stroke();
+    cx.strokeStyle = "#34343f"; cx.lineWidth = 1.0;
+    cx.beginPath(); cx.moveTo(haft[0][0], haft[0][1]);
+    for (let i = 1; i < haft.length; i++) cx.lineTo(haft[i][0], haft[i][1]);
+    cx.stroke();
+    /* arrowhead ferrules banding the haft */
+    cx.fillStyle = "#0d0d14"; cx.strokeStyle = "#3c3c48"; cx.lineWidth = 0.8;
+    for (const fk2 of [1, 3, 4]) {
+      const f = fk2 / 5;
+      const hx2 = -18 + f * (headAt + 18);
+      const bend2 = Math.sin(f * 4.0) * 1.9;
+      for (const sd of [1, -1]) {
+        cx.beginPath();
+        cx.moveTo(...at(hx2 - 3.2, bend2));
+        cx.lineTo(...at(hx2, bend2 + sd * 3.8));
+        cx.lineTo(...at(hx2 + 3.4, bend2));
+        cx.closePath(); cx.fill(); cx.stroke();
+      }
+    }
+    /* the forked butt-spike */
+    const bt = haft[0];
+    cx.beginPath();
+    cx.moveTo(bt[0] + pxn * 1.6, bt[1] + pyn * 1.6);
+    cx.lineTo(bt[0] - cosA * 20 + pxn * 6.4, bt[1] - sinA * 20 + pyn * 6.4);
+    cx.lineTo(bt[0] - cosA * 7 + pxn * 2.2, bt[1] - sinA * 7 + pyn * 2.2);
+    cx.lineTo(bt[0] - cosA * 30 - pxn * 0.4, bt[1] - sinA * 30 - pyn * 0.4);
+    cx.lineTo(bt[0] - cosA * 7 - pxn * 2.2, bt[1] - sinA * 7 - pyn * 2.2);
+    cx.lineTo(bt[0] - cosA * 20 - pxn * 6.4, bt[1] - sinA * 20 - pyn * 6.4);
+    cx.closePath(); cx.fill(); cx.stroke();
+    /* the sickle — broad at the socket, tapering to a long hooked point */
+    const r0 = haft[5];
+    const sc = len + 14;
     cx.shadowColor = edge; cx.shadowBlur = 15;
-    // dark back
-    cx.strokeStyle = "#14141a"; cx.lineWidth = 4.2;
+    cx.fillStyle = "#14141d"; cx.strokeStyle = "#464652"; cx.lineWidth = 1.1;
     cx.beginPath();
-    cx.moveTo(cosA * (len * 0.76), sinA * (len * 0.76));
-    cx.quadraticCurveTo(cosA * (sc * 0.96) - perpX * (bladeLen * 0.55), sinA * (sc * 0.96) - perpY * (bladeLen * 0.55), cosA * sc - perpX * bladeLen, sinA * sc - perpY * bladeLen);
-    cx.stroke();
-    // pale face
-    cx.strokeStyle = "#e0e4ec"; cx.lineWidth = 1.9;
+    cx.moveTo(r0[0] - pxn * 1.2, r0[1] - pyn * 1.2);
+    cx.quadraticCurveTo(...at(headAt + 9, -27), ...at(sc, -36));
+    cx.quadraticCurveTo(...at(sc - 15, -15), ...at(headAt + 8, 5));
+    cx.closePath(); cx.fill(); cx.stroke();
+    /* a grey sheen riding the back of the crescent */
+    cx.fillStyle = "#5d5d6b"; cx.shadowBlur = 0;
     cx.beginPath();
-    cx.moveTo(cosA * (len * 0.78) + 1, sinA * (len * 0.78) + 1);
-    cx.quadraticCurveTo(cosA * (sc * 0.97) - perpX * (bladeLen * 0.55) + 1, sinA * (sc * 0.97) - perpY * (bladeLen * 0.55) + 1, cosA * sc - perpX * bladeLen + 1.4, sinA * sc - perpY * bladeLen + 1.4);
-    cx.stroke();
-    /* white edge — the part that bites */
-    cx.strokeStyle = "#ffffff"; cx.lineWidth = 0.85;
+    cx.moveTo(...at(headAt + 4, -3));
+    cx.quadraticCurveTo(...at(headAt + 11, -21), ...at(sc - 2, -34.4));
+    cx.quadraticCurveTo(...at(headAt + 12, -14), ...at(headAt + 8, -1.4));
+    cx.closePath(); cx.fill();
+    /* the pale inner edge — the part that bites */
+    cx.strokeStyle = "#d6dbe4"; cx.shadowColor = edge; cx.shadowBlur = 11; cx.lineWidth = 1.25;
     cx.beginPath();
-    cx.moveTo(cosA * (len * 0.80) + 1.4, sinA * (len * 0.80) + 1.4);
-    cx.quadraticCurveTo(cosA * (sc * 0.97) - perpX * (bladeLen * 0.45) + 1.5, sinA * (sc * 0.97) - perpY * (bladeLen * 0.45) + 1.5, cosA * sc - perpX * (bladeLen - 1) + 1.2, sinA * sc - perpY * (bladeLen - 1) + 1.2);
+    cx.moveTo(...at(headAt + 7, 3.6));
+    cx.quadraticCurveTo(...at(sc - 15, -15), ...at(sc - 0.6, -35.4));
     cx.stroke();
+    /* the barbed tip, hooking further round */
+    cx.strokeStyle = "#0d0d14"; cx.lineWidth = 2.4; cx.shadowBlur = 6;
+    cx.beginPath();
+    cx.moveTo(...at(sc, -36));
+    cx.quadraticCurveTo(...at(sc + 2.4, -41), ...at(sc - 2.6, -44.4));
+    cx.stroke();
+    /* the socket barb — a spike sweeping back off the root of the blade */
+    cx.fillStyle = "#0d0d14"; cx.strokeStyle = "#3c3c48"; cx.lineWidth = 0.8;
+    cx.beginPath();
+    cx.moveTo(...at(headAt - 1, -1.4));
+    cx.lineTo(...at(headAt - 11, -10.4));
+    cx.lineTo(...at(headAt - 2.2, -12.4));
+    cx.lineTo(...at(headAt + 4, -3.2));
+    cx.closePath(); cx.fill(); cx.stroke();
+    /* twin counter-forks under the socket */
+    for (const sd of [1, -1]) {
+      cx.beginPath();
+      cx.moveTo(...at(headAt - 1.2, sd * 1.2));
+      cx.lineTo(...at(headAt - 7.4, sd * 6.8));
+      cx.lineTo(...at(headAt + 1.6, sd * 2.0));
+      cx.closePath(); cx.fill(); cx.stroke();
+    }
+    /* gold spring at the grip */
     cx.shadowBlur = 0;
-    /* gold spring at the pivot */
     cx.strokeStyle = YI_COL.gold; cx.lineWidth = 1.8;
-    cx.beginPath(); cx.ellipse(cosA * (len * 0.74), sinA * (len * 0.74), 2.6, 1.6, perpA, 0, TAU); cx.stroke();
+    cx.beginPath(); cx.ellipse(hiltX, hiltY, 2.8, 1.7, perpA, 0, TAU); cx.stroke();
   } else {
     /* fallback — weapon 0 == HATCHET, no other weapon is meant to hit this path */
     cx.beginPath(); cx.moveTo(hiltX, hiltY); cx.lineTo(tipX, tipY); cx.stroke();
