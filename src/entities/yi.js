@@ -658,7 +658,7 @@ function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
   cx.shadowBlur = 0; cx.globalAlpha = 1;
   cx.restore();
 
-  /* the chained blade — it is not a chain, it is the tail of the vial */
+  /* the Vial congeals — one of nine weapons this swing answers the Prescript with */
   const swing = P.yiSlashT > 0 ? clamp(1 - P.yiSlashT / YI_SLASH_LIFE, 0, 1) : 0;
   const sweep = P.yiSlashT > 0 ? Math.min(1, swing / YI_SWEEP_SHARE) : 0;
   const armDir = P.yiSlashDir < 0 ? -1 : 1;
@@ -666,27 +666,208 @@ function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
   cx.save();
   cx.translate(px, py);
   const ba = aim + bladeSweep + (P.yiSlashT > 0 ? 0 : 0.22);
-  const hand = 7;
-  const len = 52 + 10 * Math.sin(Math.PI * sweep);
+  const weapon = P.yiWeapon == null ? YI_WEAPON_BASTARD : P.yiWeapon;
   const cosA = Math.cos(ba), sinA = Math.sin(ba);
+  const hand = 7;
+  /* each weapon carries its own length — a rapier is long and thin, a hammer is beastly */
+  const len = weapon === YI_WEAPON_RAPIER ? 88
+            : weapon === YI_WEAPON_LANCE ? 86
+            : weapon === YI_WEAPON_HAMMER ? 44
+            : weapon === YI_WEAPON_SCYTHE ? 74
+            : weapon === YI_WEAPON_HATCHET ? 44
+            : weapon === YI_WEAPON_WHIP ? 76
+            : weapon === YI_WEAPON_GREATSWORD ? 64
+            : weapon === YI_WEAPON_STILETTO ? 52
+            : 54 + 12 * Math.sin(Math.PI * sweep);
   const hiltX = cosA * hand, hiltY = sinA * hand;
   const tipX = cosA * len, tipY = sinA * len;
-  /* blade: dark steel, pale edge, gold guard */
-  let edge = tint || yiArcColor(P.yiWeapon);
-  if (!P.gunSkin && !(P.runes && Object.keys(P.runes).length)) edge = yiArcColor(P.yiWeapon);
+  let edge = tint || yiArcColor(weapon);
+  if (!P.gunSkin && !(P.runes && Object.keys(P.runes).length)) edge = yiArcColor(weapon);
   cx.lineCap = "round";
-  cx.strokeStyle = YI_COL.suitDark; cx.lineWidth = 3.9;
   cx.shadowColor = edge; cx.shadowBlur = (P.yiSlashT > 0 || P.yiMarkT > 0) ? 12 : 7;
-  cx.beginPath(); cx.moveTo(hiltX, hiltY); cx.lineTo(tipX, tipY); cx.stroke();
-  cx.strokeStyle = YI_COL.slash; cx.shadowBlur = 9; cx.lineWidth = 2.1;
-  cx.beginPath(); cx.moveTo(hiltX + cosA * 2, hiltY + sinA * 2);
-  cx.lineTo(tipX - cosA * 1.5, tipY - sinA * 1.5); cx.stroke();
-  cx.strokeStyle = YI_COL.arcEdge; cx.shadowBlur = 4; cx.lineWidth = 0.9;
-  cx.beginPath(); cx.moveTo(hiltX + cosA * 3, hiltY + sinA * 3);
-  cx.lineTo(tipX - cosA * 3, tipY - sinA * 3); cx.stroke();
-  cx.shadowBlur = 0; cx.strokeStyle = YI_COL.gold; cx.lineWidth = 2.1;
-  const perpX = Math.cos(ba + Math.PI / 2) * 4.4, perpY = Math.sin(ba + Math.PI / 2) * 4.4;
-  cx.beginPath(); cx.moveTo(hiltX - perpX, hiltY - perpY); cx.lineTo(hiltX + perpX, hiltY + perpY); cx.stroke();
+  /* dim back, pale face, white hot edge — organs in three tones */
+  cx.strokeStyle = YI_COL.suitDark; cx.lineWidth = 3.9;
+  /* weapon-specific silhouettes — they read from across the arena */
+  if (weapon === YI_WEAPON_HATCHET) {
+    /* short haft, and the wedge head — with an eye in it */
+    cx.beginPath(); cx.moveTo(hiltX, hiltY); cx.lineTo(cosA * (len * 0.62), sinA * (len * 0.62)); cx.stroke();
+    cx.strokeStyle = "#2a2a30"; cx.lineWidth = 4.5;
+    cx.beginPath(); cx.moveTo(cosA * (len * 0.58), sinA * (len * 0.58)); cx.lineTo(cosA * len, sinA * len); cx.stroke();
+    /* the axe head */
+    const ax = cosA * len, ay = sinA * len, perpA = ba + Math.PI / 2;
+    const px = Math.cos(perpA), py = Math.sin(perpA);
+    cx.fillStyle = "#3c3c44"; cx.strokeStyle = "#3c3c44"; cx.lineWidth = 1.4;
+    cx.beginPath();
+    cx.moveTo(ax - cosA * 8 - px * 5, ay - sinA * 8 - py * 5);
+    cx.lineTo(ax - cosA * 8 + px * 5, ay - sinA * 8 + py * 5);
+    cx.lineTo(ax - cosA * 2 + px * 5, ay - sinA * 2 + py * 5);
+    cx.lineTo(ax - cosA * 2 - px * 5, ay - sinA * 2 - py * 5);
+    cx.closePath(); cx.fill();
+    cx.stroke();
+    /* pale edge */
+    cx.strokeStyle = YI_COL.slash; cx.shadowBlur = 6; cx.lineWidth = 1.5;
+    cx.beginPath(); cx.moveTo(ax - cosA * 8 + px * 4.6, ay - sinA * 8 + py * 4.6);
+    cx.lineTo(ax - cosA * 2.2 + px * 2, ay - sinA * 2.2 + py * 2); cx.stroke();
+  } else if (weapon === YI_WEAPON_STILETTO) {
+    /* a needle — thin shadow, thinner body, barely there edge */
+    cx.strokeStyle = "#14141a"; cx.lineWidth = 2.4;
+    cx.beginPath(); cx.moveTo(hiltX, hiltY); cx.lineTo(tipX, tipY); cx.stroke();
+    cx.strokeStyle = "#cfd6dd"; cx.shadowBlur = 10; cx.lineWidth = 1.3;
+    cx.beginPath(); cx.moveTo(hiltX + cosA * 2, hiltY + sinA * 2); cx.lineTo(tipX, tipY); cx.stroke();
+    cx.strokeStyle = "#ffffff"; cx.shadowBlur = 4; cx.lineWidth = 0.6;
+    cx.beginPath(); cx.moveTo(hiltX + cosA * 3, hiltY + sinA * 3); cx.lineTo(tipX - cosA * 1, tipY - sinA * 1); cx.stroke();
+  } else if (weapon === YI_WEAPON_BASTARD) {
+    /* classic longe — dark fuller, pale face, white bite */
+    cx.beginPath(); cx.moveTo(hiltX, hiltY); cx.lineTo(tipX, tipY); cx.stroke();
+    cx.strokeStyle = YI_COL.slash; cx.shadowBlur = 9; cx.lineWidth = 2.2;
+    cx.beginPath(); cx.moveTo(hiltX + cosA * 2, hiltY + sinA * 2); cx.lineTo(tipX - cosA * 1.5, tipY - sinA * 1.5); cx.stroke();
+    cx.strokeStyle = YI_COL.arcEdge; cx.shadowBlur = 5; cx.lineWidth = 0.95;
+    cx.beginPath(); cx.moveTo(hiltX + cosA * 3, hiltY + sinA * 3); cx.lineTo(tipX - cosA * 3, tipY - sinA * 3); cx.stroke();
+    /* wrap at grip */
+    cx.strokeStyle = "#2b2b33"; cx.shadowBlur = 0; cx.lineWidth = 4.2;
+    cx.beginPath(); cx.moveTo(hiltX, hiltY); cx.lineTo(hiltX + cosA * 6, hiltY + sinA * 6); cx.stroke();
+  } else if (weapon === YI_WEAPON_RAPIER) {
+    /* the thin needle — a smoking absinthe sliver, silver light on a steel thread */
+    cx.strokeStyle = "#0e0e13"; cx.lineWidth = 1.7;
+    cx.beginPath(); cx.moveTo(hiltX, hiltY); cx.lineTo(tipX, tipY); cx.stroke();
+    cx.strokeStyle = "#e6ecf2"; cx.shadowBlur = 12; cx.lineWidth = 1.1;
+    cx.beginPath(); cx.moveTo(hiltX + cosA * 2, hiltY + sinA * 2); cx.lineTo(tipX, tipY); cx.stroke();
+    cx.strokeStyle = "#ffffff"; cx.shadowBlur = 4; cx.lineWidth = 0.45;
+    cx.beginPath(); cx.moveTo(hiltX + cosA * 4, hiltY + sinA * 4); cx.lineTo(tipX - cosA * 2, tipY - sinA * 2); cx.stroke();
+    /* king-guard: a ring at the hilt */
+    cx.shadowBlur = 0; cx.strokeStyle = YI_COL.gold; cx.lineWidth = 1.4;
+    const perpA = ba + Math.PI / 2;
+    cx.beginPath(); cx.ellipse(hiltX + cosA * 2, hiltY + sinA * 2, 4.6, 2.6, perpA, 0, TAU); cx.stroke();
+  } else if (weapon === YI_WEAPON_HAMMER) {
+    /* the skull-breaker — handle wide, head wider, an iron meat-grinder of an idol */
+    cx.strokeStyle = "#2b2b33"; cx.lineWidth = 4.4;
+    cx.beginPath(); cx.moveTo(hiltX, hiltY); cx.lineTo(cosA * (len * 0.62), sinA * (len * 0.62)); cx.stroke();
+    const hx = cosA * len, hy = sinA * len, perpA = ba + Math.PI / 2;
+    const px = Math.cos(perpA) * 10, py = Math.sin(perpA) * 10;
+    cx.fillStyle = "#3c3c44"; cx.strokeStyle = "#3c3c44"; cx.lineWidth = 1.6;
+    /* the barrel of the hammer, drawn foreshortened as two stacked blocks */
+    cx.beginPath();
+    cx.moveTo(hx - cosA * 3 - px, hy - sinA * 3 - py);
+    cx.lineTo(hx - cosA * 3 + px, hy - sinA * 3 + py);
+    cx.lineTo(hx - cosA * 14 + px, hy - sinA * 14 + py);
+    cx.lineTo(hx - cosA * 14 - px, hy - sinA * 14 - py);
+    cx.closePath(); cx.fill();
+    cx.stroke();
+    /* glowing spike on the hammer face */
+    cx.shadowBlur = 9; cx.fillStyle = "#873e3e";
+    cx.beginPath(); cx.arc(hx - cosA * 4, hy - sinA * 4, 2.3, 0, TAU); cx.fill();
+    cx.shadowBlur = 0; cx.strokeStyle = YI_COL.gold; cx.lineWidth = 1.4;
+    cx.beginPath(); cx.moveTo(cosA * (len * 0.52), sinA * (len * 0.52)); cx.lineTo(cosA * (len * 0.58), sinA * (len * 0.58)); cx.stroke();
+  } else if (weapon === YI_WEAPON_GREATSWORD) {
+    /* the flat wall — big flat face, thick body, massive brow */
+    cx.strokeStyle = "#14141a"; cx.lineWidth = 5;
+    cx.beginPath(); cx.moveTo(hiltX, hiltY); cx.lineTo(tipX, tipY); cx.stroke();
+    cx.strokeStyle = "#dadee4"; cx.shadowBlur = 13; cx.lineWidth = 3.4;
+    cx.beginPath(); cx.moveTo(hiltX + cosA * 3, hiltY + sinA * 3); cx.lineTo(tipX - cosA * 2, tipY - sinA * 2); cx.stroke();
+    cx.strokeStyle = YI_COL.arcEdge; cx.shadowBlur = 6; cx.lineWidth = 1.3;
+    cx.beginPath(); cx.moveTo(hiltX + cosA * 5, hiltY + sinA * 5); cx.lineTo(tipX - cosA * 4, tipY - sinA * 4); cx.stroke();
+    /* a mark down the fuller */
+    cx.strokeStyle = "#5a5a62"; cx.shadowBlur = 0; cx.lineWidth = 1.1;
+    cx.beginPath(); cx.moveTo(hiltX + cosA * (len * 0.32), hiltY + sinA * (len * 0.32)); cx.lineTo(hiltX + cosA * (len * 0.66), hiltY + sinA * (len * 0.66)); cx.stroke();
+  } else if (weapon === YI_WEAPON_LANCE) {
+    /* the great boring cone — straight shaft, faceted tip, a smelter's spear */
+    cx.strokeStyle = "#1a1a22"; cx.lineWidth = 4;
+    cx.beginPath(); cx.moveTo(hiltX, hiltY); cx.lineTo(cosA * (len * 0.70), sinA * (len * 0.70)); cx.stroke();
+    /* the cone: seven faces — wide at base, needle at tip */
+    const perpA = ba + Math.PI / 2;
+    const px = Math.cos(perpA), py = Math.sin(perpA);
+    const base = len - 2, tip = len + 6;
+    cx.fillStyle = "#20202a"; cx.strokeStyle = "#2b2b33"; cx.lineWidth = 1.3;
+    cx.beginPath();
+    cx.moveTo(cosA * (base * 0.70) - px * 6, sinA * (base * 0.70) - py * 6);
+    cx.lineTo(cosA * (base * 0.70) + px * 6, sinA * (base * 0.70) + py * 6);
+    cx.lineTo(cosA * tip + px * 0.9, sinA * tip + py * 0.9);
+    cx.closePath(); cx.fill();
+    cx.stroke();
+    /* pale face down the cone */
+    cx.shadowColor = edge; cx.shadowBlur = 9;
+    cx.fillStyle = "#2c2c36";
+    cx.beginPath();
+    cx.moveTo(cosA * (base * 0.72) - px * 1.4, sinA * (base * 0.72) - py * 1.4);
+    cx.lineTo(cosA * (base * 0.72) + px * 1.4, sinA * (base * 0.72) + py * 1.4);
+    cx.lineTo(cosA * (tip * 0.92) + px * 0.4, sinA * (tip * 0.92) + py * 0.4);
+    cx.closePath(); cx.fill();
+    cx.shadowBlur = 0;
+    /* gold tip */
+    cx.strokeStyle = YI_COL.gold; cx.lineWidth = 1.6;
+    cx.beginPath(); cx.moveTo(cosA * (tip * 0.86), sinA * (tip * 0.86)); cx.lineTo(cosA * tip, sinA * tip); cx.stroke();
+  } else if (weapon === YI_WEAPON_WHIP) {
+    /* a coiling length of black iron — links with gold filigree, a barbed dart at the end */
+    const segments = 7;
+    const drift = Math.sin(t * 5) * 4;
+    cx.strokeStyle = "#14141a"; cx.lineWidth = 1.9;
+    cx.shadowColor = edge; cx.shadowBlur = 7;
+    // kinked chain from the hilt out to the far end
+    cx.beginPath(); cx.moveTo(hiltX, hiltY);
+    for (let i = 1; i <= segments; i++) {
+      const f = i / segments;
+      const sway = Math.sin(f * 3.3 + t * 4) * (3 + f * 10);
+      const nx = hiltX + cosA * len * f, ny = hiltY + sinA * len * f;
+      const px = Math.cos(ba + Math.PI / 2) * sway, py = Math.sin(ba + Math.PI / 2) * sway;
+      cx.lineTo(nx + px, ny + py);
+    }
+    cx.stroke();
+    /* barbed dart */
+    const lastSeg = segments;
+    const lastSway = Math.sin(lastSeg * 3.3 + t * 4) * (3 + lastSeg * 1.6);
+    const dartX = hiltX + cosA * len - Math.cos(ba + Math.PI / 2) * lastSway;
+    const dartY = hiltY + sinA * len - Math.sin(ba + Math.PI / 2) * lastSway;
+    cx.strokeStyle = "#2b2b33"; cx.lineWidth = 2.8;
+    cx.beginPath(); cx.moveTo(dartX, dartY);
+    cx.lineTo(dartX + cosA * 12, dartY + sinA * 12); cx.stroke();
+    /* a gold link at the hilt */
+    cx.strokeStyle = YI_COL.gold; cx.lineWidth = 1.3;
+    const perpA = ba + Math.PI / 2;
+    cx.beginPath(); cx.ellipse(hiltX, hiltY, 3.6, 1.8, perpA, 0, TAU); cx.stroke();
+    cx.shadowBlur = 0;
+  } else if (weapon === YI_WEAPON_SCYTHE) {
+    /* the long haft with the great sweeping blade — crescent of a god */
+    cx.strokeStyle = "#14141a"; cx.lineWidth = 3.4;
+    cx.beginPath(); cx.moveTo(hiltX, hiltY); cx.lineTo(cosA * (len * 0.78), sinA * (len * 0.78)); cx.stroke();
+    cx.strokeStyle = "#2a2a30"; cx.lineWidth = 1.8;
+    cx.beginPath(); cx.moveTo(hiltX + cosA * 4, hiltY + sinA * 4); cx.lineTo(cosA * (len * 0.78), sinA * (len * 0.78)); cx.stroke();
+    /* the scythe blade — a crescent, drawn from the haft outwards */
+    const sc = len;
+    const perpA = ba + Math.PI / 2;
+    const perpX = Math.cos(perpA), perpY = Math.sin(perpA);
+    const bladeLen = 42;
+    cx.shadowColor = edge; cx.shadowBlur = 15;
+    // dark back
+    cx.strokeStyle = "#14141a"; cx.lineWidth = 4.2;
+    cx.beginPath();
+    cx.moveTo(cosA * (len * 0.76), sinA * (len * 0.76));
+    cx.quadraticCurveTo(cosA * (sc * 0.96) - perpX * (bladeLen * 0.55), sinA * (sc * 0.96) - perpY * (bladeLen * 0.55), cosA * sc - perpX * bladeLen, sinA * sc - perpY * bladeLen);
+    cx.stroke();
+    // pale face
+    cx.strokeStyle = "#e0e4ec"; cx.lineWidth = 1.9;
+    cx.beginPath();
+    cx.moveTo(cosA * (len * 0.78) + 1, sinA * (len * 0.78) + 1);
+    cx.quadraticCurveTo(cosA * (sc * 0.97) - perpX * (bladeLen * 0.55) + 1, sinA * (sc * 0.97) - perpY * (bladeLen * 0.55) + 1, cosA * sc - perpX * bladeLen + 1.4, sinA * sc - perpY * bladeLen + 1.4);
+    cx.stroke();
+    /* white edge — the part that bites */
+    cx.strokeStyle = "#ffffff"; cx.lineWidth = 0.85;
+    cx.beginPath();
+    cx.moveTo(cosA * (len * 0.80) + 1.4, sinA * (len * 0.80) + 1.4);
+    cx.quadraticCurveTo(cosA * (sc * 0.97) - perpX * (bladeLen * 0.45) + 1.5, sinA * (sc * 0.97) - perpY * (bladeLen * 0.45) + 1.5, cosA * sc - perpX * (bladeLen - 1) + 1.2, sinA * sc - perpY * (bladeLen - 1) + 1.2);
+    cx.stroke();
+    cx.shadowBlur = 0;
+    /* gold spring at the pivot */
+    cx.strokeStyle = YI_COL.gold; cx.lineWidth = 1.8;
+    cx.beginPath(); cx.ellipse(cosA * (len * 0.74), sinA * (len * 0.74), 2.6, 1.6, perpA, 0, TAU); cx.stroke();
+  } else {
+    /* fallback — weapon 0 == HATCHET, no other weapon is meant to hit this path */
+    cx.beginPath(); cx.moveTo(hiltX, hiltY); cx.lineTo(tipX, tipY); cx.stroke();
+  }
+  /* gold guard — always */
+  cx.strokeStyle = YI_COL.gold; cx.lineWidth = 2.1; cx.shadowBlur = 0;
+  const perpA2 = ba + Math.PI / 2;
+  const perpX2 = Math.cos(perpA2) * 4.4, perpY2 = Math.sin(perpA2) * 4.4;
+  cx.beginPath(); cx.moveTo(hiltX - perpX2, hiltY - perpY2); cx.lineTo(hiltX + perpX2, hiltY + perpY2); cx.stroke();
   cx.restore();
 
   /* the swing's crescents */
