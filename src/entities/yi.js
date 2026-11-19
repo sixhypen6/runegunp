@@ -72,16 +72,18 @@ const YI_WEAPON_RAPIER = 3;       // Pierce — punching ten holes with a rapier
 const YI_WEAPON_HAMMER = 4;       // Blunt — caving in the back of the skull with a hammer
 const YI_WEAPON_GREATSWORD = 5;   // Slash — rending body with a greatsword
 const YI_WEAPON_LANCE = 6;        // Pierce — boring a 20-inch hole with a lance
-const YI_WEAPON_WHIP = 7;         // Blunt — ripping flesh to strips with a whip
+const YI_WEAPON_WHIP = 7;         // Lash — ripping flesh to strips with a whip
 const YI_WEAPON_SCYTHE = 8;       // Slash — lacerating through space with a scythe
 
 const YI_WEAPONS = [
   "HATCHET", "STILETTO", "BASTARD SWORD", "RAPIER", "HAMMER",
   "GREATSWORD", "LANCE", "WHIP", "SCYTHE",
 ];
-const YI_WEAPON_BLUNT = [YI_WEAPON_HATCHET, YI_WEAPON_HAMMER, YI_WEAPON_WHIP];
+const YI_WEAPON_BLUNT = [YI_WEAPON_HATCHET, YI_WEAPON_HAMMER];
 const YI_WEAPON_PIERCE = [YI_WEAPON_STILETTO, YI_WEAPON_RAPIER, YI_WEAPON_LANCE];
 const YI_WEAPON_SLASH = [YI_WEAPON_BASTARD, YI_WEAPON_GREATSWORD, YI_WEAPON_SCYTHE];
+/* the whip is its own animal: it is not swung, it is thrown — a wide overhead lash */
+const YI_WEAPON_LASH = [YI_WEAPON_WHIP];
 
 const YI_HATCHET_KNOCK = 1.5;       // more knockback on the heavy cuts
 const YI_HATCHET_SLOW = 0.6;
@@ -625,6 +627,89 @@ function drawYiSlamFx(px, py, ang, reach, k, weapon) {
   cx.globalAlpha = 1; cx.shadowBlur = 0;
 }
 
+/* the lash — the chain's own path thrown past its barbed head as a thread of light.
+   It reads as length, not as a cut: the whole chain is in the strike. */
+function drawYiLashFx(P, px, py, ang, reach, k, weapon, dir) {
+  const col = yiArcColor(weapon);
+  const colTail = yiArcTail(weapon);
+  const d = dir < 0 ? -1 : 1;
+  /* the crack: nothing on the windup, full at the throw, a long bleeding afterimage */
+  const appear = k < 0.16 ? k / 0.16 : 1 - Math.max(0, k - 0.48) * 1.65;
+  if (appear <= 0.02) return;
+  const pts = P && P.yiWhipPts;
+  cx.save();
+  cx.translate(px, py);
+  cx.lineCap = "round";
+  if (pts && pts.length > 2) {
+    const head = pts[pts.length - 1];
+    const ha = P.yiWhipAng || ang;
+    const ux = Math.cos(ha), uy = Math.sin(ha);
+    /* the smear is the orbit of the chain's head — it starts where the head is and trails behind,
+       so it can never float free of the iron */
+    const R = Math.max(10, Math.hypot(head[0], head[1]));
+    const aHead = Math.atan2(head[1], head[0]);
+    const span = (0.62 + 0.62 * Math.min(1, k * 1.4));
+    const a0 = aHead - d * span;
+    const lo = Math.min(a0, aHead), hi = Math.max(a0, aHead);
+    const arc = (from, style, width, alpha, blur) => {
+      cx.globalAlpha = appear * alpha;
+      cx.strokeStyle = style; cx.shadowColor = style; cx.shadowBlur = blur; cx.lineWidth = width;
+      cx.beginPath(); cx.arc(0, 0, R, lo + (hi - lo) * from, hi); cx.stroke();
+    };
+    arc(0.34, colTail, 6, 0.05, 13);
+    arc(0.5, colTail, 2.6, 0.10, 10);
+    arc(0.58, "#0b0b11", 1.2, 0.26, 0);
+    arc(0.6, col, 1.1, 0.9, 10);
+    arc(0.74, "#ffffff", 0.42, 0.95, 5);
+    /* the head itself cracks past the tip, along the chain's own line */
+    const over = 12 + 34 * Math.min(1, k * 1.5);
+    /* a short streak off the barbs */
+    cx.globalAlpha = appear * 0.85;
+    cx.strokeStyle = "#ffffff"; cx.shadowColor = col; cx.shadowBlur = 12; cx.lineWidth = 1.2;
+    cx.beginPath();
+    cx.moveTo(head[0] + ux * 13, head[1] + uy * 13);
+    cx.lineTo(head[0] + ux * (13 + over * 0.62), head[1] + uy * (13 + over * 0.62)); cx.stroke();
+    /* the point flash, then gone */
+    if (k > 0.28 && k < 0.96) {
+      const f = 1 - Math.abs(k - 0.56) * 2.3;
+      if (f > 0) {
+        const tx = head[0] + ux * (13 + over * 0.55), ty = head[1] + uy * (13 + over * 0.55);
+        const vx2 = -uy, vy2 = ux;
+        cx.globalAlpha = appear * f * 0.95;
+        cx.shadowColor = "#ffffff"; cx.shadowBlur = 20;
+        cx.fillStyle = "#ffffff";
+        cx.beginPath();
+        cx.moveTo(tx + ux * 16 * f, ty + uy * 16 * f);
+        cx.lineTo(tx + vx2 * 5.2 * f, ty + vy2 * 5.2 * f);
+        cx.lineTo(tx - ux * 3.4 * f, ty - uy * 3.4 * f);
+        cx.lineTo(tx - vx2 * 5.2 * f, ty - vy2 * 5.2 * f);
+        cx.closePath(); cx.fill();
+        /* a few sparks thrown off the point */
+        cx.shadowBlur = 0; cx.fillStyle = col;
+        for (let s = 0; s < 3; s++) {
+          const sa = ha + (s - 1) * 0.5;
+          cx.globalAlpha = appear * f * 0.6;
+          cx.beginPath();
+          cx.arc(tx + Math.cos(sa) * (12 + s * 5) * f, ty + Math.sin(sa) * (12 + s * 5) * f,
+            1.6 * f, 0, TAU);
+          cx.fill();
+        }
+      }
+    }
+  } else {
+    /* no chain path this frame — a thin straight whip-line instead */
+    const headA = ang + d * (-0.55 + 1.45 * Math.min(1, Math.min(1, k / YI_SWEEP_SHARE) * 1.1));
+    cx.globalAlpha = appear * 0.5;
+    cx.strokeStyle = colTail; cx.shadowColor = colTail; cx.shadowBlur = 16; cx.lineWidth = 8;
+    cx.beginPath(); cx.moveTo(0, 0); cx.lineTo(Math.cos(headA) * reach * 0.9, Math.sin(headA) * reach * 0.9); cx.stroke();
+    cx.globalAlpha = appear * 0.9;
+    cx.strokeStyle = col; cx.shadowBlur = 10; cx.lineWidth = 2.2;
+    cx.beginPath(); cx.moveTo(0, 0); cx.lineTo(Math.cos(headA) * reach * 0.95, Math.sin(headA) * reach * 0.95); cx.stroke();
+  }
+  cx.restore();
+  cx.globalAlpha = 1; cx.shadowBlur = 0;
+}
+
 /* the marked horror, seen by its own Yi Sang only — the flower of the Index, six burning petals around a blue heart */
 function drawYiMark(g) {
   if (typeof localPlayer !== "function") return;
@@ -758,16 +843,23 @@ function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
   const isPierce = YI_WEAPON_PIERCE.indexOf(weapon) >= 0;
   const isSlash = YI_WEAPON_SLASH.indexOf(weapon) >= 0;
   const isBlunt = YI_WEAPON_BLUNT.indexOf(weapon) >= 0;
+  const isLash = YI_WEAPON_LASH.indexOf(weapon) >= 0;
+  /* idle: the weapon is held low, whatever it is — family poses only exist while swinging */
+  const swinging = P.yiSlashT > 0;
+  const active = swinging ? 1 : 0;
   /* pierce weapons thrust straight forward — no arc of the arm */
   const armExt = isPierce ? Math.sin(Math.PI * Math.min(1, sweep * 1.02)) * 7 : 0;
-  /* blunt weapons crashes down from above — raised, then swung through */
-  const bluntSweep = isBlunt ? (-1.42 + 2.08 * Math.min(1, sweep * 1.12)) : bladeSweep;
+  /* blunt weapons crash down from above — raised, then swung through */
+  const bluntSweep = (isBlunt ? (-1.42 + 2.08 * Math.min(1, sweep * 1.12)) : bladeSweep) * active;
+  /* the lash is a short throw of the arm; the chain does the travelling */
+  const lashSweep = (isLash ? (-0.55 + 1.45 * Math.min(1, sweep * 1.1)) : bladeSweep) * active;
+  const arcSweep = bladeSweep * active;
   cx.save();
   cx.translate(px, py);
   if (isPierce) cx.translate(Math.cos(aim) * armExt, Math.sin(aim) * armExt);
   const ba = isPierce
-    ? aim + (P.yiSlashT > 0 ? 0 : 0.06)
-    : aim + (isBlunt ? armDir * bluntSweep : bladeSweep) + (P.yiSlashT > 0 ? 0 : 0.22);
+    ? aim + (swinging ? 0 : 0.06)
+    : aim + armDir * (isLash ? lashSweep : isBlunt ? bluntSweep : arcSweep) + (swinging ? 0 : 0.22);
   const cosA = Math.cos(ba), sinA = Math.sin(ba);
   const hand = 7;
   /* each weapon carries its own length — a rapier is long and thin, a hammer is beastly */
@@ -776,7 +868,7 @@ function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
             : weapon === YI_WEAPON_HAMMER ? 44
             : weapon === YI_WEAPON_SCYTHE ? 74
             : weapon === YI_WEAPON_HATCHET ? 44
-            : weapon === YI_WEAPON_WHIP ? 76
+            : weapon === YI_WEAPON_WHIP ? 86
             : weapon === YI_WEAPON_GREATSWORD ? 64
             : weapon === YI_WEAPON_STILETTO ? 52
             : 54 + 12 * Math.sin(Math.PI * sweep);
@@ -910,34 +1002,96 @@ function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
     cx.strokeStyle = YI_COL.gold; cx.lineWidth = 1.7;
     cx.beginPath(); cx.ellipse(cosA * coneBase, sinA * coneBase, 3.2, 2.1, perpA, 0, TAU); cx.stroke();
   } else if (weapon === YI_WEAPON_WHIP) {
-    /* a coiling length of black iron — links with gold filigree, a barbed dart at the end */
-    const segments = 7;
-    const drift = Math.sin(t * 5) * 4;
-    cx.strokeStyle = "#14141a"; cx.lineWidth = 1.9;
-    cx.shadowColor = edge; cx.shadowBlur = 7;
-    // kinked chain from the hilt out to the far end
-    cx.beginPath(); cx.moveTo(hiltX, hiltY);
-    for (let i = 1; i <= segments; i++) {
-      const f = i / segments;
-      const sway = Math.sin(f * 3.3 + t * 4) * (3 + f * 10);
-      const nx = hiltX + cosA * len * f, ny = hiltY + sinA * len * f;
-      const px = Math.cos(ba + Math.PI / 2) * sway, py = Math.sin(ba + Math.PI / 2) * sway;
-      cx.lineTo(nx + px, ny + py);
+    /* THE LASH — eight straight rods of black iron joined by four-point spike collars,
+       ending in a broad barbed arrowhead. Gold ring where it leaves the glove.
+       It does not hang from the hand: it is thrown, and it cracks at the far end. */
+    const segN = 8;
+    const step = len / segN;
+    /* while the lash is out, an S travels down the chain — the tip is always a beat behind */
+    const lashK = P.yiSlashT > 0 ? Math.min(1, sweep * 1.25) : 0;
+    const rest = P.yiSlashT > 0 ? 0 : 1;
+    /* an S runs down the chain as it is thrown, then dies out at full extension */
+    const whipK = P.yiSlashT > 0 ? Math.sin(Math.PI * Math.min(1, swing * 1.15)) : 0;
+    const joints = [];
+    let jx = hiltX, jy = hiltY;
+    let ja = ba;
+    for (let i = 0; i <= segN; i++) {
+      const f = i / segN;
+      joints.push([jx, jy]);
+      /* a slow wave so the chain breathes at rest, and a hard curl when it is thrown */
+      const wave = Math.sin(t * 5.4 - f * 4.4) * (0.05 + rest * 0.03);
+      const curl = (f - 0.4) * 0.42 * (1 - lashK) * (1 + rest * 0.55);
+      ja += wave + curl - Math.cos(f * 4.6 + 0.6) * 0.34 * whipK;
+      jx += Math.cos(ja) * step;
+      jy += Math.sin(ja) * step;
     }
-    cx.stroke();
-    /* barbed dart */
-    const lastSeg = segments;
-    const lastSway = Math.sin(lastSeg * 3.3 + t * 4) * (3 + lastSeg * 1.6);
-    const dartX = hiltX + cosA * len - Math.cos(ba + Math.PI / 2) * lastSway;
-    const dartY = hiltY + sinA * len - Math.sin(ba + Math.PI / 2) * lastSway;
-    cx.strokeStyle = "#2b2b33"; cx.lineWidth = 2.8;
-    cx.beginPath(); cx.moveTo(dartX, dartY);
-    cx.lineTo(dartX + cosA * 12, dartY + sinA * 12); cx.stroke();
-    /* a gold link at the hilt */
-    cx.strokeStyle = YI_COL.gold; cx.lineWidth = 1.3;
-    const perpA = ba + Math.PI / 2;
-    cx.beginPath(); cx.ellipse(hiltX, hiltY, 3.6, 1.8, perpA, 0, TAU); cx.stroke();
+    /* the rods */
+    cx.shadowColor = edge; cx.shadowBlur = 6; cx.lineCap = "round";
+    for (let i = 0; i < segN; i++) {
+      const a0 = joints[i], a1 = joints[i + 1];
+      cx.strokeStyle = "#0e0e13"; cx.lineWidth = 3.1;
+      cx.beginPath(); cx.moveTo(a0[0], a0[1]); cx.lineTo(a1[0], a1[1]); cx.stroke();
+      cx.strokeStyle = "#33333e"; cx.lineWidth = 1.1;
+      cx.beginPath(); cx.moveTo(a0[0] + Math.cos(ja) * 0.6, a0[1] + Math.sin(ja) * 0.6);
+      cx.lineTo(a1[0], a1[1]); cx.stroke();
+    }
+    /* the four-point spike collars — one at every joint, largest nearest the tip */
+    cx.shadowBlur = 4;
+    for (let i = 1; i < segN; i++) {
+      const j = joints[i];
+      const dirA = Math.atan2(joints[i + 1][1] - j[1], joints[i + 1][0] - j[0]);
+      const ux = Math.cos(dirA), uy = Math.sin(dirA);
+      const vx = -uy, vy = ux;
+      const s = 3.1 + i * 0.22;
+      cx.fillStyle = "#101016"; cx.strokeStyle = "#454550"; cx.lineWidth = 0.75;
+      cx.beginPath();
+      cx.moveTo(j[0] + ux * s * 1.35, j[1] + uy * s * 1.35);
+      cx.lineTo(j[0] + vx * s * 0.62, j[1] + vy * s * 0.62);
+      cx.lineTo(j[0] - ux * s * 1.35, j[1] - uy * s * 1.35);
+      cx.lineTo(j[0] - vx * s * 0.62, j[1] - vy * s * 0.62);
+      cx.closePath(); cx.fill(); cx.stroke();
+      /* the collar's four barbs, biting out of the corners */
+      cx.strokeStyle = "#2b2b33"; cx.lineWidth = 1.1;
+      cx.beginPath();
+      cx.moveTo(j[0] + vx * s * 1.55, j[1] + vy * s * 1.55);
+      cx.lineTo(j[0] + vx * s * 0.5 + ux * s * 0.5, j[1] + vy * s * 0.5 + uy * s * 0.5);
+      cx.moveTo(j[0] - vx * s * 1.55, j[1] - vy * s * 1.55);
+      cx.lineTo(j[0] - vx * s * 0.5 + ux * s * 0.5, j[1] - vy * s * 0.5 + uy * s * 0.5);
+      cx.stroke();
+    }
+    /* the barbed arrowhead at the far end */
+    const last = joints[segN], prev = joints[segN - 1];
+    const ha = Math.atan2(last[1] - prev[1], last[0] - prev[0]);
+    /* the FX reads the chain's own path, so the motion trail never lies about where it is */
+    P.yiWhipPts = joints;
+    P.yiWhipAng = ha;
+    const hux = Math.cos(ha), huy = Math.sin(ha);
+    const hvx = -huy, hvy = hux;
+    cx.shadowColor = edge; cx.shadowBlur = 8;
+    cx.fillStyle = "#101016"; cx.strokeStyle = "#4a4a56"; cx.lineWidth = 0.9;
+    cx.beginPath();
+    cx.moveTo(last[0] + hux * 14, last[1] + huy * 14);
+    cx.lineTo(last[0] + hvx * 3.4, last[1] + hvy * 3.4);
+    cx.lineTo(last[0] - hux * 3.2, last[1] - huy * 3.2);
+    cx.lineTo(last[0] - hvx * 3.4, last[1] - hvy * 3.4);
+    cx.closePath(); cx.fill(); cx.stroke();
+    /* swept wings behind the heads */
+    cx.fillStyle = "#14141a";
+    for (const side of [1, -1]) {
+      cx.beginPath();
+      cx.moveTo(last[0] + hvx * side * 3.2, last[1] + hvy * side * 3.2);
+      cx.lineTo(last[0] + hux * 3.2 + hvx * side * 8.4, last[1] + huy * 3.2 + hvy * side * 8.4);
+      cx.lineTo(last[0] + hux * 7.6 + hvx * side * 3.4, last[1] + huy * 7.6 + hvy * side * 3.4);
+      cx.closePath(); cx.fill();
+    }
+    /* the pale edge of the point */
+    cx.strokeStyle = edge; cx.lineWidth = 1.1; cx.shadowBlur = 7;
+    cx.beginPath(); cx.moveTo(last[0] + hux * 4, last[1] + huy * 4);
+    cx.lineTo(last[0] + hux * 13.4, last[1] + huy * 13.4); cx.stroke();
     cx.shadowBlur = 0;
+    /* the gold ring where it leaves the glove */
+    cx.strokeStyle = YI_COL.gold; cx.lineWidth = 1.5;
+    cx.beginPath(); cx.ellipse(hiltX, hiltY, 4.2, 2.2, ba + Math.PI / 2, 0, TAU); cx.stroke();
   } else if (weapon === YI_WEAPON_SCYTHE) {
     /* the long haft with the great sweeping blade — crescent of a god */
     cx.strokeStyle = "#14141a"; cx.lineWidth = 3.4;
@@ -983,17 +1137,22 @@ function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
   cx.beginPath(); cx.moveTo(hiltX - perpX2, hiltY - perpY2); cx.lineTo(hiltX + perpX2, hiltY + perpY2); cx.stroke();
   cx.restore();
 
-  /* the swing's FX — slash : crescents ; pierce : a stabbing rail of light ; blunt : a slam burst */
+  /* the swing's FX — slash : crescents ; pierce : a stabbing rail ; blunt : a slam burst ;
+     lash : a long whipping thread of light with the chain's collars riding it */
   const reach = P.yiSlashReach || YI_REACH_BASE;
   const weaponFx = P.yiWeapon == null ? YI_WEAPON_BASTARD : P.yiWeapon;
   const isPierceFx = YI_WEAPON_PIERCE.indexOf(weaponFx) >= 0;
   const isBluntFx = YI_WEAPON_BLUNT.indexOf(weaponFx) >= 0;
+  const isLashFx = YI_WEAPON_LASH.indexOf(weaponFx) >= 0;
   const isSlashFx = YI_WEAPON_SLASH.indexOf(weaponFx) >= 0;
   const dir = P.yiSlashDir < 0 ? -1 : 1;
   if (P.yiSlashT > 0) {
     if (isPierceFx) {
       const k = clamp(1 - P.yiSlashT / YI_SLASH_LIFE, 0, 1);
       drawYiStabFx(px, py, P.yiSlashAng, reach, k, weaponFx);
+    } else if (isLashFx) {
+      const k = clamp(1 - P.yiSlashT / YI_SLASH_LIFE, 0, 1);
+      drawYiLashFx(P, px, py, P.yiSlashAng, reach, k, weaponFx, dir);
     } else if (isBluntFx) {
       const k = clamp(1 - P.yiSlashT / YI_SLASH_LIFE, 0, 1);
       drawYiSlamFx(px, py, P.yiSlashAng, reach, k, weaponFx);
