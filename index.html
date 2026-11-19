@@ -94,6 +94,17 @@
   #yiCue.unlock1{color:#f2e3a0;text-shadow:0 0 8px rgba(255,223,138,.75)}
   #yiCue.unlock2{color:#ffedb8;text-shadow:0 0 10px rgba(255,223,138,.9)}
   #yiCue.payout{color:#ffedb8;text-shadow:0 0 12px rgba(126,192,255,.95)}
+  /* the NURSEFATHER's Unlocks — the Prescript speaks when Grace reaches 3 / 6 / 9 */
+  #yiVoice{position:fixed;left:50%;bottom:31%;transform:translate(-50%,7px);width:min(680px,92vw);
+    text-align:center;pointer-events:none;opacity:0;transition:opacity .32s ease,transform .32s ease}
+  #yiVoice.on{opacity:1;transform:translate(-50%,0)}
+  #yiVoiceTier{font-size:calc(11px * var(--text-scale, 1));letter-spacing:.34em;color:#d9b65c;
+    text-shadow:0 0 10px rgba(217,182,92,.7)}
+  #yiVoiceLine{margin-top:3px;font-size:calc(14px * var(--text-scale, 1));letter-spacing:.06em;color:#f3eee2;
+    text-shadow:0 2px 10px rgba(0,0,0,.95),0 0 3px rgba(0,0,0,1)}
+  #yiVoiceKanji{margin-top:3px;font-size:calc(11px * var(--text-scale, 1));letter-spacing:.26em;color:rgba(217,182,92,.78)}
+  #yiVoice.t3 #yiVoiceTier{color:#ffe9a8;text-shadow:0 0 14px rgba(126,192,255,.95)}
+  #yiVoice.t3 #yiVoiceLine{color:#fff6da;text-shadow:0 0 12px rgba(126,192,255,.4),0 2px 10px rgba(0,0,0,.95)}
   /* the saloon's rounds — amber, with the sober clock draining below it */
   #drunkHud{display:none;margin-top:7px;max-width:min(320px,44vw);font-variant-numeric:tabular-nums}
   #drunkHud.on{display:block}
@@ -804,6 +815,7 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
   <!-- THE UNKNOWN's challenge rounds: the two returned wardens, side by side over its own bar -->
   <div id="echoBars"><div class="echo"><div class="en"></div><div class="et"><div class="ef"></div></div></div><div class="echo"><div class="en"></div><div class="et"><div class="ef"></div></div></div></div>
   <div id="interactHint">[ E ] BREAK THE SEAL</div>
+  <div id="yiVoice"><div id="yiVoiceTier"></div><div id="yiVoiceLine"></div><div id="yiVoiceKanji"></div></div>
   <div id="toast"></div>
   <div id="waveBanner"></div>
   <div id="bossTitle"></div>

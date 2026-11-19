@@ -47,6 +47,12 @@ const YI_GRACE_MAX = 9;
 const YI_GRACE_TIER_3 = 3, YI_GRACE_TIER_6 = 6, YI_GRACE_TIER_9 = 9;
 const YI_GRACE_TIER_DMG = [0, 0.08, 0.16, 0.30];   // by tier 0/1/2/3
 const YI_GRACE_FROM_EXECUTION = 3;  // +Grace for falling the marked horror
+/* the three Unlocks the Prescript grants at 3 / 6 / 9 Grace — and the line it speaks */
+const YI_UNLOCKS = [
+  { tier: 1, name: "UNLOCK - I", line: "Wading through a dream, the self nowhere to be found.", kanji: "無我夢中" },
+  { tier: 2, name: "UNLOCK - II", line: "Like the Naraka of Avīci and Raurava.", kanji: "阿鼻叫喚" },
+  { tier: 3, name: "UNLOCK - III", line: "Severed and torn until even the form is undone.", kanji: "支離滅裂" },
+];
 const YI_KARMIC_MAX = 10;
 const YI_KARMIC_PER_STACK = 0.04;  // each Consequence drags cuts down 4%
 const YI_KARMIC_EXECUTE_CLEAR = 2; // exiting a prescript clears two stacks
@@ -209,6 +215,63 @@ function yiGraceTier(p) {
   return 0;
 }
 function yiGraceBonus(p) { return YI_GRACE_TIER_DMG[yiGraceTier(p)]; }
+
+/* the turn Grace crosses 3 / 6 / 9, the Prescript grants an Unlock and Yi Sang
+   speaks its line. One voiceline per tier; the tally re-arms if Grace ever drops. */
+let yiUnlockSounds = null;
+let yiVoiceTimer = null;
+/* the three lines are short files under public/audio — loaded lazily, once */
+function yiUnlockVoices() {
+  if (yiUnlockSounds || typeof Audio === "undefined") return yiUnlockSounds;
+  yiUnlockSounds = [
+    new Audio("audio/mugamuchu.wav"),
+    new Audio("audio/abikyokan.wav"),
+    new Audio("audio/shirimetsuretsu.wav"),
+  ];
+  for (const a of yiUnlockSounds) a.preload = "auto";
+  return yiUnlockSounds;
+}
+function yiPlayUnlockVoice(tier) {
+  try {
+    const list = yiUnlockVoices();
+    if (!list) return;
+    const a = list[tier - 1];
+    if (!a) return;
+    /* one voice at a time — a second Unlock cuts the first short */
+    for (const v of list) {
+      if (v === a) continue;
+      try { v.pause(); v.currentTime = 0; } catch (e) { /* never loaded */ }
+    }
+    a.currentTime = 0;
+    a.volume = 0.8;
+    const pr = a.play();
+    if (pr && pr.catch) pr.catch(() => {});
+  } catch (e) { /* a muted device is no reason to break the turn */ }
+}
+function yiSayUnlock(u) {
+  yiPlayUnlockVoice(u.tier);
+  if (typeof document === "undefined" || typeof $ !== "function") return;
+  const box = $("yiVoice");
+  if (!box) return;
+  const tierEl = $("yiVoiceTier"), lineEl = $("yiVoiceLine"), kanjiEl = $("yiVoiceKanji");
+  if (tierEl) tierEl.textContent = u.name;
+  if (lineEl) lineEl.textContent = u.line;
+  if (kanjiEl) kanjiEl.textContent = u.kanji;
+  box.className = "on t" + u.tier;
+  clearTimeout(yiVoiceTimer);
+  yiVoiceTimer = setTimeout(() => { box.className = "t" + u.tier; }, 5200);
+}
+function yiCheckUnlock(p) {
+  const tier = yiGraceTier(p);
+  const seen = p.yiUnlockTier || 0;
+  if (tier <= seen) {
+    if (tier < seen) p.yiUnlockTier = tier;
+    return;
+  }
+  p.yiUnlockTier = tier;
+  if (typeof localPlayer === "function" && p !== localPlayer()) return;
+  yiSayUnlock(YI_UNLOCKS[tier - 1]);
+}
 
 /* one cut's bite — Poise sharpens, Grace deepens, Karmic drags, the BASTARD SWORD
    hones his Offense stacks */
@@ -383,6 +446,8 @@ function yiTick(p, dt) {
   } else if (p.yiMarkT <= 0 && enemies.length) {
     p.yiMarkCd = Math.min(p.yiMarkCd, 1.2);
   }
+  /* Grace of the Prescript — 3 / 6 / 9 speaks the Unlock line */
+  yiCheckUnlock(p);
 }
 
 /* the Oracle delivers its account — one swing of the pattern */
@@ -476,6 +541,7 @@ function updateYiCue(p) {
   const active = !!p && p.char === "yi";
   el.classList.toggle("on", active);
   if (!active) { lastYiCue = ""; return; }
+  yiUnlockVoices();   /* warm the three Unlock lines while he is on the field */
   const g = clamp(p.yiGrace || 0, 0, YI_GRACE_MAX);
   const k = clamp(p.yiKarmic || 0, 0, YI_KARMIC_MAX);
   const pips = "◆".repeat(g) + "◇".repeat(YI_GRACE_MAX - g);
