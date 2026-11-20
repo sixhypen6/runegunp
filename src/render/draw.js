@@ -801,7 +801,7 @@ const CRACKS_CRIT = CRACKS_HALF.concat([
   [[-0.20,0.82],[-0.08,0.35],[-0.46,0.10]],
   [[0.05,-0.38],[-0.16,-0.05],[0.00,0.36]],
 ]);
-function drawCracks(cx, hpFrac, s) {
+function drawCracks(cx, hpFrac, s, noSpark) {
   if (hpFrac > 0.5) return;
   const crit = hpFrac < 0.3;
   cx.shadowBlur = 0;
@@ -813,8 +813,9 @@ function drawCracks(cx, hpFrac, s) {
     for (let i = 1; i < poly.length; i++) cx.lineTo(poly[i][0] * s, poly[i][1] * s);
   }
   cx.stroke();
-  /* exposed wiring: electric arcs snap across the worst cracks in stuttering bursts */
-  if (crit) {
+  /* exposed wiring: electric arcs snap across the worst cracks in stuttering
+     bursts. Steel and crystal only — flesh never has live wire under it. */
+  if (crit && !noSpark) {
     const fl = Math.sin(Game.time * 31) * Math.sin(Game.time * 17.3);
     if (fl > 0.35) {
       const j = Math.sin(Game.time * 53) * 0.14;
@@ -831,6 +832,51 @@ function drawCracks(cx, hpFrac, s) {
       cx.globalAlpha = 1;
     }
   }
+}
+
+/* ---------- flesh wears its wounds, not its chassis ----------
+   The same low-vitality tell, for everyone with skin under the coat: gashes
+   instead of stone cracks, and never a spark of exposed wiring. The undead
+   Reanimator bleeds a cold ichor rather than red. */
+const WOUNDS_HALF = [
+  [[-0.36,-0.56],[-0.20,-0.22],[-0.31,0.12],[-0.14,0.40]],
+  [[0.22,-0.42],[0.11,-0.08],[0.29,0.18]],
+  [[0.43,0.22],[0.25,0.37]],
+];
+const WOUNDS_CRIT = WOUNDS_HALF.concat([
+  [[-0.08,-0.64],[0.03,-0.32],[-0.04,0.02],[0.11,0.34],[0.02,0.63]],
+  [[0.37,-0.52],[0.23,-0.20],[0.33,0.06]],
+  [[-0.52,0.32],[-0.31,0.44],[-0.15,0.61]],
+]);
+function drawWounds(cx, hpFrac, s, ichor) {
+  if (hpFrac > 0.5) return;
+  const crit = hpFrac < 0.3;
+  const polys = crit ? WOUNDS_CRIT : WOUNDS_HALF;
+  const deep = ichor ? "#1d0b2e" : "#3a0509";
+  const blood = ichor ? "#4b2a6e" : "#a3212a";
+  const wet = ichor ? "#8a5bd8" : "#e04a52";
+  const plot = () => {
+    cx.beginPath();
+    for (const poly of polys) {
+      cx.moveTo(poly[0][0] * s, poly[0][1] * s);
+      for (let i = 1; i < poly.length; i++) cx.lineTo(poly[i][0] * s, poly[i][1] * s);
+    }
+    cx.stroke();
+  };
+  cx.save();
+  cx.shadowBlur = 0; cx.lineCap = "round"; cx.lineJoin = "round";
+  cx.globalAlpha = 0.9;
+  cx.strokeStyle = deep; cx.lineWidth = crit ? 2.4 : 1.6; plot();
+  /* a thinner wet line inside the gash, so it reads on black cloth and on red */
+  cx.strokeStyle = blood; cx.lineWidth = crit ? 1.2 : 0.8;
+  cx.translate(0.35, -0.35); plot();
+  if (crit) {
+    cx.globalAlpha = 0.5; cx.fillStyle = wet;
+    for (const [dx, dy, r] of [[0.30, 0.54, 0.95], [-0.44, 0.20, 0.7], [0.12, -0.68, 0.6]]) {
+      cx.beginPath(); cx.arc(dx * s, dy * s, r * (s / 11), 0, TAU); cx.fill();
+    }
+  }
+  cx.restore();
 }
 
 /* ---------- the marks worn by empowered / wrathful horrors ----------
@@ -1708,7 +1754,7 @@ function drawWarden(P) {
         }
         cx.globalAlpha = 1;
         cx.fillStyle = "#0b0b14"; cx.beginPath(); cx.arc(3, 0, 3, 0, TAU); cx.fill();
-        drawCracks(cx, hpFrac, 8);
+        drawCracks(cx, hpFrac, 8, true);   // a diamond fractures; it has no wiring to spark
         cx.restore();
         cx.strokeStyle = tint; cx.lineWidth = 2; cx.lineCap = "round";
         cx.beginPath(); cx.moveTo(px+Math.cos(aim)*10, py+Math.sin(aim)*10);
@@ -1851,7 +1897,7 @@ function drawWarden(P) {
         cx.save(); cx.translate(24, 0); cx.rotate(-aim + Game.time * 2);
         cx.fillStyle = tint; cx.font = "bold 10px monospace"; cx.textAlign = "center"; cx.textBaseline = "middle";
         cx.fillText("ᚻ", 0, 0); cx.restore();
-        drawCracks(cx, hpFrac, 11); cx.restore();
+        drawWounds(cx, hpFrac, 11, true); cx.restore();
 
       } else if (P.char === "theUnknown") {
         /* THE UNKNOWN: void-ring body with orbiting rune glyphs, seen from within.
@@ -1909,7 +1955,7 @@ function drawWarden(P) {
         cx.fillStyle = col;
         for (const s of [-1, 1]) { cx.beginPath(); cx.arc(4, s * 18, 6, 0, TAU); cx.fill(); }
         cx.restore();
-        drawCracks(cx, hpFrac, 14);
+        drawWounds(cx, hpFrac, 14);
         cx.restore();
         /* THE RUNEGUN */
         cx.save(); cx.translate(px, py); cx.rotate(aim);
@@ -1960,7 +2006,7 @@ function drawWarden(P) {
         cx.fillStyle = "#ff0000";
         cx.beginPath(); cx.arc(-3, -9, 1.5, 0, TAU); cx.fill();
         cx.beginPath(); cx.arc(3, -9, 1.5, 0, TAU); cx.fill();
-        drawCracks(cx, hpFrac, 12);
+        drawWounds(cx, hpFrac, 12);
         cx.restore();
 
         if (isMelee) {
@@ -2110,7 +2156,7 @@ function drawWarden(P) {
         cx.save(); cx.translate(px, py); cx.rotate(aim + Math.PI / 2);
         cx.beginPath(); cx.moveTo(0,-13); cx.lineTo(12,11); cx.lineTo(-12,11); cx.closePath(); cx.fill();
         cx.fillStyle = "#0b0b14"; cx.fillRect(-3, -18, 6, 7);
-        drawCracks(cx, hpFrac, 9);
+        drawWounds(cx, hpFrac, 9);
         cx.restore();
         cx.save();
         const orbitA = Game.time * 2.8;

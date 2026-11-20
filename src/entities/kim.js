@@ -661,7 +661,7 @@ function drawKimWarden(P, px, py, aim, col, tint, hpFrac) {
   cx.beginPath(); cx.ellipse(-5.6, 3.4, 1.1, 0.8, 0.5, 0, TAU); cx.fill();
   cx.globalAlpha = 1;
 
-  drawCracks(cx, hpFrac, 11);
+  drawWounds(cx, hpFrac, 11);
 
   /* the bone beak, jutting out ahead of the hat */
   cx.fillStyle = KIM_COL.mask;

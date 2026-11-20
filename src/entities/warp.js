@@ -863,7 +863,7 @@ function drawSinnerWarden(P, px, py, aim, col, tint, hpFrac) {
   /* the mask's stitched seam */
   cx.strokeStyle = "#a3334f"; cx.lineWidth = 0.8;
   cx.beginPath(); cx.moveTo(4, -5); cx.lineTo(4, 5); cx.stroke();
-  drawCracks(cx, hpFrac, 11);
+  drawWounds(cx, hpFrac, 11);
   cx.restore();
   /* two tear-blades, purple with a white edge — both arms sweep the same way
      the cut does: left → right or right → left, picked fresh each swing */

@@ -1075,7 +1075,7 @@ function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
   cx.fillStyle = YI_COL.glove;
   cx.beginPath(); cx.ellipse(8.6, -4.6, 1.6, 1.2, 0.5, 0, TAU); cx.fill();
   cx.beginPath(); cx.ellipse(8.6, 4.6, 1.6, 1.2, -0.5, 0, TAU); cx.fill();
-  drawCracks(cx, hpFrac, 11);
+  drawWounds(cx, hpFrac, 11);
 
   /* the head: black hair, one gold eye out of the shadow, glasses' glare */
   cx.fillStyle = "#0d0d11";
