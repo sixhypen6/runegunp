@@ -395,6 +395,31 @@ function spawnShot(p, x, y, baseAim, skip) {
   if (p.char === "yi") { yiSwing(p, x, y, baseAim); return; }
   const sanchoMelee = p.char === "sancho" && p.weaponMode !== "ranged";
   if (sanchoMelee) { sanchoSwing(p, x, y, baseAim); return; }
+  /* SOLEMN LAMENT — twin gun-swords fire one after another: left, right, left */
+  if (p.char === "solemn") {
+    const perpX = Math.cos(baseAim + Math.PI / 2), perpY = Math.sin(baseAim + Math.PI / 2);
+    p.solemnSide = -(p.solemnSide || 1);
+    const off = p.solemnSide * 5;
+    const ox = perpX * off, oy = perpY * off;
+    bullets.push({
+      x: x + Math.cos(baseAim) * 18 + ox, y: y + Math.sin(baseAim) * 18 + oy,
+      vx: Math.cos(baseAim) * m.speed, vy: Math.sin(baseAim) * m.speed,
+      r: m.size, dmg: m.dmg, t: 0, life: 1.5,
+      pierce: m.pierce, bounce: m.bounce, homing: m.homing,
+      venom: m.venom, ember: m.ember, frost: m.frost, storm: m.storm,
+      bleed: m.bleed,
+      execute: m.execute, knock: m.knock,
+      crit: m.crit, critMul: m.critMul, fear: m.fear, fearDur: m.fearDur,
+      owner: p,
+      x0: x + Math.cos(baseAim) * 18 + ox,
+      y0: y + Math.sin(baseAim) * 18 + oy,
+      hitSet: null,
+    });
+    p.kickT = 0.09;
+    Game.shake = Math.max(Game.shake, 1.5);
+    AudioFX.shoot();
+    return;
+  }
   /* the shredder's debris must live long enough to cross its saw's reach even
      when HEAVY / TITAN have slowed the shards to a crawl */
   const shredLife = p.char === "shredder" ? Math.max(1.5, (m.sawReach || 76) * 1.8 / Math.max(120, m.speed)) : 1.5;

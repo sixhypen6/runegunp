@@ -1680,7 +1680,7 @@ function drawWarden(P) {
       cx.setLineDash([]); cx.globalAlpha = 1;
     }
     if (!blink && P.veilT <= 0) {
-      const col = P.dashT > 0 ? "#5ee6ff" : P.char === "sancho" ? "#b5162a" : P.char === "sinner" ? "#5a0f22" : P.char === "kim" ? "#9fc4dc" : P.char === "yi" ? "#e8c870" : skinColorFor(P);
+      const col = P.dashT > 0 ? "#5ee6ff" : P.char === "sancho" ? "#b5162a" : P.char === "sinner" ? "#5a0f22" : P.char === "kim" ? "#9fc4dc" : P.char === "yi" ? "#e8c870" : P.char === "solemn" ? "#e8e2d0" : skinColorFor(P);
       const hpFrac = P.maxHp > 0 ? clamp(P.hp / P.maxHp, 0, 1) : 1;
       cx.shadowColor = col; cx.shadowBlur = 14; cx.globalAlpha = 1;
       /* the barrels: gun warpaint wins outright; bare metal takes the ruling rune's hue */
@@ -1742,6 +1742,10 @@ function drawWarden(P) {
       } else if (P.char === "yi") {
         /* THE INDEX NURSEFATHER — black coat, white gloves, one gold eye, a chained blade */
         drawYiWarden(P, px, py, aim, col, tint, hpFrac);
+
+      } else if (P.char === "solemn") {
+        /* SOLEMN LAMENT — black coat, a coffin on his back, twin butterfly gun-swords */
+        drawSolemnWarden(P, px, py, aim, col, tint, hpFrac);
 
       } else if (P.char === "wraith") {
         /* Diamond body + three ghostly trailing tendrils + piercing eye */
