@@ -396,7 +396,7 @@ function spawnShot(p, x, y, baseAim, skip) {
   const sanchoMelee = p.char === "sancho" && p.weaponMode !== "ranged";
   if (sanchoMelee) { sanchoSwing(p, x, y, baseAim); return; }
   /* SOLEMN LAMENT — twin gun-swords fire one after another: left, right, left.
-     Each shot spends 1 ammo (Living first, then Departed); on hit inflicts Butterfly. */
+     Each shot randomly spends 1 from The Living or The Departed; on hit inflicts Butterfly. */
   if (p.char === "solemn") {
     slVitals(p);
     if (slAmmoTotal(p) <= 0) { slTryReload(p, true); return; }
@@ -423,6 +423,15 @@ function spawnShot(p, x, y, baseAim, skip) {
     p.kickT = 0.09;
     Game.shake = Math.max(Game.shake, 1.5);
     AudioFX.shoot();
+    /* muzzle flash — the butterfly gun-swords spit flame */
+    const mfx = x + Math.cos(baseAim) * 18 + ox, mfy = y + Math.sin(baseAim) * 18 + oy;
+    for (let k = 0; k < 5; k++) {
+      const a = baseAim + rnd(-0.45, 0.45);
+      particles.push({ x: mfx, y: mfy,
+        vx: Math.cos(a) * rnd(70, 160), vy: Math.sin(a) * rnd(70, 160),
+        t: 0, life: rnd(0.07, 0.13), r: rnd(1.6, 3.2),
+        color: pick([SOLEMN_COL.blade, SOLEMN_COL.gunHi, SOLEMN_COL.trimHi]) });
+    }
     return;
   }
   /* the shredder's debris must live long enough to cross its saw's reach even

@@ -173,10 +173,12 @@ function drawSolemnWarden(P, px, py, aim, col, tint, hpFrac) {
 
 const SL_AMMO_START = 10;      // begin 10 Living, 10 Departed
 const SL_AMMO_MAX = 10;        // cap per pool
+const SL_RELOAD_TIME = 1.2;    // seconds to refill both pools
 const SL_BFLY_MAX = 15;        // Butterfly potency/count cap
 const SL_BFLY_TURN = 4.0;      // seconds per Butterfly "turn" tick
 const SL_SHIELD_PCT = 0.20;    // FromTheCoffin shield cap
 const SL_HASTE_T = 2.0;        // Haste granted on reload, once per turn
+const SL_SKILL3_CD = 2.5;      // seconds between Goodbye Now uses
 const SL_GLOOM_CAP = 30;       // gloom dmg cap
 
 function slVitals(p) {
@@ -184,18 +186,22 @@ function slVitals(p) {
   if (p.slLiving === undefined) p.slLiving = SL_AMMO_START;
   if (p.slDeparted === undefined) p.slDeparted = SL_AMMO_START;
   if (p.slReloadT === undefined) p.slReloadT = 0;
+  if (p.slSkill3Cd === undefined) p.slSkill3Cd = 0;
   if (p.slHasteTurn === undefined) p.slHasteTurn = false;
   if (p.slCombatStart === undefined) p.slCombatStart = false;
 }
 
 function slAmmoTotal(p) { return (p.slLiving || 0) + (p.slDeparted || 0); }
 
-/* spend 1 ammo: Living first, then Departed. Returns spent (1) or -1 if empty. */
+/* spend 1 ammo: randomly draw from The Living or The Departed pool.
+   Returns spent (1) or -1 if both empty. */
 function slSpendOne(p) {
   slVitals(p);
-  if ((p.slLiving || 0) > 0) { p.slLiving--; return 1; }
-  if ((p.slDeparted || 0) > 0) { p.slDeparted--; return 1; }
-  return -1;
+  const living = p.slLiving || 0, departed = p.slDeparted || 0;
+  if (living <= 0 && departed <= 0) return -1;
+  const pickLiving = (living > 0) && (departed <= 0 || Math.random() < 0.5);
+  if (pickLiving) { p.slLiving--; return 1; }
+  p.slDeparted--; return 1;
 }
 
 /* spend all ammo; returns amount spent */
@@ -206,14 +212,22 @@ function slSpendAll(p) {
   return spent;
 }
 
-/* try to reload: restore pools, grant haste once per turn */
+/* start a reload timer; ammo refills when the timer runs out (see slTick).
+   force: start even if not empty. Returns true when a reload began. */
 function slTryReload(p, force) {
   slVitals(p);
-  const empty = slAmmoTotal(p) <= 0;
-  if (!force && !empty) return false;
+  if ((p.slReloadT || 0) > 0) return false;   // already reloading
+  if (!force && slAmmoTotal(p) > 0) return false;
+  p.slReloadT = SL_RELOAD_TIME;
+  if (p === localPlayer() && force) floatText(p.x, p.y - 40, "RELOAD", "#e8e2d0", 14);
+  return true;
+}
+
+/* finish a reload: restore pools, grant haste once per turn */
+function slFinishReload(p) {
+  slVitals(p);
   p.slLiving = SL_AMMO_START;
   p.slDeparted = SL_AMMO_START;
-  p.slReloadT = 0;
   if (!p.slHasteTurn) {
     p.hasteT = Math.max(p.hasteT || 0, SL_HASTE_T);
     p.slHasteTurn = true;
@@ -222,8 +236,6 @@ function slTryReload(p, force) {
       if (typeof toast === "function") toast("RELOAD — HASTE NEXT TURN");
     }
   }
-  if (p === localPlayer() && force) floatText(p.x, p.y - 40, "RELOAD", "#e8e2d0", 14);
-  return true;
 }
 
 /* inflict Butterfly on an enemy hit by a solemn shot that spent `spent` ammo.
@@ -264,12 +276,13 @@ function slButterflyTurnEnd(e) {
   if (e.bflyLiving <= 0 && e.bflyDeparted <= 0) { e.bflyLiving = 0; e.bflyDeparted = 0; }
 }
 
-/* S3 / Goodbye Now — spend all ammo, empowered pierce, +3 sinking (+Butterfly) on kill, reload + haste. */
+/* S3 / Goodbye Now — spend all ammo, empowered pierce, +3 sinking (+Butterfly) on kill, then reload + haste. */
 function slTrySkill3(p) {
   if (!p || p.char !== "solemn") return;
   const guest = typeof Net !== "undefined" && Net.role === "guest";
   if (guest) return;
-  if ((p.slReloadT || 0) > 0) return;
+  if ((p.slReloadT || 0) > 0) return;          // can't use while reloading
+  if ((p.slSkill3Cd || 0) > 0) return;          // on cooldown
   const spent = slSpendAll(p);
   if (spent <= 0) { slTryReload(p, true); return; }
   const m = p.mods || {};
@@ -298,20 +311,24 @@ function slTrySkill3(p) {
       e.sinkingBy = p;
     }
   }
-  p.slReloadT = 0.6;
-  slTryReload(p, true);
+  p.slSkill3Cd = SL_SKILL3_CD;
+  slTryReload(p, true);                         // Attack End Reload
   if (p === localPlayer()) {
     floatText(p.x, p.y - 44, "GOODBYE NOW", "#e8e2d0", 16);
     if (typeof toast === "function") toast("GOODBYE NOW — AMMO EXPENDED, RELOADING");
   }
 }
 
-/* per-frame player tick: reload cooldown */
+/* per-frame player tick: reload + skill-3 cooldown */
 function slTick(p, dt) {
   if (!p) return;
   if (p.char !== "solemn") return;
   slVitals(p);
-  if ((p.slReloadT || 0) > 0) p.slReloadT = Math.max(0, p.slReloadT - dt);
+  if ((p.slSkill3Cd || 0) > 0) p.slSkill3Cd = Math.max(0, p.slSkill3Cd - dt);
+  if ((p.slReloadT || 0) > 0) {
+    p.slReloadT = Math.max(0, p.slReloadT - dt);
+    if (p.slReloadT <= 0) slFinishReload(p);
+  }
 }
 
 /* Combat Start (wave start): reload once/turn + Shield = Butterfly% HP, max 20%/turn. */
@@ -342,11 +359,13 @@ function updateSolemnCue(p) {
   slVitals(p);
   const living = p.slLiving || 0, departed = p.slDeparted || 0;
   const reloading = (p.slReloadT || 0) > 0;
+  const s3cd = (p.slSkill3Cd || 0) > 0;
   let txt = "THE LIVING " + living + "/" + SL_AMMO_MAX
     + " · THE DEPARTED " + departed + "/" + SL_AMMO_MAX;
   if (reloading) txt += " · RELOADING " + (p.slReloadT || 0).toFixed(1) + "s";
+  else if (s3cd) txt += " · SKILL 3 " + (p.slSkill3Cd || 0).toFixed(1) + "s";
   else txt += " · SKILL 3 [E]";
-  const cls = "on" + (reloading ? " reload" : "");
+  const cls = "on" + (reloading ? " reload" : s3cd ? " cd" : "");
   if (lastSolemnCue !== txt + cls) {
     lastSolemnCue = txt + cls;
     el.textContent = txt;
