@@ -499,7 +499,7 @@ function fireWeapon(p, inp, dt) {
     }
     /* main gun: slower base rate */
     if (p.fireT <= 0) {
-      p.fireT = 1 / (m.rate * jamMul);
+  p.fireT = p.char === "yi" ? 0 : 1 / (m.rate * jamMul);
       const first = bullets.length;
       spawnShot(p, p.x + Math.cos(aim) * 8, p.y + Math.sin(aim) * 8, aim);
       /* the cannon's rounds burn gold so its volley reads apart from the side guns

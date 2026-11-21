@@ -120,42 +120,51 @@ const YI_WEAPON_SLASH = [YI_WEAPON_BASTARD, YI_WEAPON_GREATSWORD, YI_WEAPON_SCYT
 /* the whip is its own animal: it is not swung, it is thrown — a wide overhead lash */
 const YI_WEAPON_LASH = [YI_WEAPON_WHIP];
 
-const YI_HATCHET_KNOCK = 1.5;       // more knockback on the heavy cuts
+/* per-weapon ledger — damage, rate (× base), reach, knock, and the rider
+   each cut pays out. rate > 1 swings faster; reach in px; knock × base. */
+const YI_WEAPON_DATA = [
+  /* HATCHET — blunt, +50% knock, slows, 2 Poise */
+  { type: "blunt", dmg: 1.0, rate: 0.9, reach: 100, knock: 1.5, poise: 2, slow: 0.6 },
+  /* STILETTO — pierce, Sinking 2, thrusts forward */
+  { type: "pierce", dmg: 1.0, rate: 1.2, reach: 90, knock: 1.0, sinking: 2 },
+  /* BASTARD SWORD — slash, +7.5% dmg, Offense Level +1 */
+  { type: "slash", dmg: 1.075, rate: 1.0, reach: 105, knock: 1.1, offense: 1 },
+  /* RAPIER — pierce, +7.5% dmg, Defence Level Down +1 */
+  { type: "pierce", dmg: 1.075, rate: 1.1, reach: 110, knock: 0.9, defDown: 1 },
+  /* HAMMER — blunt, +7.5% dmg, Stagger */
+  { type: "blunt", dmg: 1.075, rate: 0.75, reach: 95, knock: 1.8, stagger: 1.1 },
+  /* GREATSWORD — slash, +15% dmg, Slash Fragility */
+  { type: "slash", dmg: 1.15, rate: 0.7, reach: 125, knock: 1.3, frag: "slash" },
+  /* LANCE — pierce, +15% dmg, Pierce Fragility, self-propelling */
+  { type: "pierce", dmg: 1.15, rate: 0.85, reach: 140, knock: 1.1, frag: "pierce", propel: 1.5 },
+  /* WHIP — blunt, +15% dmg, Blunt Fragility, multi-hit */
+  { type: "blunt", dmg: 1.15, rate: 1.15, reach: 115, knock: 0.8, frag: "blunt", multi: true },
+  /* SCYTHE — slash, +30% dmg, guaranteed crit */
+  { type: "slash", dmg: 1.3, rate: 0.8, reach: 130, knock: 1.2, crit: true },
+];
+function yiWeaponData(w) { return YI_WEAPON_DATA[w] || YI_WEAPON_DATA[0]; }
+function yiWeaponRate(w) { return yiWeaponData(w).rate; }
+function yiWeaponReach(w) { return yiWeaponData(w).reach; }
+function yiWeaponKnock(w) { return yiWeaponData(w).knock; }       // more knockback on the heavy cuts
 const YI_HATCHET_SLOW = 0.6;
 const YI_HATCHET_POISE = 2;         // official: on hit, gain 2 Poise
-const YI_STILETTO_GLOOM_T = 3;
-const YI_STILETTO_GLOOM_DPS = 7;
-const YI_BASTARD_DMG = 1.05;        // +5% damage
-const YI_RAPIER_DMG = 1.05;         // +5% damage
+const YI_SINKING_T = 4;             // seconds of Sinking per stack
+const YI_SINKING_DPS = 4;         // damage per Sinking stack per second
+const YI_SINKING_MAX = 5;         // Sinking stacks cap
+const YI_STILETTO_SINKING = 2;    // Sinking stacks a stiletto hit lays
 const YI_RAPIER_DEFDOWN = 0.10;     // defence punctured: +10% damage taken per stack
 const YI_RAPIER_DEFDOWN_TIME = 3;
 const YI_RAPIER_DEFDOWN_MAX = 2;
-const YI_HAMMER_DMG = 1.05;         // +5% damage
 const YI_HAMMER_STAGGER = 1.1;      // target can't act for this long
-const YI_GREATSWORD_DMG = 1.15;     // +15% damage
-const YI_LANCE_DMG = 1.15;          // +15% damage
-const YI_WHIP_DMG = 1.15;           // +15% damage
 const YI_FRAG_DMG = 0.10;           // typed Fragility: +10% from that damage type per stack
 const YI_FRAG_TIME = 4;
 const YI_FRAG_MAX = 2;
-const YI_SCYTHE_DMG = 1.3;          // +30% damage, guaranteed crit
 const YI_OFFENSE_DMG = 0.10;        // each Offense Level adds +10% damage
 const YI_OFFENSE_MAX = 2;
 const YI_OFFENSE_TIME = 3;
 
 /* the vessel's own multiplier — one table, so the arc and the PvP cut agree */
-function yiWeaponMul(w) {
-  switch (w) {
-    case YI_WEAPON_BASTARD:   return YI_BASTARD_DMG;
-    case YI_WEAPON_RAPIER:    return YI_RAPIER_DMG;
-    case YI_WEAPON_HAMMER:    return YI_HAMMER_DMG;
-    case YI_WEAPON_GREATSWORD:return YI_GREATSWORD_DMG;
-    case YI_WEAPON_LANCE:     return YI_LANCE_DMG;
-    case YI_WEAPON_WHIP:      return YI_WHIP_DMG;
-    case YI_WEAPON_SCYTHE:    return YI_SCYTHE_DMG;
-    default:                  return 1;
-  }
-}
+function yiWeaponMul(w) { return yiWeaponData(w).dmg; }
 /* which Fragility a vessel lays, and which blades drink from it */
 function yiWeaponFragType(w) {
   if (w === YI_WEAPON_BASTARD || w === YI_WEAPON_GREATSWORD || w === YI_WEAPON_SCYTHE) return "slash";
@@ -266,6 +275,7 @@ function yiClearMark(p) {
   p.yiMarkT = 0;
   p.yiTurnHermesGained = false;
   p.yiTurnHealed = false;
+  p.yiFuriosoUsed = false;      // once-per-turn Furioso re-arms next Prescript window
 }
 
 /* Skill 3 / Furioso-Replica — the [E] ability. At Hermes 9 it becomes
@@ -276,7 +286,7 @@ function yiTrySkill3(p) {
   const guest = typeof Net !== "undefined" && Net.role === "guest";
   if (guest) return;
   if ((p.yiSkill3Cd || 0) > 0) return;
-  const furioso = (p.yiProc || 0) >= YI_PROC_MAX;
+  const furioso = (p.yiProc || 0) >= YI_PROC_MAX && !p.yiFuriosoUsed;
   p.yiSkill3Cd = YI_SKILL3_CD;
   yiSkill3Swing(p, p.x, p.y, p.aim, furioso);
 }
@@ -317,6 +327,7 @@ function yiSkill3Swing(p, x, y, aim, furioso) {
   /* Furioso-Replica: consume all Hermes, bank Poise, ride every hit */
   p.yiProc = 0;
   p.yiProcReady = false;
+  p.yiFuriosoUsed = true;      // once per Prescript window
   p.yiPoise = Math.min(YI_POISE_MAX, (p.yiPoise || 0) + YI_FURIOSO_POISE);
   for (const e of hit) {
     e.burnT = Math.max(e.burnT || 0, YI_FURIOSO_BURN_T);
@@ -480,7 +491,7 @@ function yiHitEnemy(p, e, x, y, forceCrit, biteMul, weapon) {
     bite *= 1 + YI_FRAG_DMG * e.fragStacks;
   damageEnemy(e, bite, {
     owner: p, x, y, melee: true, critHit: crit,
-    knock: (m.knock || 0) * (weapon === YI_WEAPON_HATCHET ? YI_HATCHET_KNOCK : 1) * (forceCrit ? 1.6 : 1),
+    knock: (m.knock || 0) * yiWeaponKnock(weapon) * (forceCrit ? 1.6 : 1),
   });
   /* GUEST: the host settles the ledger; the guest's cut is only a picture */
   if (typeof Net !== "undefined" && Net.role === "guest") return;
@@ -497,11 +508,13 @@ function yiHitEnemy(p, e, x, y, forceCrit, biteMul, weapon) {
   if (!e.dead && weapon === YI_WEAPON_HATCHET) {
     e.slowT = Math.max(e.slowT || 0, YI_HATCHET_SLOW);
   }
-  /* [Stiletto] — a gloom-bleed that never closes */
+  /* [Stiletto] — puncture the lungs: Sinking, a cold bleed that stacks */
   if (!e.dead && weapon === YI_WEAPON_STILETTO) {
-    e.gloomT = Math.max(e.gloomT || 0, YI_STILETTO_GLOOM_T);
-    e.gloomDps = Math.max(e.gloomDps || 0, YI_STILETTO_GLOOM_DPS);
-    e.gloomBy = p;
+    const add = YI_SINKING_T;
+    e.sinkingT = Math.max(e.sinkingT || 0, add);
+    e.sinkingStacks = Math.min(YI_SINKING_MAX, (e.sinkingStacks || 0) + YI_STILETTO_SINKING);
+    e.sinkingDps = Math.max(e.sinkingDps || 0, YI_SINKING_DPS);
+    e.sinkingBy = p;
   }
   /* [Bastard Sword] — hone for two stacks of Offense (Hermes answers the honing) */
   if (!e.dead && weapon === YI_WEAPON_BASTARD) {
@@ -596,6 +609,15 @@ function yiTick(p, dt) {
     if (p.yiOffenseT <= 0) p.yiOffenseS = 0;
   }
   if ((p.yiSkill3Cd || 0) > 0) p.yiSkill3Cd = Math.max(0, p.yiSkill3Cd - dt);
+  /* final-hit propulsion: Yi Sang lunges through the target (host only) */
+  if ((p.yiPropelT || 0) > 0) {
+    p.yiPropelT = Math.max(0, p.yiPropelT - dt);
+    const spd = p.yiPropelSpd || 0;
+    p.x += Math.cos(p.yiPropelAng) * spd * dt;
+    p.y += Math.sin(p.yiPropelAng) * spd * dt;
+    collideWorld(p);
+    if (p.yiPropelT <= 0) p.yiPropelSpd = 0;
+  }
   if (p.yiMarkT > 0) {
     p.yiMarkT = Math.max(0, p.yiMarkT - dt);
     if (p.yiMarkT <= 0) {
@@ -662,7 +684,6 @@ function yiTick(p, dt) {
 function yiSwing(p, x, y, aim) {
   const m = p.mods;
   yiVitals(p);
-  const reach = YI_REACH_BASE + Math.max(0, (m.size || 4) - 4) * 0.8;
   const arcs = Math.max(1, m.meleeArcs || 1);
   const twin = Math.max(0, m.meleeTwin || 0);
   const mirror = Math.max(0, m.meleeMirror || 0);
@@ -671,35 +692,41 @@ function yiSwing(p, x, y, aim) {
   const dir = Math.random() < 0.5 ? -1 : 1;
   p.yiSlashT = YI_SLASH_LIFE;
   p.yiSlashAng = aim;
-  p.yiSlashReach = reach;
   p.yiSlashDir = dir;
   p.yiSlashLanes = null;
 
   /* the Oracle rules its weapon — one of nine is handed down this swing */
   const weapon = (Math.random() * 9) | 0;
   p.yiWeapon = weapon;
+  const wd = yiWeaponData(weapon);
+  /* per-weapon attack speed: a heavy greatsword resets slower than a stiletto */
+  const jamMul = curseActive(p, "jam") ? 0.5 : 1;
+  p.fireT = 1 / (m.rate * wd.rate * jamMul);
+  /* per-weapon reach, scaled by size mods like every melee warden */
+  const reach = yiWeaponReach(weapon) + Math.max(0, (m.size || 4) - 4) * 0.8;
+  /* combo: the third consecutive swing of the same vessel is the final hit,
+     which propels Yi Sang through the target (lance/hard-hitters) */
+  const isFinal = (p.yiComboWeapon || -1) === weapon && (p.yiComboN || 0) >= 2;
+  p.yiComboWeapon = weapon;
+  p.yiComboN = isFinal ? 0 : ((p.yiComboN || 0) + 1);
+  if (isFinal && wd.propel) {
+    p.yiPropelT = 0.4;
+    p.yiPropelAng = aim;
+    p.yiPropelSpd = 560 * wd.propel;
+  }
 
   const guest = typeof Net !== "undefined" && Net.role === "guest";
   const mark = p.yiMarkT > 0;
 
   /* MARK OF THE PRESCRIPT on the Base Attack Skill: using a marked skill
-     gains 1 Procuration [Hermes] per swing (host settles the ledger). At
-     Hermes 9, executing the Prescript heals 8 vitality and gains 3 Grace
-     instead of banking another Hermes. */
+     gains 1 Procuration [Hermes] per swing (host settles the ledger).
+     Hermes 9 does NOT auto-execute on basic swings — it unlocks Skill 3
+     (Furioso-Replica), which the player fires with [E] and which consumes
+     all Hermes. */
   if (mark && !guest) {
     p.yiTurnHermesGained = true;
-    if ((p.yiProc || 0) >= YI_PROC_MAX) {
-      /* executing the Prescript with Hermes at nine: heal 8 SP → 8 vitality,
-         gain 3 Grace, instead of gaining another Hermes */
-      p.hp = Math.min(p.maxHp, (p.hp || 0) + YI_EXECUTE_HEAL);
-      yiAddGrace(p, YI_GRACE_FROM_EXECUTION);
-      if (p === localPlayer()) {
-        floatText(p.x, p.y - 44, "EXECUTED — HERMES 9", "#ffedb8", 16);
-        floatText(p.x, p.y - 60, "+" + YI_EXECUTE_HEAL, "#8ef0a0", 14);
-        if (typeof toast === "function") toast("THE PRESCRIPT IS EXECUTED — HERMES AT NINE");
-      }
-    } else {
-      const pcap = yiProcCap(p);
+    const pcap = yiProcCap(p);
+    if ((p.yiProc || 0) < pcap) {
       p.yiProc = Math.min(pcap, (p.yiProc || 0) + 1);
       if (p.yiProc >= YI_PROC_MAX) {
         p.yiProcReady = true;
@@ -804,7 +831,7 @@ function updateYiCue(p) {
     + (p.yiProcReady ? " READY" : (!p.yiProcMaxed && (p.yiDevice || 1) >= 3 ? " · GRACE 9 LOCKED" : ""));
   txt += " · POISE " + (p.yiPoise || 0) + "/" + YI_POISE_MAX;
   txt += " · " + weapon;
-  const furioso = (p.yiProc || 0) >= YI_PROC_MAX;
+  const furioso = (p.yiProc || 0) >= YI_PROC_MAX && !p.yiFuriosoUsed;
   if (furioso) txt += " · FURIOSO-REPLICA [E]";
   else if ((p.yiSkill3Cd || 0) <= 0) txt += " · SKILL 3 [E]";
   else txt += " · SKILL 3 " + (p.yiSkill3Cd || 0).toFixed(1) + "s";

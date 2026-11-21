@@ -933,6 +933,23 @@ function update(dt) {
       }
       if (e.dead) { enemies.splice(i, 1); continue; }
     }
+    /* SINKING — the STILETTO's cold bleed: each stack drains vitality */
+    if (e.sinkingT > 0) {
+      e.sinkingT -= dt;
+      e.sinkingTick = (e.sinkingTick || 0) - dt;
+      if (e.sinkingTick <= 0) {
+        e.sinkingTick = 0.45;
+        const stacks = e.sinkingStacks || 0;
+        if (stacks > 0) {
+          const tick = stacks * (e.sinkingDps || YI_SINKING_DPS);
+          damageEnemy(e, tick, e.sinkingBy ? { owner: e.sinkingBy, sinkingTick: true } : undefined);
+          if (particles.length < 520) particles.push({ x: e.x + rnd(-6, 6), y: e.y + rnd(-6, 6),
+            vx: rnd(-18, 18), vy: rnd(-55, -18), t: 0, life: 0.25, r: 2.5, color: "#c9b6ff" });
+        }
+        if (e.sinkingT <= 0) e.sinkingStacks = 0;
+      }
+      if (e.dead) { enemies.splice(i, 1); continue; }
+    }
     /* FRAGILITY — blade/break timers tick for the Lance/Greatsword/Whip victims */
     if (e.fragT > 0) {
       e.fragT -= dt;
