@@ -430,10 +430,18 @@ function spawnShot(p, x, y, baseAim, skip) {
       });
     }
     p.kickT = 0.09;
-    Game.shake = Math.max(Game.shake, 1.5);
+    Game.shake = Math.max(Game.shake, 3);
     AudioFX.shoot();
+    /* butterfly burst — every shot sprays a cloud of small butterflies */
+    for (let k = 0; k < 14; k++) {
+      const a = baseAim + rnd(-0.9, 0.9);
+      particles.push({ x: mx, y: my,
+        vx: Math.cos(a) * rnd(140, 300), vy: Math.sin(a) * rnd(140, 300),
+        t: 0, life: rnd(0.35, 0.7), r: rnd(1.2, 2.4),
+        color: pick([SOLEMN_COL.blade, SOLEMN_COL.gunHi, SOLEMN_COL.trimHi, "#e8e2d0"]) });
+    }
     /* muzzle flash — the butterfly gun-swords spit flame */
-    for (let k = 0; k < 5; k++) {
+    for (let k = 0; k < 6; k++) {
       const a = baseAim + rnd(-0.45, 0.45);
       particles.push({ x: mx, y: my,
         vx: Math.cos(a) * rnd(70, 160), vy: Math.sin(a) * rnd(70, 160),
