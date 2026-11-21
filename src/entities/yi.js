@@ -8,7 +8,7 @@
    THE PRESCRIPT — each Prescript the Oracle marks the
    strongest horror on the board: THE PRESCRIPT'S TARGET.
    That horror takes +10% from The Index (the official mark),
-   and each cut upon it banks Grace of the Prescript. Grace is
+   and the first cut upon it banks Grace of the Prescript. Grace is
    a ladder, not a pool: PRESCRIPT [DEVICE] I caps it at three,
    the next Device raises the ceiling to six, and Device III
    repeats until PROCURATION [HERMES] reaches nine — the moment
@@ -210,6 +210,7 @@ function yiVitals(p) {
   if (p.yiProcGain === undefined) p.yiProcGain = 0;
   if (p.yiProcReady === undefined) p.yiProcReady = false;
   if (p.yiProcMaxed === undefined) p.yiProcMaxed = false;
+  if (p.yiGraceStruck === undefined) p.yiGraceStruck = false;
   if (p.yiDevice4T === undefined) p.yiDevice4T = 0;
 }
 
@@ -247,6 +248,7 @@ function yiFallMark(p, e) {
   p.yiMarkId = e ? e.id : null;
   p.yiMarkT = YI_MARK_TIME;
   p.yiProcGain = 0;                 // the Prescript is new — Hermes starts its count again
+  p.yiGraceStruck = false;          // one name pays one Grace — not one per cut
   /* TURN START: the Device is handed down for the Unlock already earned. Until it
      arrives, the old ceiling holds — Grace can never outrun the Prescript. */
   const dev = Math.max(1, Math.min(4, (p.yiUnlockTier || 0) + 1));
@@ -429,9 +431,14 @@ function yiHitEnemy(p, e, x, y, forceCrit, biteMul, weapon) {
     if (p === localPlayer() && (crit || p.yiPoise >= YI_POISE_MAX))
       floatText(e.x, e.y - e.r - 16, "POISE " + p.yiPoise + "/" + YI_POISE_MAX, "#d9b65c", 13);
   }
-  /* cut into the mark, and the Oracle grants you more of it */
+  /* the first cut into the mark banks its Grace — one per named horror, not one
+     per swing. Further cuts feed Hermes but never the ladder. */
   if (!e.dead && yiIsMarked(p, e)) {
-    yiAddGrace(p, 1);
+    if (!p.yiGraceStruck && yiAddGrace(p, 1) > 0) {
+      p.yiGraceStruck = true;
+      if (p === localPlayer())
+        floatText(p.x, p.y - 54, "GRACE " + p.yiGrace + "/" + yiGraceCap(p), "#7ec0ff", 12);
+    }
     /* PROCURATION [HERMES] — (Unlock stage + 2) may be banked per Prescript */
     const allow = (p.yiUnlockTier || 0) + 2;
     const pcap = yiProcCap(p);
