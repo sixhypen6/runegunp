@@ -146,8 +146,9 @@ function drawEnemyBars(e) {
     cx.fillStyle = "#ffe36e"; cx.fillRect(e.x - 4, e.y - e.r - 24, 8, 4);
   }
   if (e.fragT > 0) {
-    /* fragility — a warm orange sliver: the meat is ripe */
-    cx.fillStyle = "#ff9a3d"; cx.fillRect(e.x - 4, e.y - e.r - 30, 8, 4);
+    /* fragility — the sliver takes the colour of the seam that was opened */
+    cx.fillStyle = e.fragType === "pierce" ? "#8fb6ff" : e.fragType === "blunt" ? "#ffd66e" : "#ff9a3d";
+    cx.fillRect(e.x - 4, e.y - e.r - 30, 8, 4);
   }
   if (e.defDownT > 0) {
     /* Defence Down — a steel-blue sliver */

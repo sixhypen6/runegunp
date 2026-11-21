@@ -867,6 +867,12 @@ function damageEnemy(e, dmg, src) {
   }
   /* the deep floors: reflections crack one hit at a time; the posse covers its leader */
   dmg = deepDamage(e, dmg);
+  /* DEFENCE DOWN (the INDEX NURSEFATHER's rapier): a punctured guard gives way
+     to every blade, not just his own — +10% damage taken per stack */
+  if (e.defDown > 0) {
+    const rab = (typeof YI_RAPIER_DEFDOWN === "number") ? YI_RAPIER_DEFDOWN : 0.10;
+    dmg *= 1 + Math.min(0.5, e.defDown * rab);
+  }
   /* QUARRY: the gun savors the afflicted — burning, chilled or bleeding foes take more */
   if (om && om.prey > 1 && (e.burnT > 0 || e.slowT > 0 || e.bleedT > 0)) dmg *= om.prey;
   /* SNIPER: the farther the shot has travelled from the muzzle, the harder it
@@ -1279,9 +1285,8 @@ function hurtPlayer(p, dmg, src) {
   if (p.shield > 0) { shieldBurst(p); return; }   // shield soaks the hit, then detonates
   /* WRATHFUL horrors — and everything they hurl — strike half again as hard */
   if (src && src.wrath) dmg *= WRATH_DMG_MUL;
-  /* THE INDEX NURSEFATHER's RAPIER: defence punctured, blows from that foe land softer */
-  const yiRab = (typeof YI_RAPIER_DEFDOWN === "number") ? YI_RAPIER_DEFDOWN : 0.25;
-  if (src && src.defDown > 0) dmg *= 1 - Math.min(0.5, src.defDown * yiRab);
+  /* THE INDEX NURSEFATHER's UNLOCK: Defence Level +1/+2/+3 reads as a guard */
+  if (typeof yiUnlockGuard === "function") dmg *= 1 - yiUnlockGuard(p);
   dmg *= partyDmgMul();
   /* the gauntlet's own bite: +12% per cleared warden — solo or shared */
   if (typeof gauntletDmgMul === "function") dmg *= gauntletDmgMul();

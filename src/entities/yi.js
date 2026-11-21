@@ -5,17 +5,24 @@
    prescript the Oracle delivered, and the Oracle does not
    take "no" for an answer.
 
-   THE PRESCRIPT — every nine seconds the Oracle marks the
+   THE PRESCRIPT — each Prescript the Oracle marks the
    strongest horror on the board: THE PRESCRIPT'S TARGET.
-   That horror takes +20% from every cut, and each cut upon
-   it banks Grace of the Prescript (up to nine): at three
-   his edge sharpens to Unlock I, at six Unlock II, at nine
-   the full payout comes due (+30%). Fell the marked horror
-   while it still holds the mark and the execution completes:
-   +3 Grace, and the Karmic Consequence lifts. Let the mark
-   pass with the horror standing, and the Consequence takes
-   him instead: +2 Karmic Consequence (max 10, −4% damage
-   per stack).
+   That horror takes +10% from The Index (the official mark),
+   and each cut upon it banks Grace of the Prescript. Grace is
+   a ladder, not a pool: PRESCRIPT [DEVICE] I caps it at three,
+   and each Unlock earned raises the ceiling to six, then nine.
+   Grace pays +10% damage per three stacks, and the Unlock it
+   grants adds a guard (+5/10/15% less damage taken). Fell the
+   marked horror and the execution completes: +3 Grace, 20
+   Karmic lifted. Let the mark pass with the horror standing and
+   the Consequence takes him instead: +20 Karmic (max 100, −0.4%
+   damage per stack, −40% at the cap).
+
+   PROCURATION [HERMES] — every struck mark also feeds Hermes.
+   It is capped at eight until Unlock II, then nine; the gain per
+   Prescript is (Unlock stage + 2). At nine the meter completes and
+   the next cut comes down as a guaranteed critical that clears
+   twenty Karmic.
 
    POISE — every cut banks a Poise, a critical banks two (max 5);
    +6% cut damage per stack. The kit's [On Hit] builds paid out
@@ -37,26 +44,32 @@
 "use strict";
 
 /* --- the Prescript --- */
-const YI_MARK_CD = 9;              // seconds between marks landing
+const YI_MARK_CD = 9;              // fallback gap between Prescripts (executions write the next sooner)
 const YI_MARK_FIRST = 1.6;         // the first mark comes fast — the Oracle does not wait long
 const YI_MARK_TIME = 12;           // the mark's window before the Oracle loses interest
-const YI_MARK_BONUS = 0.20;        // the marked horror takes +20% from every cut
+const YI_MARK_BONUS = 0.10;        // the marked horror takes +10% from The Index's cuts
 
 /* --- Grace of the Prescript --- */
 const YI_GRACE_MAX = 9;
 const YI_GRACE_TIER_3 = 3, YI_GRACE_TIER_6 = 6, YI_GRACE_TIER_9 = 9;
-const YI_GRACE_TIER_DMG = [0, 0.08, 0.16, 0.30];   // by tier 0/1/2/3
+const YI_GRACE_TIER_DMG = [0, 0.10, 0.20, 0.30];   // +1 Offense Level per 3 stacks, read as +10% a tier
+const YI_UNLOCK_GUARD = [0, 0.05, 0.10, 0.15];     // Unlock I/II/III: Defence Level +1/+2/+3 as damage taken down
 const YI_GRACE_FROM_EXECUTION = 3;  // +Grace for falling the marked horror
+/* PRESCRIPT [DEVICE] I–III: the ceiling Grace may climb to at Device stage 1/2/3/4 */
+const YI_GRACE_CAP = [3, 6, 9, 9];
+/* PROCURATION [HERMES] — capped at 8 until Unlock II, nine after */
+const YI_PROC_MAX = 9;
+const YI_PROC_CAP_LOW = 8;
 /* the three Unlocks the Prescript grants at 3 / 6 / 9 Grace — and the line it speaks */
 const YI_UNLOCKS = [
   { tier: 1, name: "UNLOCK - I", line: "Wading through a dream, the self nowhere to be found.", kanji: "無我夢中" },
   { tier: 2, name: "UNLOCK - II", line: "Like the Naraka of Avīci and Raurava.", kanji: "阿鼻叫喚" },
   { tier: 3, name: "UNLOCK - III", line: "Severed and torn until even the form is undone.", kanji: "支離滅裂" },
 ];
-const YI_KARMIC_MAX = 10;
-const YI_KARMIC_PER_STACK = 0.04;  // each Consequence drags cuts down 4%
-const YI_KARMIC_EXECUTE_CLEAR = 2; // exiting a prescript clears two stacks
-const YI_KARMIC_MISS = 2;          // a mark that escapes alive adds two
+const YI_KARMIC_MAX = 100;
+const YI_KARMIC_PER_STACK = 0.004;  // each Consequence drags cuts down 0.4% (40% at 100)
+const YI_KARMIC_EXECUTE_CLEAR = 20; // exiting a prescript lifts twenty
+const YI_KARMIC_MISS = 20;          // a mark that escapes alive adds twenty
 
 /* --- Poise --- */
 const YI_POISE_MAX = 5;
@@ -93,23 +106,47 @@ const YI_WEAPON_LASH = [YI_WEAPON_WHIP];
 
 const YI_HATCHET_KNOCK = 1.5;       // more knockback on the heavy cuts
 const YI_HATCHET_SLOW = 0.6;
+const YI_HATCHET_POISE = 2;         // official: on hit, gain 2 Poise
 const YI_STILETTO_GLOOM_T = 3;
 const YI_STILETTO_GLOOM_DPS = 7;
-const YI_BASTARD_DMG = 1.15;        // +15% damage
-const YI_RAPIER_DEFDOWN = 0.25;     // -25% damage dealt by target
+const YI_BASTARD_DMG = 1.05;        // +5% damage
+const YI_RAPIER_DMG = 1.05;         // +5% damage
+const YI_RAPIER_DEFDOWN = 0.10;     // defence punctured: +10% damage taken per stack
 const YI_RAPIER_DEFDOWN_TIME = 3;
 const YI_RAPIER_DEFDOWN_MAX = 2;
+const YI_HAMMER_DMG = 1.05;         // +5% damage
 const YI_HAMMER_STAGGER = 1.1;      // target can't act for this long
-const YI_GREATSWORD_DMG = 1.2;      // +20% damage
+const YI_GREATSWORD_DMG = 1.15;     // +15% damage
 const YI_LANCE_DMG = 1.15;          // +15% damage
 const YI_WHIP_DMG = 1.15;           // +15% damage
-const YI_FRAG_DMG = 0.25;           // target takes +25% damage per Fragility stack
+const YI_FRAG_DMG = 0.10;           // typed Fragility: +10% from that damage type per stack
 const YI_FRAG_TIME = 4;
 const YI_FRAG_MAX = 2;
 const YI_SCYTHE_DMG = 1.3;          // +30% damage, guaranteed crit
-const YI_OFFENSE_DMG = 0.25;        // each Offense stack adds +25% damage
+const YI_OFFENSE_DMG = 0.10;        // each Offense Level adds +10% damage
 const YI_OFFENSE_MAX = 2;
 const YI_OFFENSE_TIME = 3;
+
+/* the vessel's own multiplier — one table, so the arc and the PvP cut agree */
+function yiWeaponMul(w) {
+  switch (w) {
+    case YI_WEAPON_BASTARD:   return YI_BASTARD_DMG;
+    case YI_WEAPON_RAPIER:    return YI_RAPIER_DMG;
+    case YI_WEAPON_HAMMER:    return YI_HAMMER_DMG;
+    case YI_WEAPON_GREATSWORD:return YI_GREATSWORD_DMG;
+    case YI_WEAPON_LANCE:     return YI_LANCE_DMG;
+    case YI_WEAPON_WHIP:      return YI_WHIP_DMG;
+    case YI_WEAPON_SCYTHE:    return YI_SCYTHE_DMG;
+    default:                  return 1;
+  }
+}
+/* which Fragility a vessel lays, and which blades drink from it */
+function yiWeaponFragType(w) {
+  if (w === YI_WEAPON_BASTARD || w === YI_WEAPON_GREATSWORD || w === YI_WEAPON_SCYTHE) return "slash";
+  if (w === YI_WEAPON_STILETTO || w === YI_WEAPON_RAPIER || w === YI_WEAPON_LANCE) return "pierce";
+  if (w === YI_WEAPON_HATCHET || w === YI_WEAPON_HAMMER || w === YI_WEAPON_WHIP) return "blunt";
+  return "";
+}
 
 /* --- the arc's color tracks the weapon it was swung with --- */
 function yiArcColor(w) {
@@ -165,6 +202,12 @@ function yiVitals(p) {
   if (p.yiPoise === undefined) p.yiPoise = 0;
   if (p.yiOffenseS === undefined) p.yiOffenseS = 0;
   if (p.yiOffenseT === undefined) p.yiOffenseT = 0;
+  if (p.yiUnlockTier === undefined) p.yiUnlockTier = 0;
+  if (p.yiDevice === undefined) p.yiDevice = 1;
+  if (p.yiProc === undefined) p.yiProc = 0;
+  if (p.yiProcGain === undefined) p.yiProcGain = 0;
+  if (p.yiProcReady === undefined) p.yiProcReady = false;
+  if (p.yiDevice4T === undefined) p.yiDevice4T = 0;
 }
 
 /* the marked horror, from the live object (host/solo) or the synced id (guest) */
@@ -200,6 +243,17 @@ function yiFallMark(p, e) {
   p.yiMark = e || null;
   p.yiMarkId = e ? e.id : null;
   p.yiMarkT = YI_MARK_TIME;
+  p.yiProcGain = 0;                 // the Prescript is new — Hermes starts its count again
+  /* TURN START: the Device is handed down for the Unlock already earned. Until it
+     arrives, the old ceiling holds — Grace can never outrun the Prescript. */
+  const dev = Math.max(1, Math.min(4, (p.yiUnlockTier || 0) + 1));
+  if (dev > (p.yiDevice || 1)) {
+    p.yiDevice = dev;
+    if (dev >= 4) p.yiDevice4T = YI_MARK_CD;   // Device IV: empty the room before the next
+    if (p === localPlayer()) {
+      floatText(p.x, p.y - 52, "PRESCRIPT [DEVICE] " + ["I", "II", "III", "IV"][dev - 1], "#7ec0ff", 14);
+    }
+  }
 }
 
 function yiClearMark(p) {
@@ -215,6 +269,29 @@ function yiGraceTier(p) {
   return 0;
 }
 function yiGraceBonus(p) { return YI_GRACE_TIER_DMG[yiGraceTier(p)]; }
+/* Unlock's defence rider — the guard a stage of Grace holds over him */
+function yiUnlockGuard(p) {
+  if (!p || p.char !== "yi") return 0;
+  return YI_UNLOCK_GUARD[yiGraceTier(p)];
+}
+/* PRESCRIPT [DEVICE]: the ceiling Grace may reach. The Device itself is only
+   handed down at the start of a Prescript, exactly like a turn start. */
+function yiGraceCap(p) {
+  const d = Math.min(4, Math.max(1, p.yiDevice || 1));
+  return YI_GRACE_CAP[d - 1];
+}
+/* Grace is banked through the Device — it can never overrun its ceiling */
+function yiAddGrace(p, n) {
+  const cap = yiGraceCap(p);
+  const was = Math.min(YI_GRACE_MAX, p.yiGrace || 0);
+  const g = was >= cap ? was : Math.min(cap, was + n);
+  p.yiGrace = g;
+  return g - was;
+}
+/* PROCURATION [HERMES] — eight until Unlock II, then nine */
+function yiProcCap(p) {
+  return (p.yiUnlockTier || 0) >= 2 ? YI_PROC_MAX : YI_PROC_CAP_LOW;
+}
 
 /* the turn Grace crosses 3 / 6 / 9, the Prescript grants an Unlock and Yi Sang
    speaks its line. One voiceline per tier; the tally re-arms if Grace ever drops. */
@@ -269,8 +346,14 @@ function yiCheckUnlock(p) {
     return;
   }
   p.yiUnlockTier = tier;
+  /* the Unlock's own riders: Defence Level (a guard, applied in hurtPlayer)
+     and the combat-end SP heal, read here as a burst of vitality */
+  const heal = [0, 5, 10, 15][tier] || 0;
+  if (heal > 0 && p.hp > 0 && !(typeof Net !== "undefined" && Net.role === "guest"))
+    p.hp = Math.min(p.maxHp, p.hp + heal);
   if (typeof localPlayer === "function" && p !== localPlayer()) return;
   yiSayUnlock(YI_UNLOCKS[tier - 1]);
+  if (heal > 0) floatText(p.x, p.y - 40, "+" + heal, "#8ef0a0", 14);
 }
 
 /* one cut's bite — Poise sharpens, Grace deepens, Karmic drags, the BASTARD SWORD
@@ -290,10 +373,10 @@ function yiBite(p) {
 function yiFallenMark(p, e) {
   if (!p || p.char !== "yi") return;
   yiVitals(p);
-  if ((p.yiGrace || 0) < YI_GRACE_MAX)
-    p.yiGrace = Math.min(YI_GRACE_MAX, (p.yiGrace || 0) + YI_GRACE_FROM_EXECUTION);
+  yiAddGrace(p, YI_GRACE_FROM_EXECUTION);
   p.yiKarmic = Math.max(0, (p.yiKarmic || 0) - YI_KARMIC_EXECUTE_CLEAR);
   yiClearMark(p);
+  p.yiMarkCd = 2.5;                  // the next name is written soon after an execution
   if (p === localPlayer()) {
     floatText(p.x, p.y - 38, "EXECUTED", "#ffe9a8", 17);
     if (typeof toast === "function") toast("THE PRESCRIPT IS EXECUTED — THE KARMIC LEDGER LIFTS");
@@ -308,32 +391,46 @@ function yiHitEnemy(p, e, x, y, forceCrit, biteMul, weapon) {
   if (weapon === YI_WEAPON_SCYTHE) crit = true;          // the scythe always finds the gap
   const critMul = m.critMul || 2.2;
   const bitEm = yiIsMarked(p, e) ? YI_MARK_BONUS : 0;
-  const weapDmg = weapon === YI_WEAPON_BASTARD ? YI_BASTARD_DMG
-                : weapon === YI_WEAPON_GREATSWORD ? YI_GREATSWORD_DMG
-                : weapon === YI_WEAPON_LANCE ? YI_LANCE_DMG
-                : weapon === YI_WEAPON_WHIP ? YI_WHIP_DMG
-                : weapon === YI_WEAPON_SCYTHE ? YI_SCYTHE_DMG
-                : 1;
+  const weapDmg = yiWeaponMul(weapon);
+  const fragType = yiWeaponFragType(weapon);
   let bite = yiBite(p) * (biteMul || 1) * (1 + bitEm)
     * weapDmg
     * (crit ? critMul : 1);
-  /* target is Fragile — it takes +25% damage for every stack */
-  if (e.fragT > 0 && e.fragStacks > 0) bite *= 1 + YI_FRAG_DMG * e.fragStacks;
+  /* target is Fragile to a damage type — only that blade class drinks from it */
+  if (e.fragT > 0 && e.fragStacks > 0 && fragType && e.fragType === fragType)
+    bite *= 1 + YI_FRAG_DMG * e.fragStacks;
   damageEnemy(e, bite, {
     owner: p, x, y, melee: true, critHit: crit,
     knock: (m.knock || 0) * (weapon === YI_WEAPON_HATCHET ? YI_HATCHET_KNOCK : 1) * (forceCrit ? 1.6 : 1),
   });
+  /* GUEST: the host settles the ledger; the guest's cut is only a picture */
+  if (typeof Net !== "undefined" && Net.role === "guest") return;
   /* every landed cut banks Poise — [On Hit] in his kit — and a critical banks an extra;
      the Oracle counts true strikes, and Yi Sang stacks them like a debt-book */
   if (!e.dead && (p.yiPoise || 0) < YI_POISE_MAX) {
-    const gain = crit ? 2 : 1;   // crit = 1 + [On Crit] extra
+    /* the hatchet's own line: +2 Poise on hit; every other cut banks one */
+    const gain = (weapon === YI_WEAPON_HATCHET ? YI_HATCHET_POISE : 1) + (crit ? 1 : 0);
     p.yiPoise = Math.min(YI_POISE_MAX, (p.yiPoise || 0) + gain);
     if (p === localPlayer() && (crit || p.yiPoise >= YI_POISE_MAX))
       floatText(e.x, e.y - e.r - 16, "POISE " + p.yiPoise + "/" + YI_POISE_MAX, "#d9b65c", 13);
   }
   /* cut into the mark, and the Oracle grants you more of it */
-  if (!e.dead && yiIsMarked(p, e) && (p.yiGrace || 0) < YI_GRACE_MAX) {
-    p.yiGrace = (p.yiGrace || 0) + 1;
+  if (!e.dead && yiIsMarked(p, e)) {
+    yiAddGrace(p, 1);
+    /* PROCURATION [HERMES] — (Unlock stage + 2) may be banked per Prescript */
+    const allow = (p.yiUnlockTier || 0) + 2;
+    const pcap = yiProcCap(p);
+    if (!p.yiProcReady && (p.yiProcGain || 0) < allow && (p.yiProc || 0) < pcap) {
+      p.yiProc = Math.min(pcap, (p.yiProc || 0) + 1);
+      p.yiProcGain = (p.yiProcGain || 0) + 1;
+      if (p.yiProc >= pcap) {
+        p.yiProcReady = true;
+        if (p === localPlayer()) {
+          floatText(p.x, p.y - 46, "PROCURATION [HERMES]", "#ffedb8", 14);
+          if (typeof toast === "function") toast("PROCURATION [HERMES] — THE NEXT CUT IS PERFECT");
+        }
+      }
+    }
   }
   /* [Hatchet] — bruise the target into a sluggish step */
   if (!e.dead && weapon === YI_WEAPON_HATCHET) {
@@ -352,8 +449,8 @@ function yiHitEnemy(p, e, x, y, forceCrit, biteMul, weapon) {
     if (p === localPlayer())
       floatText(p.x, p.y - 40, "OFFENSE " + p.yiOffenseS + "/" + YI_OFFENSE_MAX, "#ffedb8", 13);
   }
-  /* [Rapier] — puncture the armor of Catche's guard — it takes the next hits softer too;
-     in our terms, the enemy's blows deal less damage */
+  /* [Rapier] — the guard is punctured: Def Level Down, so the horror takes
+     +10% from every blade for a spell (damageEnemy reads e.defDown) */
   if (!e.dead && weapon === YI_WEAPON_RAPIER) {
     e.defDown = Math.min(YI_RAPIER_DEFDOWN_MAX, (e.defDown || 0) + 1);
     e.defDownT = YI_RAPIER_DEFDOWN_TIME;
@@ -366,13 +463,19 @@ function yiHitEnemy(p, e, x, y, forceCrit, biteMul, weapon) {
     if (p === localPlayer())
       floatText(e.x, e.y - e.r - 26, "STAGGERED", "#ffffff", 13);
   }
-  /* [Greatsword, Lance, Whip] — lay a Fragility into the foe;
-     fragile flesh gives way to every blade that lands */
+  /* [Greatsword, Lance, Whip] — lay a typed Fragility into the foe;
+     fragile flesh gives way to that class of blade, and only that class */
   if (!e.dead && (weapon === YI_WEAPON_GREATSWORD || weapon === YI_WEAPON_LANCE || weapon === YI_WEAPON_WHIP)) {
+    const t = yiWeaponFragType(weapon);
+    if (e.fragT <= 0 || e.fragType !== t) {
+      e.fragType = t;          // a different blade opens a different seam
+      e.fragStacks = 1;
+    } else {
+      e.fragStacks = Math.min(YI_FRAG_MAX, (e.fragStacks || 0) + 1);
+    }
     e.fragT = Math.max(e.fragT || 0, YI_FRAG_TIME);
-    e.fragStacks = Math.min(YI_FRAG_MAX, (e.fragStacks || 0) + 1);
     if (p === localPlayer())
-      floatText(e.x, e.y - e.r - 26, "FRAGILE ×" + e.fragStacks, "#ff9a3d", 12);
+      floatText(e.x, e.y - e.r - 26, t.toUpperCase() + " FRAGILE ×" + e.fragStacks, "#ff9a3d", 12);
   }
   if (!e.dead) applyMeleeElements(p, e, m);
 }
@@ -401,9 +504,12 @@ function yiCutArc(p, x, y, aim, halfArc, reach, forceCrit, mark, biteMul, weapon
     let delta = Math.atan2(dy, dx) - aim;
     delta = Math.atan2(Math.sin(delta), Math.cos(delta));
     if (Math.abs(delta) > halfArc) continue;
-    const crit = !!forceCrit || (m.crit > 0 && Math.random() < m.crit);
+    let crit = !!forceCrit || (m.crit > 0 && Math.random() < m.crit);
+    if (weapon === YI_WEAPON_SCYTHE) crit = true;
     const critMul = m.critMul || 2.2;
-    hurtPlayer(foe, yiBite(p) * (biteMul || 1) * (weapon === YI_WEAPON_BASTARD ? 1.18 : 1) * (crit ? critMul : 1),
+    /* the rapier's puncture lands on wardens as a straight exposure */
+    const expose = weapon === YI_WEAPON_RAPIER ? 1 + YI_RAPIER_DEFDOWN : 1;
+    hurtPlayer(foe, yiBite(p) * (biteMul || 1) * yiWeaponMul(weapon) * expose * (crit ? critMul : 1),
       { x, y, knock: (m.knock || 0) * (weapon === YI_WEAPON_HATCHET ? 0.9 : 0.6) });
   }
   return best;
@@ -412,7 +518,16 @@ function yiCutArc(p, x, y, aim, halfArc, reach, forceCrit, mark, biteMul, weapon
 /* per-frame bookkeeping: the swing's afterglow, the mark, and the Oracle's clock */
 function yiTick(p, dt) {
   if (!p) return;
+  /* the Oracle keeps its accounts for Yi Sang alone — a Kim or a Fortress must not
+     inherit the mark, the Grace pips or the Karmic ledger */
+  if (p.char !== "yi") return;
   yiVitals(p);
+  /* GUEST: the host writes the Prescript. A guest only keeps the swing's afterglow
+     alive for its own frame; the mark, Grace and Karmic arrive through snapshots. */
+  if (typeof Net !== "undefined" && Net.role === "guest") {
+    p.yiSlashT = Math.max(0, p.yiSlashT - dt);
+    return;
+  }
   p.yiSlashT = Math.max(0, p.yiSlashT - dt);
   /* the BASTARD SWORD hones but for a while */
   if (p.yiOffenseT > 0) {
@@ -426,14 +541,15 @@ function yiTick(p, dt) {
       p.yiKarmic = Math.min(YI_KARMIC_MAX, (p.yiKarmic || 0) + YI_KARMIC_MISS);
       if (p === localPlayer()) floatText(p.x, p.y - 40, "KARMIC +" + YI_KARMIC_MISS, "#ff6b6b", 14);
       yiClearMark(p);
+      p.yiMarkCd = 3;                 // a breath, then the Oracle writes again
     } else {
       const tgt = yiMarkedFoe(p);
-      if (!tgt) yiClearMark(p);        // target fell elsewhere — the mark dissolves (an execution flows through killEnemy)
+      if (!tgt) { yiClearMark(p); p.yiMarkCd = 2; }   // the horror fell elsewhere — a new name follows
     }
-  }
-  if (p.yiMarkCd > 0) {
-    p.yiMarkCd = Math.max(0, p.yiMarkCd - dt);
-    if (p.yiMarkCd <= 0 && p.yiMarkT <= 0 && enemies.length) {
+  } else {
+    /* no name is written: the Oracle's clock runs, then delivers the next Prescript */
+    p.yiMarkCd = Math.max(0, (p.yiMarkCd || 0) - dt);
+    if (p.yiMarkCd <= 0 && enemies.length) {
       const e = yiPickMark(p);
       if (e) {
         yiFallMark(p, e);
@@ -443,8 +559,25 @@ function yiTick(p, dt) {
         }
       }
     }
-  } else if (p.yiMarkT <= 0 && enemies.length) {
-    p.yiMarkCd = Math.min(p.yiMarkCd, 1.2);
+  }
+  /* PRESCRIPT [DEVICE] IV — after Unlock III the Oracle sets a contract:
+     empty the room before the next Prescript arrives */
+  if (p.yiDevice4T > 0) {
+    const alive = enemies.some(e => !e.dead && !e.ghost && e.spawnT <= 0 && e.team !== "p");
+    if (!alive) {
+      p.yiDevice4T = 0;
+      p.yiKarmic = 0;
+      if (p === localPlayer()) {
+        floatText(p.x, p.y - 44, "PRESCRIPT FULFILLED", "#8ef0a0", 16);
+        if (typeof toast === "function") toast("THE PRESCRIPT IS FULFILLED — THE LEDGER IS CLEAN");
+      }
+    } else {
+      p.yiDevice4T = Math.max(0, p.yiDevice4T - dt);
+      if (p.yiDevice4T <= 0) {
+        /* the contract lapses — the next Prescript simply arrives, no ledger entry */
+        if (p === localPlayer()) floatText(p.x, p.y - 44, "THE PRESCRIPT MOVES ON", "#8f9bb0", 13);
+      }
+    }
   }
   /* Grace of the Prescript — 3 / 6 / 9 speaks the Unlock line */
   yiCheckUnlock(p);
@@ -471,10 +604,25 @@ function yiSwing(p, x, y, aim) {
   const weapon = (Math.random() * 9) | 0;
   p.yiWeapon = weapon;
 
+  /* PROCURATION [HERMES] at nine: this cut comes down perfect (host only) */
+  const guest = typeof Net !== "undefined" && Net.role === "guest";
+  const proc = !!p.yiProcReady && !guest;
+  if (proc) {
+    p.yiProcReady = false;
+    p.yiProc = 0;
+    p.yiProcGain = 0;
+    p.yiPoise = YI_POISE_MAX;
+    p.yiKarmic = Math.max(0, (p.yiKarmic || 0) - YI_KARMIC_EXECUTE_CLEAR);
+    if (p === localPlayer()) {
+      floatText(p.x, p.y - 44, "PROCURATION [HERMES]", "#ffedb8", 16);
+      if (typeof toast === "function") toast("HERMES ANSWERS — TWENTY KARMIC LIFTED");
+    }
+  }
+
   const mark = p.yiMarkT > 0;
   for (let i = 0; i < arcs; i++) {
     const a = arcs === 1 ? aim : aim + (-totalHalf + wedge * (2 * i + 1));
-    yiCutArc(p, x, y, a, arcs === 1 ? totalHalf : wedge, reach, false, mark, null, weapon);
+    yiCutArc(p, x, y, a, arcs === 1 ? totalHalf : wedge, reach, proc, mark, null, weapon);
   }
   yiTrail(x, y, aim, reach, weapon, arcs === 1 ? 9 : Math.min(9, 5 + arcs));
 
@@ -493,7 +641,7 @@ function yiSwing(p, x, y, aim) {
       const side = i % 2 === 0 ? 1 : -1;
       const off = YI_TWIN_GAP * (Math.floor(i / 2) + 1) * side;
       const ox = x + perpX * off, oy = y + perpY * off;
-      yiCutArc(p, ox, oy, aim, YI_TWIN_HALF, reach, false, mark, null, weapon);
+      yiCutArc(p, ox, oy, aim, YI_TWIN_HALF, reach, proc, mark, null, weapon);
       p.yiSlashLanes.push({
         dx: perpX * off, dy: perpY * off, ang: aim,
         scale: YI_TWIN_HALF / YI_HALF_ARC, delay: 0.02 + i * 0.012,
@@ -503,7 +651,7 @@ function yiSwing(p, x, y, aim) {
     }
     const backHalf = YI_HALF_ARC * 0.8;
     for (let i = 0; i < mirror; i++) {
-      yiCutArc(p, x, y, aim + Math.PI, backHalf, reach * 0.9, false, mark, null, weapon);
+      yiCutArc(p, x, y, aim + Math.PI, backHalf, reach * 0.9, proc, mark, null, weapon);
       p.yiSlashLanes.push({
         dx: 0, dy: 0, ang: aim + Math.PI, scale: backHalf / YI_HALF_ARC,
         delay: 0.03 + i * 0.012, alpha: 0.7, dir: -dir, cheap: true, weapon,
@@ -544,9 +692,15 @@ function updateYiCue(p) {
   yiUnlockVoices();   /* warm the three Unlock lines while he is on the field */
   const g = clamp(p.yiGrace || 0, 0, YI_GRACE_MAX);
   const k = clamp(p.yiKarmic || 0, 0, YI_KARMIC_MAX);
-  const pips = "◆".repeat(g) + "◇".repeat(YI_GRACE_MAX - g);
+  const cap = yiGraceCap(p);
+  /* filled ◆, reachable ◇, and the Device-locked rest as · */
+  const pips = "◆".repeat(g)
+    + "◇".repeat(Math.max(0, cap - g))
+    + "·".repeat(Math.max(0, YI_GRACE_MAX - cap));
   const weapon = YI_WEAPONS[p.yiWeapon] || "BASTARD SWORD";
-  let txt = "PRESCRIPT " + pips + " · KARMIC " + k + "/" + YI_KARMIC_MAX;
+  let txt = "PRESCRIPT [" + ["I", "II", "III", "IV"][Math.min(4, Math.max(1, p.yiDevice || 1)) - 1] + "] " + pips
+    + " · KARMIC " + k + "/" + YI_KARMIC_MAX;
+  txt += " · HERMES " + (p.yiProc || 0) + "/" + yiProcCap(p) + (p.yiProcReady ? " READY" : "");
   txt += " · POISE " + (p.yiPoise || 0) + "/" + YI_POISE_MAX;
   txt += " · " + weapon;
   if (p.yiMarkT > 0) txt += " · MARK " + p.yiMarkT.toFixed(1) + "s";
