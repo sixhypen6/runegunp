@@ -396,7 +396,9 @@ function spawnShot(p, x, y, baseAim, skip) {
   const sanchoMelee = p.char === "sancho" && p.weaponMode !== "ranged";
   if (sanchoMelee) { sanchoSwing(p, x, y, baseAim); return; }
   /* SOLEMN LAMENT — twin gun-swords fire one after another: left, right, left.
-     Each shot randomly spends 1 from The Living or The Departed; on hit inflicts Butterfly. */
+     Each shot sprays a tight cone of small butterflies — short range, near-instant,
+     higher damage. Randomly spends 1 from The Living or The Departed; on hit
+     inflicts Butterfly (potency/count = ammo spent). */
   if (p.char === "solemn") {
     slVitals(p);
     if (slAmmoTotal(p) <= 0) { slTryReload(p, true); return; }
@@ -405,30 +407,35 @@ function spawnShot(p, x, y, baseAim, skip) {
     p.solemnSide = -(p.solemnSide || 1);
     const off = p.solemnSide * 5;
     const ox = perpX * off, oy = perpY * off;
-    bullets.push({
-      x: x + Math.cos(baseAim) * 18 + ox, y: y + Math.sin(baseAim) * 18 + oy,
-      vx: Math.cos(baseAim) * m.speed, vy: Math.sin(baseAim) * m.speed,
-      r: m.size, dmg: m.dmg, t: 0, life: 1.5,
-      pierce: m.pierce, bounce: m.bounce, homing: m.homing,
-      venom: m.venom, ember: m.ember, frost: m.frost, storm: m.storm,
-      bleed: m.bleed,
-      execute: m.execute, knock: m.knock,
-      crit: m.crit, critMul: m.critMul, fear: m.fear, fearDur: m.fearDur,
-      owner: p,
-      x0: x + Math.cos(baseAim) * 18 + ox,
-      y0: y + Math.sin(baseAim) * 18 + oy,
-      hitSet: null,
-      slSpend: spent,
-      bflySide: p.solemnSide,
-    });
+    const mx = x + Math.cos(baseAim) * 18 + ox, my = y + Math.sin(baseAim) * 18 + oy;
+    /* small butterflies: many, short-lived, very fast, harder hitting */
+    const n = 3 + (Math.random() < 0.35 ? 1 : 0);
+    const dmg = m.dmg * 1.35;
+    for (let k = 0; k < n; k++) {
+      const a = baseAim + rnd(-0.22, 0.22);
+      bullets.push({
+        x: mx, y: my,
+        vx: Math.cos(a) * (m.speed * 2.2), vy: Math.sin(a) * (m.speed * 2.2),
+        r: Math.max(1, m.size * 0.5), dmg: dmg / n, t: 0, life: 0.28,
+        pierce: m.pierce, bounce: m.bounce, homing: m.homing,
+        venom: m.venom, ember: m.ember, frost: m.frost, storm: m.storm,
+        bleed: m.bleed,
+        execute: m.execute, knock: m.knock * 0.5,
+        crit: m.crit, critMul: m.critMul, fear: m.fear, fearDur: m.fearDur,
+        owner: p,
+        x0: mx, y0: my,
+        hitSet: null,
+        slSpend: spent,
+        bflySide: p.solemnSide,
+      });
+    }
     p.kickT = 0.09;
     Game.shake = Math.max(Game.shake, 1.5);
     AudioFX.shoot();
     /* muzzle flash — the butterfly gun-swords spit flame */
-    const mfx = x + Math.cos(baseAim) * 18 + ox, mfy = y + Math.sin(baseAim) * 18 + oy;
     for (let k = 0; k < 5; k++) {
       const a = baseAim + rnd(-0.45, 0.45);
-      particles.push({ x: mfx, y: mfy,
+      particles.push({ x: mx, y: my,
         vx: Math.cos(a) * rnd(70, 160), vy: Math.sin(a) * rnd(70, 160),
         t: 0, life: rnd(0.07, 0.13), r: rnd(1.6, 3.2),
         color: pick([SOLEMN_COL.blade, SOLEMN_COL.gunHi, SOLEMN_COL.trimHi]) });
