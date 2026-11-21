@@ -777,6 +777,7 @@ function update(dt) {
          Sancho's own — that is where the stance changes. */
       if (pAct) pAct();
       else if (!Game.inSaloon && typeof sanchoToggleStance === "function") sanchoToggleStance(p);
+      else if (!Game.inSaloon && p.char === "yi" && typeof yiTrySkill3 === "function") yiTrySkill3(p);
     }
     /* Q abandons the rite entirely — the warden is not owed the speech and
        does not need to stand through it */

@@ -34,6 +34,7 @@ function makePlayer(cfg, idx) {
     yiOffenseS: 0, yiOffenseT: 0, yiUnlockTier: 0, yiDevice: 1, yiProc: 0,
     yiProcReady: false, yiProcMaxed: false, yiDevice4T: 0, yiGraceStruck: false,
     yiTurnHermesGained: false, yiTurnHealed: false,
+    yiSkill3Cd: 0,
     /* REANIMATOR: the pack's command mode ("ai" hunts, "cursor" follows the mark) */
     thrallMode: "ai", thrallCursor: null,
     curses: {}, brandTick: 0, shield: 0, shieldMax: 0, shieldT: 0,

@@ -67,6 +67,15 @@ const YI_PROC_CAP_LOW = 8;
 const YI_EXECUTE_HEAL = 8;
 /* Turn End (Unlock II): heal 4 SP → 4 vitality once per turn when the Prescript was executed this turn */
 const YI_TURN_HEAL = 4;
+/* Skill 3 / Furioso-Replica — the E-key ability */
+const YI_SKILL3_CD = 2.5;             // cooldown between Skill 3 uses
+const YI_FURIOSO_CRIT_BONUS = 0.90;   // +90% critical damage
+const YI_FURIOSO_BURN_T = 4;          // seconds of Burn
+const YI_FURIOSO_BURN_DPS = 6;        // burn damage per second
+const YI_FURIOSO_BIND_T = 1.5;        // seconds of Bind / unable to act
+const YI_FURIOSO_FRAG_STACKS = 2;     // slash Fragility stacks
+const YI_FURIOSO_MARK_BONUS = 0.10;   // +10% damage while the Prescript marks the skill
+const YI_FURIOSO_POISE = 3;           // +3 Poise on use
 /* the three Unlocks the Prescript grants at 3 / 6 / 9 Grace — and the line it speaks */
 const YI_UNLOCKS = [
   { tier: 1, name: "UNLOCK - I", line: "Wading through a dream, the self nowhere to be found.", kanji: "無我夢中" },
@@ -259,6 +268,72 @@ function yiClearMark(p) {
   p.yiTurnHealed = false;
 }
 
+/* Skill 3 / Furioso-Replica — the [E] ability. At Hermes 9 it becomes
+   Furioso-Replica: a guaranteed-crit Scythe strike that consumes all Hermes,
+   burns, binds, and frays everything it touches, then must be re-earned. */
+function yiTrySkill3(p) {
+  if (!p || p.char !== "yi") return;
+  const guest = typeof Net !== "undefined" && Net.role === "guest";
+  if (guest) return;
+  if ((p.yiSkill3Cd || 0) > 0) return;
+  const furioso = (p.yiProc || 0) >= YI_PROC_MAX;
+  p.yiSkill3Cd = YI_SKILL3_CD;
+  yiSkill3Swing(p, p.x, p.y, p.aim, furioso);
+}
+
+function yiSkill3Swing(p, x, y, aim, furioso) {
+  const m = p.mods || {};
+  const weapon = furioso ? YI_WEAPON_SCYTHE : (Math.random() * 9) | 0;
+  const reach = YI_REACH_BASE + Math.max(0, (m.size || 4) - 4) * 0.8;
+  const crit = furioso || weapon === YI_WEAPON_SCYTHE;
+  const critMul = furioso ? (m.critMul || 2.2) * (1 + YI_FURIOSO_CRIT_BONUS) : (m.critMul || 2.2);
+  const marked = p.yiMarkT > 0;
+  const hit = [];
+  for (const e of enemies) {
+    if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p") continue;
+    const dx = e.x - x, dy = e.y - y;
+    if (dx * dx + dy * dy > (reach + e.r) ** 2) continue;
+    let delta = Math.atan2(dy, dx) - aim;
+    delta = Math.atan2(Math.sin(delta), Math.cos(delta));
+    if (Math.abs(delta) > YI_HALF_ARC) continue;
+    yiHitEnemy(p, e, x, y, crit, 1, weapon);
+    hit.push(e);
+  }
+  if (Game.pvpMode) {
+    for (const foe of players) {
+      if (foe === p || foe.hp <= 0 || foe.downed || foe.gone) continue;
+      const dx = foe.x - x, dy = foe.y - y;
+      if (dx * dx + dy * dy > (reach + foe.r) ** 2) continue;
+      let delta = Math.atan2(dy, dx) - aim;
+      delta = Math.atan2(Math.sin(delta), Math.cos(delta));
+      if (Math.abs(delta) > YI_HALF_ARC) continue;
+      hurtPlayer(foe, yiBite(p) * yiWeaponMul(weapon) * (crit ? critMul : 1),
+        { x, y, knock: (m.knock || 0) * 0.6 });
+    }
+  }
+  /* GUEST: the host settles the ledger */
+  if (typeof Net !== "undefined" && Net.role === "guest") return;
+  if (!furioso) return;
+  /* Furioso-Replica: consume all Hermes, bank Poise, ride every hit */
+  p.yiProc = 0;
+  p.yiProcReady = false;
+  p.yiPoise = Math.min(YI_POISE_MAX, (p.yiPoise || 0) + YI_FURIOSO_POISE);
+  for (const e of hit) {
+    e.burnT = Math.max(e.burnT || 0, YI_FURIOSO_BURN_T);
+    e.burnDps = Math.max(e.burnDps || 0, YI_FURIOSO_BURN_DPS);
+    e.burnBy = p;
+    e.paralyzeT = Math.max(e.paralyzeT || 0, YI_FURIOSO_BIND_T);
+    if (e.fragT <= 0 || e.fragType !== "slash") { e.fragType = "slash"; e.fragStacks = 1; }
+    else { e.fragStacks = Math.min(YI_FRAG_MAX, (e.fragStacks || 0) + 1); }
+    e.fragT = Math.max(e.fragT || 0, YI_FRAG_TIME);
+  }
+  if (p === localPlayer()) {
+    floatText(p.x, p.y - 44, "FURIOSO-REPLICA", "#ffedb8", 16);
+    if (marked) floatText(p.x, p.y - 60, "+ " + (YI_FURIOSO_MARK_BONUS * 100) + "% MARK", "#ffe9a8", 13);
+    if (typeof toast === "function") toast("FURIOSO-REPLICA — HERMES CONSUMED");
+  }
+}
+
 /* Grace of the Prescript — three unlocks and the full payout */
 function yiGraceTier(p) {
   const g = p.yiGrace || 0;
@@ -398,7 +473,8 @@ function yiHitEnemy(p, e, x, y, forceCrit, biteMul, weapon) {
   const fragType = yiWeaponFragType(weapon);
   let bite = yiBite(p) * (biteMul || 1)
     * weapDmg
-    * (crit ? critMul : 1);
+    * (crit ? critMul : 1)
+    * (p.yiMarkT > 0 ? 1 + YI_FURIOSO_MARK_BONUS : 1);
   /* target is Fragile to a damage type — only that blade class drinks from it */
   if (e.fragT > 0 && e.fragStacks > 0 && fragType && e.fragType === fragType)
     bite *= 1 + YI_FRAG_DMG * e.fragStacks;
@@ -519,6 +595,7 @@ function yiTick(p, dt) {
     p.yiOffenseT -= dt;
     if (p.yiOffenseT <= 0) p.yiOffenseS = 0;
   }
+  if ((p.yiSkill3Cd || 0) > 0) p.yiSkill3Cd = Math.max(0, p.yiSkill3Cd - dt);
   if (p.yiMarkT > 0) {
     p.yiMarkT = Math.max(0, p.yiMarkT - dt);
     if (p.yiMarkT <= 0) {
@@ -727,6 +804,10 @@ function updateYiCue(p) {
     + (p.yiProcReady ? " READY" : (!p.yiProcMaxed && (p.yiDevice || 1) >= 3 ? " · GRACE 9 LOCKED" : ""));
   txt += " · POISE " + (p.yiPoise || 0) + "/" + YI_POISE_MAX;
   txt += " · " + weapon;
+  const furioso = (p.yiProc || 0) >= YI_PROC_MAX;
+  if (furioso) txt += " · FURIOSO-REPLICA [E]";
+  else if ((p.yiSkill3Cd || 0) <= 0) txt += " · SKILL 3 [E]";
+  else txt += " · SKILL 3 " + (p.yiSkill3Cd || 0).toFixed(1) + "s";
   if (p.yiMarkT > 0) {
     const g = p.yiGrace || 0;
     const gPct = g >= YI_GRACE_TIER_9 ? (YI_GRACE_BASE_DMG * 100) : Math.min(16, g * YI_GRACE_PER_STACK * 100);
