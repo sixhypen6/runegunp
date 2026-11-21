@@ -1004,12 +1004,6 @@ function killEnemy(e, killer) {
   /* KIM: felling the horror THE DRAW marked banks a Poise and clears the duel */
   if (killer && killer.char === "kim" && typeof kimIsMarked === "function" && kimIsMarked(killer, e))
     kimGainPoise(killer);
-  /* THE INDEX NURSEFATHER: the PRESCRIPT's marked horror falls — the account is settled,
-     no matter whose blade dealt the killing blow */
-  if (typeof players !== "undefined") for (const p of players) {
-    if (p && p.char === "yi" && typeof yiIsMarked === "function" && yiIsMarked(p, e))
-      yiFallenMark(p, e);
-  }
   /* KIM: the fallen feed him — one Drink stack per horror he fells */
   if (killer && killer.char === "kim" && typeof kimDrinkOnKill === "function")
     kimDrinkOnKill(killer);

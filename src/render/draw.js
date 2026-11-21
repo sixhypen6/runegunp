@@ -1616,7 +1616,6 @@ function draw() {
   if (chaosLast) drawChaosLastMark(cx, chaosLast);
   drawSniperLock(cx);
   if (typeof drawKimMark === "function") drawKimMark(cx);
-  if (typeof drawYiMark === "function") drawYiMark(cx);
   drawThrallCursor(cx);
 
   /* pets */

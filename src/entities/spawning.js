@@ -31,8 +31,9 @@ function makePlayer(cfg, idx) {
        the weapon wheel, and his gloom-bleed */
     yiGrace: 0, yiKarmic: 0, yiMarkT: 0, yiMarkCd: 1.6, yiMarkId: null,
     yiWeapon: 0, yiSlashT: 0, yiSlashAng: 0, yiSlashDir: 1, yiSlashReach: 100, yiPoise: 0,
-    yiOffenseS: 0, yiOffenseT: 0, yiUnlockTier: 0, yiDevice: 1, yiProc: 0, yiProcGain: 0,
+    yiOffenseS: 0, yiOffenseT: 0, yiUnlockTier: 0, yiDevice: 1, yiProc: 0,
     yiProcReady: false, yiProcMaxed: false, yiDevice4T: 0, yiGraceStruck: false,
+    yiTurnHermesGained: false, yiTurnHealed: false,
     /* REANIMATOR: the pack's command mode ("ai" hunts, "cursor" follows the mark) */
     thrallMode: "ai", thrallCursor: null,
     curses: {}, brandTick: 0, shield: 0, shieldMax: 0, shieldT: 0,

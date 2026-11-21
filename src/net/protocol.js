@@ -82,8 +82,9 @@ const PLAYER_FIELDS = ["x", "y", "vx", "vy", "hp", "maxHp", "shield", "shieldMax
   "kimDrink", "kimHomelandArmed", "kimRiposte",
   "yiSlashT", "yiSlashAng", "yiSlashReach", "yiSlashDir",
   "yiGrace", "yiKarmic", "yiPoise", "yiMarkId", "yiMarkT", "yiMarkCd", "yiWeapon",
-  "yiOffenseS", "yiOffenseT", "yiUnlockTier", "yiDevice", "yiProc", "yiProcGain",
-  "yiProcReady", "yiProcMaxed", "yiDevice4T", "yiGraceStruck"];
+  "yiOffenseS", "yiOffenseT", "yiUnlockTier", "yiDevice", "yiProc",
+  "yiProcReady", "yiProcMaxed", "yiDevice4T", "yiGraceStruck",
+  "yiTurnHermesGained", "yiTurnHealed"];
 
 const NUM3 = v => typeof v === "number" ? Math.round(v * 100) / 100 : v;
 const QI = v => Math.round(v) || 0;                       // whole pixels
