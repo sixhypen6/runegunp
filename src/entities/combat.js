@@ -432,6 +432,14 @@ function spawnShot(p, x, y, baseAim, skip) {
     p.kickT = 0.09;
     Game.shake = Math.max(Game.shake, 3);
     AudioFX.shoot();
+    /* skill beam streak — Skill 1 forward slash afterglow */
+    const beamLen = 120 + rnd(0, 60);
+    for (let k = 0; k < 6; k++) {
+      particles.push({ x: mx, y: my,
+        vx: Math.cos(baseAim) * rnd(420, 620), vy: Math.sin(baseAim) * rnd(420, 620),
+        t: 0, life: rnd(0.06, 0.14), r: rnd(1.2, 2.6),
+        color: pick([SOLEMN_COL.blade, SOLEMN_COL.trimHi, "#ffffff"]) });
+    }
     /* butterfly burst — every shot sprays a cloud of small butterflies */
     for (let k = 0; k < 14; k++) {
       const a = baseAim + rnd(-0.9, 0.9);

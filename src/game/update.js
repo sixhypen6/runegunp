@@ -1234,6 +1234,14 @@ function update(dt) {
         /* SOLEMN LAMENT — on hit, inflict Butterfly (potency/count = ammo spent) and heal the shooter */
         if (b.owner && b.owner.char === "solemn" && b.slSpend) {
           slInflictButterfly(e, b.owner, b.slSpend);
+          /* Skill 2 impact starburst — white butterfly burst on impact */
+          for (let k = 0; k < 12; k++) {
+            const a = Math.random() * TAU;
+            particles.push({ x: e.x, y: e.y,
+              vx: Math.cos(a) * rnd(110, 260), vy: Math.sin(a) * rnd(110, 260),
+              t: 0, life: rnd(0.3, 0.6), r: rnd(1.4, 3.0),
+              color: pick([SOLEMN_COL.blade, SOLEMN_COL.trimHi, "#ffffff", "#c9b6ff"]) });
+          }
         }
         /* impact sparks fan back off the wound along the shot's reverse */
         bulletSparks(b, Math.atan2(-b.vy, -b.vx), crit ? 6 : 4);
