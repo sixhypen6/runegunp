@@ -10,7 +10,8 @@
    That horror takes +10% from The Index (the official mark),
    and each cut upon it banks Grace of the Prescript. Grace is
    a ladder, not a pool: PRESCRIPT [DEVICE] I caps it at three,
-   and each Unlock earned raises the ceiling to six, then nine.
+   the next Device raises the ceiling to six, and the last stage
+   stays shut until PROCURATION [HERMES] is filled to nine.
    Grace pays +10% damage per three stacks, and the Unlock it
    grants adds a guard (+5/10/15% less damage taken). Fell the
    marked horror and the execution completes: +3 Grace, 20
@@ -207,6 +208,7 @@ function yiVitals(p) {
   if (p.yiProc === undefined) p.yiProc = 0;
   if (p.yiProcGain === undefined) p.yiProcGain = 0;
   if (p.yiProcReady === undefined) p.yiProcReady = false;
+  if (p.yiProcMaxed === undefined) p.yiProcMaxed = false;
   if (p.yiDevice4T === undefined) p.yiDevice4T = 0;
 }
 
@@ -275,10 +277,14 @@ function yiUnlockGuard(p) {
   return YI_UNLOCK_GUARD[yiGraceTier(p)];
 }
 /* PRESCRIPT [DEVICE]: the ceiling Grace may reach. The Device itself is only
-   handed down at the start of a Prescript, exactly like a turn start. */
+   handed down at the start of a Prescript, exactly like a turn start. Device III
+   repeats until PROCURATION [HERMES] reaches nine — and only then does the sixth
+   Grace step open into the ninth. */
 function yiGraceCap(p) {
   const d = Math.min(4, Math.max(1, p.yiDevice || 1));
-  return YI_GRACE_CAP[d - 1];
+  let cap = YI_GRACE_CAP[d - 1];
+  if (cap >= 9 && !p.yiProcMaxed) cap = 6;
+  return cap;
 }
 /* Grace is banked through the Device — it can never overrun its ceiling */
 function yiAddGrace(p, n) {
@@ -423,8 +429,10 @@ function yiHitEnemy(p, e, x, y, forceCrit, biteMul, weapon) {
     if (!p.yiProcReady && (p.yiProcGain || 0) < allow && (p.yiProc || 0) < pcap) {
       p.yiProc = Math.min(pcap, (p.yiProc || 0) + 1);
       p.yiProcGain = (p.yiProcGain || 0) + 1;
-      if (p.yiProc >= pcap) {
+      /* only a full nine opens Hermes — eight is the ceiling, not a trigger */
+      if (p.yiProc >= YI_PROC_MAX) {
         p.yiProcReady = true;
+        p.yiProcMaxed = true;        // the ninth step of Grace stays open for good
         if (p === localPlayer()) {
           floatText(p.x, p.y - 46, "PROCURATION [HERMES]", "#ffedb8", 14);
           if (typeof toast === "function") toast("PROCURATION [HERMES] — THE NEXT CUT IS PERFECT");
@@ -700,7 +708,8 @@ function updateYiCue(p) {
   const weapon = YI_WEAPONS[p.yiWeapon] || "BASTARD SWORD";
   let txt = "PRESCRIPT [" + ["I", "II", "III", "IV"][Math.min(4, Math.max(1, p.yiDevice || 1)) - 1] + "] " + pips
     + " · KARMIC " + k + "/" + YI_KARMIC_MAX;
-  txt += " · HERMES " + (p.yiProc || 0) + "/" + yiProcCap(p) + (p.yiProcReady ? " READY" : "");
+  txt += " · HERMES " + (p.yiProc || 0) + "/" + yiProcCap(p)
+    + (p.yiProcReady ? " READY" : (!p.yiProcMaxed && (p.yiDevice || 1) >= 3 ? " · GRACE 9 LOCKED" : ""));
   txt += " · POISE " + (p.yiPoise || 0) + "/" + YI_POISE_MAX;
   txt += " · " + weapon;
   if (p.yiMarkT > 0) txt += " · MARK " + p.yiMarkT.toFixed(1) + "s";
