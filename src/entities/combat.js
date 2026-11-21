@@ -410,7 +410,7 @@ function spawnShot(p, x, y, baseAim, skip) {
     const mx = x + Math.cos(baseAim) * 18 + ox, my = y + Math.sin(baseAim) * 18 + oy;
     /* small butterflies: many, short-lived, very fast, harder hitting */
     const n = 3 + (Math.random() < 0.35 ? 1 : 0);
-    const dmg = m.dmg * 1.35;
+    const dmg = m.dmg * 1.6;
     for (let k = 0; k < n; k++) {
       const a = baseAim + rnd(-0.22, 0.22);
       bullets.push({
