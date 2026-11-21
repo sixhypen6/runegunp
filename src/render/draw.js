@@ -1559,6 +1559,19 @@ function draw() {
       continue;
     }
     const s = glowTrailSprite(col, b.r);
+    /* SOLEMN LAMENT — every shot is a butterfly: fill = the gun's hue, outline = its opposite */
+    if (b.owner && b.owner.char === "solemn") {
+      const side = b.bflySide || 1;
+      const fill = side < 0 ? SOLEMN_COL.gun : SOLEMN_COL.blade;
+      const outl = side < 0 ? SOLEMN_COL.blade : SOLEMN_COL.gun;
+      cx.save();
+      cx.translate(b.x, b.y); cx.rotate(Math.atan2(b.vy, b.vx));
+      cx.shadowColor = outl; cx.shadowBlur = 4;
+      drawSolemnButterfly(cx, b.r * 1.3, fill, outl);
+      cx.shadowBlur = 0;
+      cx.restore();
+      continue;
+    }
     cx.save();
     cx.translate(b.x, b.y); cx.rotate(Math.atan2(b.vy, b.vx));
     cx.drawImage(s.cvs, -s.ox, -s.oy, s.w, s.h);

@@ -419,6 +419,7 @@ function spawnShot(p, x, y, baseAim, skip) {
       y0: y + Math.sin(baseAim) * 18 + oy,
       hitSet: null,
       slSpend: spent,
+      bflySide: p.solemnSide,
     });
     p.kickT = 0.09;
     Game.shake = Math.max(Game.shake, 1.5);

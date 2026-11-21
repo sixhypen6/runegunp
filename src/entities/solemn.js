@@ -179,6 +179,10 @@ const SL_BFLY_TURN = 4.0;      // seconds per Butterfly "turn" tick
 const SL_SHIELD_PCT = 0.20;    // FromTheCoffin shield cap
 const SL_HASTE_T = 2.0;        // Haste granted on reload, once per turn
 const SL_SKILL3_CD = 2.5;      // seconds between Goodbye Now uses
+const SL_BARRAGE_RATE = 0.07;  // seconds per barrage shot
+const SL_BARRAGE_SPREAD = 0.34; // radian spread of the barrage cone
+const SL_STRIKE_REACH = 620;   // final strike reach
+const SL_STRIKE_HALF = 1.05;   // final strike arc half-angle
 const SL_GLOOM_CAP = 30;       // gloom dmg cap
 
 function slVitals(p) {
@@ -187,6 +191,9 @@ function slVitals(p) {
   if (p.slDeparted === undefined) p.slDeparted = SL_AMMO_START;
   if (p.slReloadT === undefined) p.slReloadT = 0;
   if (p.slSkill3Cd === undefined) p.slSkill3Cd = 0;
+  if (p.slBarrageT === undefined) p.slBarrageT = 0;
+  if (p.slBarrageN === undefined) p.slBarrageN = 0;
+  if (p.slBarrageNext === undefined) p.slBarrageNext = 0;
   if (p.slHasteTurn === undefined) p.slHasteTurn = false;
   if (p.slCombatStart === undefined) p.slCombatStart = false;
 }
@@ -210,6 +217,58 @@ function slSpendAll(p) {
   const spent = (p.slLiving || 0) + (p.slDeparted || 0);
   p.slLiving = 0; p.slDeparted = 0;
   return spent;
+}
+
+/* fire one conceptual barrage bullet during S3 (no ammo spend — already spent up front) */
+function slFireBarrageShot(p, aim) {
+  const m = p.mods || {};
+  const perpX = Math.cos(aim + Math.PI / 2), perpY = Math.sin(aim + Math.PI / 2);
+  p.solemnSide = -(p.solemnSide || 1);
+  const off = p.solemnSide * 5;
+  const ox = perpX * off, oy = perpY * off;
+  bullets.push({
+    x: p.x + Math.cos(aim) * 18 + ox, y: p.y + Math.sin(aim) * 18 + oy,
+    vx: Math.cos(aim) * m.speed, vy: Math.sin(aim) * m.speed,
+    r: m.size, dmg: m.dmg, t: 0, life: 1.5,
+    pierce: m.pierce, bounce: m.bounce, homing: m.homing,
+    venom: m.venom, ember: m.ember, frost: m.frost, storm: m.storm,
+    bleed: m.bleed,
+    execute: m.execute, knock: m.knock,
+    crit: m.crit, critMul: m.critMul, fear: m.fear, fearDur: m.fearDur,
+    owner: p,
+    x0: x + Math.cos(aim) * 18 + ox,
+    y0: y + Math.sin(aim) * 18 + oy,
+    hitSet: null,
+    slSpend: 0,
+    bflySide: p.solemnSide,
+  });
+  AudioFX.shoot();
+}
+
+/* S3 finale — lunge strike: inflict Butterfly = spent on every enemy in arc, deal damage, reload + haste */
+function slFinishBarrage(p, spent) {
+  p.slBarrageT = 0; p.slBarrageN = 0;
+  const m = p.mods || {};
+  const reach = SL_STRIKE_REACH + Math.max(0, (m.size || 4) - 4) * 4;
+  const dmg = (m.dmg || 30) * (1 + Math.min(2, spent / 10));
+  let hitAny = false;
+  for (const e of enemies) {
+    if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p") continue;
+    const dx = e.x - p.x, dy = e.y - p.y;
+    if (dx * dx + dy * dy > (reach + e.r) ** 2) continue;
+    let delta = Math.atan2(dy, dx) - p.aim;
+    delta = Math.atan2(Math.sin(delta), Math.cos(delta));
+    if (Math.abs(delta) > SL_STRIKE_HALF) continue;
+    slInflictButterfly(e, p, spent);
+    damageEnemy(e, dmg, { owner: p, x: p.x, y: p.y, knock: m.knock, crit: m.crit, critMul: m.critMul });
+    hitAny = true;
+  }
+  p.slSkill3Cd = SL_SKILL3_CD;
+  slTryReload(p, true);
+  if (p === localPlayer()) {
+    floatText(p.x, p.y - 44, hitAny ? "GOODBYE NOW" : "GOODBYE NOW — MISS", "#e8e2d0", 16);
+    if (typeof toast === "function") toast("GOODBYE NOW — ALL BUTTERFLY, RELOADING");
+  }
 }
 
 /* start a reload timer; ammo refills when the timer runs out (see slTick).
@@ -276,7 +335,9 @@ function slButterflyTurnEnd(e) {
   if (e.bflyLiving <= 0 && e.bflyDeparted <= 0) { e.bflyLiving = 0; e.bflyDeparted = 0; }
 }
 
-/* S3 / Goodbye Now — spend all ammo, empowered pierce, +3 sinking (+Butterfly) on kill, then reload + haste. */
+/* S3 / Goodbye Now — spend all ammo up front, fire a barrage (one shot per
+   SL_BARRAGE_RATE seconds), then lunge strike: inflict Butterfly = spent on every
+   enemy in arc, deal damage, reload + haste. */
 function slTrySkill3(p) {
   if (!p || p.char !== "solemn") return;
   const guest = typeof Net !== "undefined" && Net.role === "guest";
@@ -285,45 +346,37 @@ function slTrySkill3(p) {
   if ((p.slSkill3Cd || 0) > 0) return;          // on cooldown
   const spent = slSpendAll(p);
   if (spent <= 0) { slTryReload(p, true); return; }
-  const m = p.mods || {};
-  const mul = 1 + Math.min(2, spent / 10);                 // +1 per 10 ammo, max +2
-  const reach = 560 + Math.max(0, (m.size || 4) - 4) * 4;
-  const dmg = (m.dmg || 30) * mul;
-  let killed = false;
-  for (const e of enemies) {
-    if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p") continue;
-    const dx = e.x - p.x, dy = e.y - p.y;
-    if (dx * dx + dy * dy > (reach + e.r) ** 2) continue;
-    let delta = Math.atan2(dy, dx) - p.aim;
-    delta = Math.atan2(Math.sin(delta), Math.cos(delta));
-    if (Math.abs(delta) > 0.9) continue;
-    slInflictButterfly(e, p, spent);
-    const before = e.hp;
-    damageEnemy(e, dmg, { owner: p, x: p.x, y: p.y, knock: m.knock, crit: m.crit, critMul: m.critMul });
-    if (e.dead && before > 0) killed = true;
-  }
-  if (killed) {
-    for (const e of enemies) {
-      if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p") continue;
-      e.sinkingT = Math.max(e.sinkingT || 0, 4);
-      e.sinkingStacks = Math.min(5, (e.sinkingStacks || 0) + 3 + Math.min(5, (e.bflyDeparted || 0)));
-      e.sinkingDps = YI_SINKING_DPS;
-      e.sinkingBy = p;
-    }
-  }
+  p.slBarrageT = spent * SL_BARRAGE_RATE;      // barrage length scales with ammo spent
+  p.slBarrageN = spent;
+  p.slBarrageNext = SL_BARRAGE_RATE;           // first shot after one interval
   p.slSkill3Cd = SL_SKILL3_CD;
-  slTryReload(p, true);                         // Attack End Reload
-  if (p === localPlayer()) {
-    floatText(p.x, p.y - 44, "GOODBYE NOW", "#e8e2d0", 16);
-    if (typeof toast === "function") toast("GOODBYE NOW — AMMO EXPENDED, RELOADING");
+  if (p === localPlayer()) floatText(p.x, p.y - 44, "GOODBYE NOW", "#e8e2d0", 16);
+}
+
+/* fire one barrage bullet per interval during S3 */
+function slTickBarrage(p, dt) {
+  if (!p || p.char !== "solemn") return;
+  if ((p.slBarrageT || 0) <= 0) return;
+  p.slBarrageT = Math.max(0, p.slBarrageT - dt);
+  p.slBarrageNext = Math.max(0, (p.slBarrageNext || 0) - dt);
+  if (p.slBarrageNext <= 0 && p.slBarrageT > 0) {
+    const aim = p.aim + (Math.random() * 2 - 1) * SL_BARRAGE_SPREAD;
+    slFireBarrageShot(p, aim);
+    p.slBarrageNext = SL_BARRAGE_RATE;
+  }
+  if (p.slBarrageT <= 0 && p.slBarrageN > 0) {
+    /* barrage finished — lunge strike finale */
+    slFinishBarrage(p, p.slBarrageN);
+    p.slBarrageN = 0;
   }
 }
 
-/* per-frame player tick: reload + skill-3 cooldown */
+/* per-frame player tick: reload + skill-3 cooldown + barrage */
 function slTick(p, dt) {
   if (!p) return;
   if (p.char !== "solemn") return;
   slVitals(p);
+  slTickBarrage(p, dt);
   if ((p.slSkill3Cd || 0) > 0) p.slSkill3Cd = Math.max(0, p.slSkill3Cd - dt);
   if ((p.slReloadT || 0) > 0) {
     p.slReloadT = Math.max(0, p.slReloadT - dt);
