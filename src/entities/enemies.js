@@ -611,7 +611,7 @@ function spawnEnemy(type, x, y) {
     vx: 0, vy: 0, slowMul: 1, slowT: 0, burnT: 0, burnDps: 0, burnTick: 0,
     paralyzeT: 0, paralyzeImmuneT: 0,
     gloomT: 0, gloomTick: 0, gloomDps: 0, sinkingT: 0, sinkingStacks: 0, sinkingDps: 0, fragT: 0, fragStacks: 0, fragType: "",
-    defDown: 0, defDownT: 0,
+    defDown: 0, defDownT: 0, bflyLiving: 0, bflyDeparted: 0, bflyT: 0,
     hitFlash: 0, spawnT: 0.7, ambush: false, ghost: false, boss: false, buffed: false, wrath: false,
     rime: false, sear: false };
   /* bodies bound to a warden (phylacteries, reflections, the posse) are never empowered */

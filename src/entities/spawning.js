@@ -38,6 +38,7 @@ function makePlayer(cfg, idx) {
     yiComboWeapon: -1, yiComboN: 0,
     yiPropelT: 0, yiPropelAng: 0, yiPropelSpd: 0,
     solemnSide: 0,
+    slLiving: 10, slDeparted: 10, slReloadT: 0, slHasteTurn: false, slCombatStart: false,
     /* REANIMATOR: the pack's command mode ("ai" hunts, "cursor" follows the mark) */
     thrallMode: "ai", thrallCursor: null,
     curses: {}, brandTick: 0, shield: 0, shieldMax: 0, shieldT: 0,

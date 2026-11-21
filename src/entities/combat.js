@@ -395,8 +395,12 @@ function spawnShot(p, x, y, baseAim, skip) {
   if (p.char === "yi") { yiSwing(p, x, y, baseAim); return; }
   const sanchoMelee = p.char === "sancho" && p.weaponMode !== "ranged";
   if (sanchoMelee) { sanchoSwing(p, x, y, baseAim); return; }
-  /* SOLEMN LAMENT — twin gun-swords fire one after another: left, right, left */
+  /* SOLEMN LAMENT — twin gun-swords fire one after another: left, right, left.
+     Each shot spends 1 ammo (Living first, then Departed); on hit inflicts Butterfly. */
   if (p.char === "solemn") {
+    slVitals(p);
+    if (slAmmoTotal(p) <= 0) { slTryReload(p, true); return; }
+    const spent = slSpendOne(p);
     const perpX = Math.cos(baseAim + Math.PI / 2), perpY = Math.sin(baseAim + Math.PI / 2);
     p.solemnSide = -(p.solemnSide || 1);
     const off = p.solemnSide * 5;
@@ -414,6 +418,7 @@ function spawnShot(p, x, y, baseAim, skip) {
       x0: x + Math.cos(baseAim) * 18 + ox,
       y0: y + Math.sin(baseAim) * 18 + oy,
       hitSet: null,
+      slSpend: spent,
     });
     p.kickT = 0.09;
     Game.shake = Math.max(Game.shake, 1.5);

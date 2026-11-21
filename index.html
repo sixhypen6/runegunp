@@ -94,6 +94,11 @@
   #yiCue.unlock1{color:#f2e3a0;text-shadow:0 0 8px rgba(255,223,138,.75)}
   #yiCue.unlock2{color:#ffedb8;text-shadow:0 0 10px rgba(255,223,138,.9)}
   #yiCue.payout{color:#ffedb8;text-shadow:0 0 12px rgba(126,192,255,.95)}
+  /* SOLEMN LAMENT — The Living / The Departed ammo pips */
+  #solemnCue{display:none;margin-top:6px;font-size:calc(10px * var(--text-scale, 1));letter-spacing:.16em;
+    color:#e8e2d0;font-variant-numeric:tabular-nums;text-shadow:0 0 8px rgba(232,226,208,.42)}
+  #solemnCue.on{display:block}
+  #solemnCue.reload{color:#ffedb8;text-shadow:0 0 10px rgba(255,237,184,.85)}
   /* the NURSEFATHER's Unlocks — the Prescript speaks when Grace reaches 3 / 6 / 9 */
   #yiVoice{position:fixed;left:50%;bottom:31%;transform:translate(-50%,7px);width:min(680px,92vw);
     text-align:center;pointer-events:none;opacity:0;transition:opacity .32s ease,transform .32s ease}
@@ -793,6 +798,7 @@ body.bjOn #interactHint,body.bjOn #toast,body.bjOn .stick,body.bjOn .tbtns{displ
     <div id="warpCue"></div>
     <div id="kimCue"></div>
     <div id="yiCue"></div>
+    <div id="solemnCue"></div>
     <div id="drunkHud"><div id="drunkName"></div><div id="drunkBar"><div id="drunkFill"></div></div><div id="drunkTime"></div></div>
   </div>
   <div class="wave-wrap">

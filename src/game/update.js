@@ -222,8 +222,11 @@ function updatePlayer(p, inp, dt) {
   }
   if (isLocal && typeof updateSanchoCue === "function") updateSanchoCue(p);
   if (isLocal && typeof updateWarpCue === "function") updateWarpCue(p);
-  if (isLocal && typeof updateKimCue === "function") updateKimCue(p);
-  if (isLocal && typeof updateYiCue === "function") updateYiCue(p);
+    if (isLocal && typeof updateKimCue === "function") updateKimCue(p);
+    if (isLocal && typeof updateYiCue === "function") updateYiCue(p);
+    if (isLocal && typeof updateSolemnCue === "function") updateSolemnCue(p);
+    /* SOLEMN LAMENT: reload cooldown */
+    if (typeof slTick === "function") slTick(p, dt);
   /* BAMBOO-HATTED KIM: the swing's afterglow and the mark's clock */
   if (typeof kimTick === "function") kimTick(p, dt);
   /* THE INDEX NURSEFATHER: Grace, Karmic, the mark's clock, and his gloom */
@@ -778,6 +781,7 @@ function update(dt) {
       if (pAct) pAct();
       else if (!Game.inSaloon && typeof sanchoToggleStance === "function") sanchoToggleStance(p);
       else if (!Game.inSaloon && p.char === "yi" && typeof yiTrySkill3 === "function") yiTrySkill3(p);
+      else if (!Game.inSaloon && p.char === "solemn" && typeof slTrySkill3 === "function") slTrySkill3(p);
     }
     /* Q abandons the rite entirely — the warden is not owed the speech and
        does not need to stand through it */
@@ -875,10 +879,14 @@ function update(dt) {
 
   /* --- waves keep coming until the warden falls --- */
   const ambient = enemies.filter(e => !e.ambush && !e.boss && e.team !== "p").length;
-  if (!Game.pvpMode && Game.pvpWinner == null && !Game.ambush && !Game.boss && ambient === 0 && !portal && !Game.inRift && !Game.inSaloon && !Game.inUnknown && !Game.ceremonyT) {
-    Game.intermission -= dt;
-    if (Game.intermission <= 0) { startWave(); Game.intermission = 3; }
-  }
+    if (!Game.pvpMode && Game.pvpWinner == null && !Game.ambush && !Game.boss && ambient === 0 && !portal && !Game.inRift && !Game.inSaloon && !Game.inUnknown && !Game.ceremonyT) {
+      Game.intermission -= dt;
+      if (Game.intermission <= 0) {
+        for (const pl of players) { pl.slCombatStart = false; }
+        startWave(); Game.intermission = 3;
+        for (const pl of players) { if (typeof slCombatStart === "function") slCombatStart(pl); }
+      }
+    }
 
   /* --- enemies --- */
   /* REPRIEVE: a saved warden's breath stops the horde with them — the same hard
@@ -948,6 +956,12 @@ function update(dt) {
         }
         if (e.sinkingT <= 0) e.sinkingStacks = 0;
       }
+      if (e.dead) { enemies.splice(i, 1); continue; }
+    }
+    /* BUTTERFLY — SOLEMN LAMENT's unique sinking: turn-end converts Living→Departed, gains Sinking */
+    if ((e.bflyLiving || 0) > 0 || (e.bflyDeparted || 0) > 0) {
+      e.bflyT = Math.max(0, (e.bflyT || 0) - dt);
+      if (e.bflyT <= 0) slButterflyTurnEnd(e);
       if (e.dead) { enemies.splice(i, 1); continue; }
     }
     /* FRAGILITY — blade/break timers tick for the Lance/Greatsword/Whip victims */
@@ -1209,8 +1223,18 @@ function update(dt) {
         const crit = b.crit && Math.random() < b.crit;
         if (crit) { bdmg *= b.critMul; Game.shake = Math.max(Game.shake, 5); AudioFX.crit(); }
         b.critHit = crit;                                  // damageEnemy prints the number gold + oversized
-        damageEnemy(e, bdmg, b);
+        /* SOLEMN LAMENT — damage bonus when Sinking + Butterfly >= 6 on the target */
+        let bMul = 1;
+        if (b.owner && b.owner.char === "solemn") {
+          const bfTotal = (e.bflyLiving || 0) + (e.bflyDeparted || 0);
+          if ((e.sinkingStacks || 0) + bfTotal >= 6) bMul = 1.25;
+        }
+        damageEnemy(e, bdmg * bMul, b);
         b.critHit = false;
+        /* SOLEMN LAMENT — on hit, inflict Butterfly (potency/count = ammo spent) and heal the shooter */
+        if (b.owner && b.owner.char === "solemn" && b.slSpend) {
+          slInflictButterfly(e, b.owner, b.slSpend);
+        }
         /* impact sparks fan back off the wound along the shot's reverse */
         bulletSparks(b, Math.atan2(-b.vy, -b.vx), crit ? 6 : 4);
         /* DREAD: the hit may break the foe's nerve */

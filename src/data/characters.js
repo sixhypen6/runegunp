@@ -109,7 +109,7 @@ const CHARS = {
     weaponBase: { dmg: 16, rate: 3.0, size: 15, speed: 380, knock: 55 } },
   solemn: { name: "SOLEMN LAMENT", glyph: "ᛟ", color: "#e8e2d0", cost: 0,
     hidden: true,
-    desc: "Ranged. Yi Sang of the Lobotomy E.G.O::Solemn Lament — a black coat, a coffin strapped to his back, and a pair of butterfly-marked gun-swords. (Sprite-first build; the ranged kit comes later.)",
+    desc: "Ranged. Yi Sang of the Lobotomy E.G.O::Solemn Lament — a black coat, a coffin strapped to his back, and a pair of butterfly-marked gun-swords. Each shot spends 1 ammo (Living first, then Departed) and inflicts Butterfly (potency/count = spent); the shooter heals (Living/4) HP. When Sinking + Butterfly ≥ 6, shots deal +25%. [E] Goodbye Now: spend all ammo for +1 dmg per 10 spent (max +2), inflict Butterfly = spent, and on kill grant +3 Sinking (+Butterfly) to all enemies, then reload + Haste. Empty ammo auto-reloads granting Haste once per turn. Wave start: reload + a 20% HP shield once per turn. Butterfly turn-end: Departed→0, gain Sinking = Living, Living→Departed; expires when both reach 0.",
     hp: 105, speed: 280, dashCd: 1.0, startRunes: 0, rerolls: 3, runeSlots: 5,
     weaponBase: { dmg: 30, rate: 3.2, size: 4, speed: 540, knock: 45 } },
   fortress: { name: "FORTRESS", glyph: "ᛝ", color: "#bcd0ff", cost: 65000,
