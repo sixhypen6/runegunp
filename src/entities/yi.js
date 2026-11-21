@@ -10,8 +10,9 @@
    That horror takes +10% from The Index (the official mark),
    and each cut upon it banks Grace of the Prescript. Grace is
    a ladder, not a pool: PRESCRIPT [DEVICE] I caps it at three,
-   the next Device raises the ceiling to six, and the last stage
-   stays shut until PROCURATION [HERMES] is filled to nine.
+   the next Device raises the ceiling to six, and Device III
+   repeats until PROCURATION [HERMES] reaches nine — the moment
+   it does, the last three steps of Grace are paid at once.
    Grace pays +10% damage per three stacks, and the Unlock it
    grants adds a guard (+5/10/15% less damage taken). Fell the
    marked horror and the execution completes: +3 Grace, 20
@@ -298,6 +299,14 @@ function yiAddGrace(p, n) {
 function yiProcCap(p) {
   return (p.yiUnlockTier || 0) >= 2 ? YI_PROC_MAX : YI_PROC_CAP_LOW;
 }
+/* Device III repeats until Hermes is full; the moment it is, the Prescript pays the
+   last three steps of Grace. If the Device has not caught up yet, the payment waits. */
+function yiGrantHermesGrace(p) {
+  if (!p.yiProcMaxed) return 0;
+  if (yiGraceCap(p) < YI_GRACE_MAX) return 0;
+  const gap = YI_GRACE_MAX - Math.min(YI_GRACE_MAX, p.yiGrace || 0);
+  return gap > 0 ? yiAddGrace(p, gap) : 0;
+}
 
 /* the turn Grace crosses 3 / 6 / 9, the Prescript grants an Unlock and Yi Sang
    speaks its line. One voiceline per tier; the tally re-arms if Grace ever drops. */
@@ -433,9 +442,12 @@ function yiHitEnemy(p, e, x, y, forceCrit, biteMul, weapon) {
       if (p.yiProc >= YI_PROC_MAX) {
         p.yiProcReady = true;
         p.yiProcMaxed = true;        // the ninth step of Grace stays open for good
+        /* the Prescript completes: the last three steps of Grace land at once */
+        const got = yiGrantHermesGrace(p);
         if (p === localPlayer()) {
           floatText(p.x, p.y - 46, "PROCURATION [HERMES]", "#ffedb8", 14);
-          if (typeof toast === "function") toast("PROCURATION [HERMES] — THE NEXT CUT IS PERFECT");
+          if (got > 0) floatText(p.x, p.y - 62, "GRACE +" + got, "#7ec0ff", 14);
+          if (typeof toast === "function") toast("PROCURATION [HERMES] — THE PRESCRIPT COMPLETES");
         }
       }
     }
@@ -587,6 +599,9 @@ function yiTick(p, dt) {
       }
     }
   }
+  /* the Prescript pays Hermes the instant its last step is open */
+  const hermesPaid = yiGrantHermesGrace(p);
+  if (hermesPaid > 0 && p === localPlayer()) floatText(p.x, p.y - 62, "GRACE +" + hermesPaid, "#7ec0ff", 14);
   /* Grace of the Prescript — 3 / 6 / 9 speaks the Unlock line */
   yiCheckUnlock(p);
 }
