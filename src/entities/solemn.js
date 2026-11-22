@@ -126,70 +126,74 @@ function drawSolemnWarden(P, px, py, aim, col, tint, hpFrac) {
   cx.shadowBlur = 0;
   cx.restore();
 
-  /* ---- the twin gun-swords: distinct swing animation per action ----
-     basic fire: guns swing outward in an alternating arc (slSwingT)
-     S3 finale:  guns cross in a lunge-strike pose (slS3StrikeT)
-     default:    held forward along the aim ---- */
+  /* ---- the twin gun-swords: one gun at a time, alternating black-body/white-outline
+     and white-body/black-outline. Active gun = solemnSide, flips on every shot. ----
+     basic fire: active gun swings outward in an arc (slSwingT)
+     S3 finale:  active gun crosses inward then lunges forward (slS3StrikeT)
+     default:    active gun held forward along the aim ---- */
   const kick = P.kickT > 0 ? (P.kickT / 0.09) * 1.6 : 0;
   const rec = 1 - kick * 0.04;
   const perpX = Math.cos(aim + Math.PI / 2), perpY = Math.sin(aim + Math.PI / 2);
   const inStrike = (P.slS3StrikeT || 0) > 0;
   const inSwing = (P.slSwingT || 0) > 0 && !inStrike;
   const swingProg = inSwing ? 1 - (P.slSwingT / SL_SWING_T) : 0;
-  /* ease: swing out fast, snap back */
   const swingEase = inSwing ? Math.sin(swingProg * Math.PI) : 0;
   const swingAng = SL_SWING_ARC * swingEase;
   const strikeProg = inStrike ? 1 - (P.slS3StrikeT / SL_STRIKE_T) : 0;
-  /* strike: cross inward at mid-point, then lunge outward */
   const strikeCross = inStrike ? Math.cos(strikeProg * Math.PI) * 0.9 : 0;
+  /* which gun is active — alternates each shot; black gun leads negative side */
+  const activeSide = P.solemnSide || 1;
+  const blackGun = activeSide < 0;
+  const body = blackGun ? C.gun : C.blade;          // black body or white body
+  const edge = blackGun ? C.blade : C.gun;          // opposite outline
+  const bfill = blackGun ? C.coat : C.blade;        // butterfly fill matches body
+  const bcore = blackGun ? C.blade : C.coat;        // butterfly core matches outline
+  const oy = activeSide * 4.2;
+  const hx = 6 * rec, hy = oy;
+  /* rotation offset: swing arcs outward; S3 strike crosses then lunges */
+  let rotOff = 0;
+  if (inSwing) rotOff = swingAng;
+  else if (inStrike) rotOff = strikeCross;
   cx.save();
   cx.translate(px, py);
   cx.rotate(aim);
-  for (const side of [-1, 1]) {
-    const oy = side * 4.2;
-    const hx = 6 * rec, hy = oy;
-    /* rotation offset: basic swing arcs outward; S3 strike crosses then lunges */
-    let rotOff = 0;
-    if (inSwing) rotOff = side * swingAng;
-    else if (inStrike) rotOff = side * strikeCross;   /* cross toward center line */
+  cx.save();
+  cx.rotate(rotOff);
+  /* the pistol body */
+  cx.fillStyle = body;
+  cx.strokeStyle = edge; cx.lineWidth = inStrike ? 1.4 : 0.9;
+  cx.beginPath();
+  cx.rect(hx, hy - (inStrike ? 2.2 : 1.7), inStrike ? 7 : 6.5, (inStrike ? 4.2 : 3.4));
+  cx.fill(); cx.stroke();
+  /* the blade that runs out of the barrel */
+  cx.strokeStyle = edge; cx.lineWidth = inStrike ? 2.4 : 1.5; cx.lineCap = "round";
+  cx.shadowColor = edge; cx.shadowBlur = inStrike ? 10 : 5;
+  cx.beginPath();
+  cx.moveTo(hx + 6.2, hy);
+  cx.lineTo(hx + 6.2 + (inStrike ? 24 : 15) * rec, hy);
+  cx.stroke();
+  cx.shadowBlur = 0;
+  /* the butterfly etched on the slide — follows gun color/outline */
+  cx.save();
+  cx.translate(hx + 2.6, hy);
+  drawSolemnButterfly(cx, inStrike ? 2.6 : 1.9, bfill, bcore);
+  cx.restore();
+  cx.restore();
+  /* swing trail butterfly at the muzzle tip during basic fire swing */
+  if (inSwing) {
+    const tipX = hx + 6.2 + 15 * rec, tipY = hy;
     cx.save();
+    cx.translate(tipX, tipY);
     cx.rotate(rotOff);
-    /* the pistol body */
-    cx.fillStyle = C.gun;
-    cx.strokeStyle = C.gunHi; cx.lineWidth = inStrike ? 1.4 : 0.9;
-    cx.beginPath();
-    cx.rect(hx, hy - (inStrike ? 2.2 : 1.7), inStrike ? 7 : 6.5, (inStrike ? 4.2 : 3.4));
-    cx.fill(); cx.stroke();
-    /* the blade that runs out of the barrel */
-    cx.strokeStyle = C.blade; cx.lineWidth = inStrike ? 2.4 : 1.5; cx.lineCap = "round";
-    cx.shadowColor = C.blade; cx.shadowBlur = inStrike ? 10 : 5;
-    cx.beginPath();
-    cx.moveTo(hx + 6.2, hy);
-    cx.lineTo(hx + 6.2 + (inStrike ? 24 : 15) * rec, hy);
-    cx.stroke();
+    cx.shadowColor = bfill; cx.shadowBlur = 6;
+    drawSolemnButterfly(cx, 1.6 + swingEase * 1.2, bfill, bcore);
     cx.shadowBlur = 0;
-    /* the butterfly etched on the slide */
-    cx.save();
-    cx.translate(hx + 2.6, hy);
-    drawSolemnButterfly(cx, inStrike ? 2.6 : 1.9, C.butterfly, C.butterflyCore);
     cx.restore();
-    cx.restore();
-    /* swing trail butterfly at the muzzle tip during basic fire swing */
-    if (inSwing) {
-      const tipX = hx + 6.2 + 15 * rec, tipY = hy;
-      cx.save();
-      cx.translate(tipX, tipY);
-      cx.rotate(rotOff);
-      cx.shadowColor = C.butterfly; cx.shadowBlur = 6;
-      drawSolemnButterfly(cx, 1.6 + swingEase * 1.2, C.butterfly, C.butterflyCore);
-      cx.shadowBlur = 0;
-      cx.restore();
-    }
   }
   cx.lineCap = "round";
   cx.restore();
 
-  /* S3 finale lunge aura — a big butterfly at the chest when the strike lands */
+  /* S3 finale lunge aura — big butterfly at the chest when the strike lands */
   if (inStrike) {
     const pulse = 1 + Math.sin(strikeProg * Math.PI) * 0.5;
     cx.save();
