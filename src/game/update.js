@@ -289,6 +289,12 @@ function updatePlayer(p, inp, dt) {
     p.y += Math.sin(p.dashAng) * (p.dashSpeed || 720) * dt;
     particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, t: 0, life: 0.25, r: 9,
       color: p.mods.dashTrail ? phaseWakeColor(p, 0.55) : "rgba(94,230,255,0.5)" });
+    /* SOLEMN LAMENT — dash leaves a small trail of butterflies */
+    if (p.char === "solemn" && Math.random() < 0.7) {
+      particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, t: 0,
+        life: rnd(0.15, 0.28), r: rnd(1.2, 2.4),
+        color: pick([SOLEMN_COL.blade, SOLEMN_COL.trimHi, "#e8e2d0"]) });
+    }
     /* WAYWARD PASSENGER + PHASE/BLINKSTEP: halfway through the dash both
        tear-blades sweep the line in a crossed pair of slashes (entities/warp.js) */
     if (p.char === "sinner" && p.mods.dashTrail > 0 && !p.sinnerPhaseDone &&

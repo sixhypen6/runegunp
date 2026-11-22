@@ -412,9 +412,18 @@ function slButterflyTurnEnd(e) {
 function slTrySkill3(p) {
   if (!p || p.char !== "solemn") return;
   const guest = typeof Net !== "undefined" && Net.role === "guest";
-  if (guest) return;
-  if ((p.slReloadT || 0) > 0) return;          // can't use while reloading
-  if ((p.slSkill3Cd || 0) > 0) return;          // on cooldown
+  if (guest) {
+    if (p === localPlayer() && typeof toast === "function") toast("GUEST — SKILL LOCKED");
+    return;
+  }
+  if ((p.slReloadT || 0) > 0) {
+    if (p === localPlayer()) floatText(p.x, p.y - 44, "RELOADING — CAN'T USE SKILL", "#ff4d5e", 12);
+    return;
+  }
+  if ((p.slSkill3Cd || 0) > 0) {
+    if (p === localPlayer()) floatText(p.x, p.y - 44, "SKILL ON COOLDOWN " + (p.slSkill3Cd || 0).toFixed(1) + "s", "#ff4d5e", 12);
+    return;
+  }
   const spent = slSpendAll(p);
   if (spent <= 0) { slTryReload(p, true); return; }
   p.slBarrageT = spent * SL_BARRAGE_RATE;      // barrage length scales with ammo spent
