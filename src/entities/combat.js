@@ -430,6 +430,7 @@ function spawnShot(p, x, y, baseAim, skip) {
         hitSet: null,
         slSpend: spent,
         bflySide: p.solemnSide,
+        slGunType: p.solemnSide < 0 ? "black" : "white",
       });
     }
     p.kickT = 0.09;
@@ -947,6 +948,9 @@ function damageEnemy(e, dmg, src) {
     const travel = Math.hypot(e.x - src.x0, e.y - src.y0);
     dmg *= 1 + Math.min(om.rangeCap, (travel / om.rangeStep) * om.rangeDmg);
   }
+  /* SOLEMN LAMENT — Black damage (mental + physical) lands slightly harder
+     than pure White/mental damage. Abnormalities take both normally. */
+  if (src && src.slGunType === "black") dmg *= 1.12;
   /* VAMPIRE: feeding only triggers on a weapon hit, never on the bleed's own tick.
      SANCHO is the exception: her heal rides a shot cadence in fireWeapon (so
      TWIN/SCATTER hits cannot multiply it), but the +30% damage still applies. */

@@ -218,7 +218,7 @@ function drawSolemnWarden(P, px, py, aim, col, tint, hpFrac) {
 
 const SL_AMMO_START = 10;      // begin 10 Living, 10 Departed
 const SL_AMMO_MAX = 10;        // cap per pool
-const SL_RELOAD_TIME = 1.2;    // seconds to refill both pools
+const SL_RELOAD_TIME = 1.2;    // seconds to refill both pools (base, reduced by RAPID / EXTERMINATE)
 const SL_BFLY_MAX = 15;        // Butterfly potency/count cap
 const SL_BFLY_TURN = 4.0;      // seconds per Butterfly "turn" tick
 const SL_SHIELD_PCT = 0.20;    // FromTheCoffin shield cap
@@ -323,13 +323,23 @@ function slFinishBarrage(p, spent) {
   }
 }
 
+/* effective reload time, reduced by RAPID and EXTERMINATE stacks */
+function slReloadTime(p) {
+  const rapid = (p.runes && p.runes.rapid) || 0;
+  const ex = (p.runes && p.runes.exterminate) || 0;
+  let mul = 1;
+  for (let i = 0; i < rapid; i++) mul *= 0.88;
+  for (let i = 0; i < ex; i++) mul *= 0.88;
+  return SL_RELOAD_TIME * mul;
+}
+
 /* start a reload timer; ammo refills when the timer runs out (see slTick).
    force: start even if not empty. Returns true when a reload began. */
 function slTryReload(p, force) {
   slVitals(p);
   if ((p.slReloadT || 0) > 0) return false;   // already reloading
   if (!force && slAmmoTotal(p) > 0) return false;
-  p.slReloadT = SL_RELOAD_TIME;
+  p.slReloadT = slReloadTime(p);
   if (p === localPlayer() && force) floatText(p.x, p.y - 40, "RELOAD", "#e8e2d0", 14);
   return true;
 }
@@ -359,6 +369,11 @@ function slInflictButterfly(e, p, spent) {
   e.bflyDeparted = Math.min(SL_BFLY_MAX, (e.bflyDeparted || 0) + departed);
   e.bflyBy = p;
   e.bflyT = Math.max(e.bflyT || 0, SL_BFLY_TURN);
+  /* Butterfly indicator above the target */
+  const total = (e.bflyLiving || 0) + (e.bflyDeparted || 0);
+  if (p === localPlayer()) {
+    floatText(e.x, e.y - e.r - 10, "BUTTERFLY ×" + total, "#e8e2d0", 12);
+  }
   /* On hit: attacker heals (The Living / 4) HP, min 1. */
   const heal = Math.max(1, Math.floor(living / 4));
   healPlayer(p, heal, true);
@@ -380,6 +395,10 @@ function slButterflyTurnEnd(e) {
     e.sinkingStacks = Math.min(5, (e.sinkingStacks || 0) + stacks);
     e.sinkingDps = YI_SINKING_DPS;
     e.sinkingBy = e.bflyBy;
+    /* Sinking indicator above the target */
+    if (e.sinkingBy === localPlayer()) {
+      floatText(e.x, e.y - e.r - 10, "SINKING ×" + e.sinkingStacks, "#ffd23d", 12);
+    }
   }
   e.bflyDeparted = living;                                 // convert Living into Departed
   e.bflyLiving = 0;
