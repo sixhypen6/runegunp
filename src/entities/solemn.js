@@ -126,38 +126,79 @@ function drawSolemnWarden(P, px, py, aim, col, tint, hpFrac) {
   cx.shadowBlur = 0;
   cx.restore();
 
-  /* ---- the twin gun-swords, held forward along the aim ---- */
+  /* ---- the twin gun-swords: distinct swing animation per action ----
+     basic fire: guns swing outward in an alternating arc (slSwingT)
+     S3 finale:  guns cross in a lunge-strike pose (slS3StrikeT)
+     default:    held forward along the aim ---- */
   const kick = P.kickT > 0 ? (P.kickT / 0.09) * 1.6 : 0;
   const rec = 1 - kick * 0.04;
   const perpX = Math.cos(aim + Math.PI / 2), perpY = Math.sin(aim + Math.PI / 2);
+  const inStrike = (P.slS3StrikeT || 0) > 0;
+  const inSwing = (P.slSwingT || 0) > 0 && !inStrike;
+  const swingProg = inSwing ? 1 - (P.slSwingT / SL_SWING_T) : 0;
+  /* ease: swing out fast, snap back */
+  const swingEase = inSwing ? Math.sin(swingProg * Math.PI) : 0;
+  const swingAng = SL_SWING_ARC * swingEase;
+  const strikeProg = inStrike ? 1 - (P.slS3StrikeT / SL_STRIKE_T) : 0;
+  /* strike: cross inward at mid-point, then lunge outward */
+  const strikeCross = inStrike ? Math.cos(strikeProg * Math.PI) * 0.9 : 0;
   cx.save();
   cx.translate(px, py);
   cx.rotate(aim);
   for (const side of [-1, 1]) {
     const oy = side * 4.2;
     const hx = 6 * rec, hy = oy;
+    /* rotation offset: basic swing arcs outward; S3 strike crosses then lunges */
+    let rotOff = 0;
+    if (inSwing) rotOff = side * swingAng;
+    else if (inStrike) rotOff = side * strikeCross;   /* cross toward center line */
+    cx.save();
+    cx.rotate(rotOff);
     /* the pistol body */
     cx.fillStyle = C.gun;
-    cx.strokeStyle = C.gunHi; cx.lineWidth = 0.9;
+    cx.strokeStyle = C.gunHi; cx.lineWidth = inStrike ? 1.4 : 0.9;
     cx.beginPath();
-    cx.rect(hx, hy - 1.7, 6.5, 3.4);
+    cx.rect(hx, hy - (inStrike ? 2.2 : 1.7), inStrike ? 7 : 6.5, (inStrike ? 4.2 : 3.4));
     cx.fill(); cx.stroke();
     /* the blade that runs out of the barrel */
-    cx.strokeStyle = C.blade; cx.lineWidth = 1.5; cx.lineCap = "round";
-    cx.shadowColor = C.blade; cx.shadowBlur = 5;
+    cx.strokeStyle = C.blade; cx.lineWidth = inStrike ? 2.4 : 1.5; cx.lineCap = "round";
+    cx.shadowColor = C.blade; cx.shadowBlur = inStrike ? 10 : 5;
     cx.beginPath();
     cx.moveTo(hx + 6.2, hy);
-    cx.lineTo(hx + 6.2 + 15 * rec, hy);
+    cx.lineTo(hx + 6.2 + (inStrike ? 24 : 15) * rec, hy);
     cx.stroke();
     cx.shadowBlur = 0;
     /* the butterfly etched on the slide */
     cx.save();
     cx.translate(hx + 2.6, hy);
-    drawSolemnButterfly(cx, 1.9, C.butterfly, C.butterflyCore);
+    drawSolemnButterfly(cx, inStrike ? 2.6 : 1.9, C.butterfly, C.butterflyCore);
     cx.restore();
+    cx.restore();
+    /* swing trail butterfly at the muzzle tip during basic fire swing */
+    if (inSwing) {
+      const tipX = hx + 6.2 + 15 * rec, tipY = hy;
+      cx.save();
+      cx.translate(tipX, tipY);
+      cx.rotate(rotOff);
+      cx.shadowColor = C.butterfly; cx.shadowBlur = 6;
+      drawSolemnButterfly(cx, 1.6 + swingEase * 1.2, C.butterfly, C.butterflyCore);
+      cx.shadowBlur = 0;
+      cx.restore();
+    }
   }
   cx.lineCap = "round";
   cx.restore();
+
+  /* S3 finale lunge aura — a big butterfly at the chest when the strike lands */
+  if (inStrike) {
+    const pulse = 1 + Math.sin(strikeProg * Math.PI) * 0.5;
+    cx.save();
+    cx.translate(px, py);
+    cx.shadowColor = C.butterfly; cx.shadowBlur = 10 * pulse;
+    drawSolemnButterfly(cx, 4 * pulse, C.butterfly, C.butterflyCore);
+    cx.shadowBlur = 0;
+    cx.restore();
+  }
 
   /* faint aura in the ruling rune's hue so he reads among the wardens */
   cx.globalAlpha = 0.12;
@@ -183,6 +224,9 @@ const SL_BARRAGE_RATE = 0.07;  // seconds per barrage shot
 const SL_BARRAGE_SPREAD = 0.34; // radian spread of the barrage cone
 const SL_STRIKE_REACH = 620;   // final strike reach
 const SL_STRIKE_HALF = 1.05;   // final strike arc half-angle
+const SL_SWING_T = 0.14;       // basic-fire gun-sword swing duration
+const SL_SWING_ARC = 0.5;      // how far the guns swing out on a basic shot
+const SL_STRIKE_T = 0.35;      // S3 finale lunge-strike pose duration
 const SL_GLOOM_CAP = 30;       // gloom dmg cap
 
 function slVitals(p) {
@@ -194,6 +238,9 @@ function slVitals(p) {
   if (p.slBarrageT === undefined) p.slBarrageT = 0;
   if (p.slBarrageN === undefined) p.slBarrageN = 0;
   if (p.slBarrageNext === undefined) p.slBarrageNext = 0;
+  if (p.slSwingT === undefined) p.slSwingT = 0;
+  if (p.slSwingSide === undefined) p.slSwingSide = 1;
+  if (p.slS3StrikeT === undefined) p.slS3StrikeT = 0;
   if (p.slHasteTurn === undefined) p.slHasteTurn = false;
   if (p.slCombatStart === undefined) p.slCombatStart = false;
 }
@@ -248,6 +295,7 @@ function slFireBarrageShot(p, aim) {
 /* S3 finale — lunge strike: inflict Butterfly = spent on every enemy in arc, deal damage, reload + haste */
 function slFinishBarrage(p, spent) {
   p.slBarrageT = 0; p.slBarrageN = 0;
+  p.slS3StrikeT = SL_STRIKE_T;              // finale lunge-strike pose
   const m = p.mods || {};
   const reach = SL_STRIKE_REACH + Math.max(0, (m.size || 4) - 4) * 4;
   const dmg = (m.dmg || 30) * (1 + Math.min(2, spent / 10));
@@ -371,12 +419,14 @@ function slTickBarrage(p, dt) {
   }
 }
 
-/* per-frame player tick: reload + skill-3 cooldown + barrage */
+/* per-frame player tick: reload + skill-3 cooldown + barrage + swing timers */
 function slTick(p, dt) {
   if (!p) return;
   if (p.char !== "solemn") return;
   slVitals(p);
   slTickBarrage(p, dt);
+  if ((p.slSwingT || 0) > 0) p.slSwingT = Math.max(0, p.slSwingT - dt);
+  if ((p.slS3StrikeT || 0) > 0) p.slS3StrikeT = Math.max(0, p.slS3StrikeT - dt);
   if ((p.slSkill3Cd || 0) > 0) p.slSkill3Cd = Math.max(0, p.slSkill3Cd - dt);
   if ((p.slReloadT || 0) > 0) {
     p.slReloadT = Math.max(0, p.slReloadT - dt);
