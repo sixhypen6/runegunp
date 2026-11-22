@@ -5,26 +5,29 @@
    prescript the Oracle delivered, and the Oracle does not
    take "no" for an answer.
 
-   THE PRESCRIPT — each Prescript the Oracle marks the
-   strongest horror on the board: THE PRESCRIPT'S TARGET.
-   That horror takes +10% from The Index (the official mark),
-   and the first cut upon it banks Grace of the Prescript. Grace is
-   a ladder, not a pool: PRESCRIPT [DEVICE] I caps it at three,
-   the next Device raises the ceiling to six, and Device III
-   repeats until PROCURATION [HERMES] reaches nine — the moment
-   it does, the last three steps of Grace are paid at once.
-   Grace pays +10% damage per three stacks, and the Unlock it
-   grants adds a guard (+5/10/15% less damage taken). Fell the
-   marked horror and the execution completes: +3 Grace, 20
-   Karmic lifted. Let the mark pass with the horror standing and
-   the Consequence takes him instead: +20 Karmic (max 100, −0.4%
-   damage per stack, −40% at the cap).
+   THE PRESCRIPT — the Oracle writes MARK OF THE PRESCRIPT on
+   Yi Sang's Base Attack Skill for a window of time. Every swing
+   inside that window is a marked skill: it feeds PROCURATION
+   [HERMES] one stack per swing (eight until Unlock II, then
+   nine), and the first marked swing of the window banks one
+   Grace of the Prescript. Let the window lapse without a marked
+   swing and the Karmic Consequence writes itself instead (+20,
+   max 100, −0.4% damage per stack, −40% at the cap).
 
-   PROCURATION [HERMES] — every struck mark also feeds Hermes.
-   It is capped at eight until Unlock II, then nine; the gain per
-   Prescript is (Unlock stage + 2). At nine the meter completes and
-   the next cut comes down as a guaranteed critical that clears
-   twenty Karmic.
+   GRACE OF THE PRESCRIPT — a ladder, not a pool: PRESCRIPT
+   [DEVICE] I caps it at three, the next Device raises the
+   ceiling to six, and Device III repeats until PROCURATION
+   [HERMES] reaches nine — the moment it does, the last three
+   steps of Grace are paid at once. Marked skills deal +2% per
+   Grace (max 16%); at nine Grace, Base Skills deal +20%
+   instead. Each Unlock adds a guard (+5/10/15% less damage
+   taken) and a burst of vitality. Executing at Hermes 9 heals
+   8 vitality and pays three Grace; Turn End at Unlock II heals
+   4 once.
+
+   PROCURATION [HERMES] — filled by marked swings, capped at
+   eight until Unlock II, then nine. At nine it opens Skill 3
+   (Furioso-Replica), the [E] finisher that consumes the meter.
 
    POISE — every cut banks a Poise, a critical banks two (max 5);
    +6% cut damage per stack. The kit's [On Hit] builds paid out
@@ -56,7 +59,6 @@ const YI_GRACE_TIER_3 = 3, YI_GRACE_TIER_6 = 6, YI_GRACE_TIER_9 = 9;
 const YI_GRACE_PER_STACK = 0.02;   // +2% damage with marked skills per Grace (max 16%)
 const YI_GRACE_BASE_DMG = 0.20;    // at 9 Grace, Base Skills deal +20% instead
 const YI_UNLOCK_GUARD = [0, 0.05, 0.10, 0.15];     // Unlock I/II/III: Defence Level +1/+2/+3 as damage taken down
-const YI_GRACE_FROM_EXECUTION = 3;  // +Grace for executing the Prescript at Hermes 9
 const YI_GRACE_FIRST_PER_PRESCRIPT = 1; // the first marked-skill use of a Prescript banks one Grace
 /* PRESCRIPT [DEVICE] I–III: the ceiling Grace may climb to at Device stage 1/2/3/4 */
 const YI_GRACE_CAP = [3, 6, 9, 9];
@@ -306,7 +308,9 @@ function yiSkill3Swing(p, x, y, aim, furioso) {
     let delta = Math.atan2(dy, dx) - aim;
     delta = Math.atan2(Math.sin(delta), Math.cos(delta));
     if (Math.abs(delta) > YI_HALF_ARC) continue;
-    yiHitEnemy(p, e, x, y, crit, 1, weapon);
+    /* Furioso-Replica keeps its own marked rider; basic marked swings are
+       scaled only by Grace of the Prescript (+2% per stack, +20% at nine) */
+    yiHitEnemy(p, e, x, y, crit, (furioso && marked) ? 1 + YI_FURIOSO_MARK_BONUS : 1, weapon);
     hit.push(e);
   }
   if (Game.pvpMode) {
@@ -484,8 +488,7 @@ function yiHitEnemy(p, e, x, y, forceCrit, biteMul, weapon) {
   const fragType = yiWeaponFragType(weapon);
   let bite = yiBite(p) * (biteMul || 1)
     * weapDmg
-    * (crit ? critMul : 1)
-    * (p.yiMarkT > 0 ? 1 + YI_FURIOSO_MARK_BONUS : 1);
+    * (crit ? critMul : 1);
   /* target is Fragile to a damage type — only that blade class drinks from it */
   if (e.fragT > 0 && e.fragStacks > 0 && fragType && e.fragType === fragType)
     bite *= 1 + YI_FRAG_DMG * e.fragStacks;
@@ -732,18 +735,30 @@ function yiSwing(p, x, y, aim) {
         p.yiProcReady = true;
         p.yiProcMaxed = true;        // the ninth step of Grace stays open for good
         const got = yiGrantHermesGrace(p);
+        /* executing at Hermes 9 heals 8 SP (8 vitality) instead of Turn End's 4,
+           once per Prescript window */
+        let execHeal = 0;
+        if (!p.yiTurnHealed) {
+          if (p.hp > 0) {
+            execHeal = Math.min(YI_EXECUTE_HEAL, Math.max(0, p.maxHp - p.hp));
+            if (execHeal > 0) p.hp += execHeal;
+          }
+          p.yiTurnHealed = true;
+        }
         if (p === localPlayer()) {
           floatText(p.x, p.y - 46, "PROCURATION [HERMES]", "#ffedb8", 14);
           if (got > 0) floatText(p.x, p.y - 62, "GRACE +" + got, "#7ec0ff", 14);
+          if (execHeal > 0) floatText(p.x, p.y - 78, "+" + execHeal, "#8ef0a0", 14);
           if (typeof toast === "function") toast("PROCURATION [HERMES] — THE PRESCRIPT COMPLETES");
         }
       }
-      /* one Grace per Prescript — the first marked-skill use pays the ladder */
-      if (!p.yiGraceStruck && yiAddGrace(p, YI_GRACE_FIRST_PER_PRESCRIPT) > 0) {
-        p.yiGraceStruck = true;
-        if (p === localPlayer())
-          floatText(p.x, p.y - 54, "GRACE " + p.yiGrace + "/" + yiGraceCap(p), "#7ec0ff", 12);
-      }
+    }
+    /* one Grace per Prescript — the first marked-skill use pays the ladder,
+       even while Hermes waits at its ceiling */
+    if (!p.yiGraceStruck && yiAddGrace(p, YI_GRACE_FIRST_PER_PRESCRIPT) > 0) {
+      p.yiGraceStruck = true;
+      if (p === localPlayer())
+        floatText(p.x, p.y - 54, "GRACE " + p.yiGrace + "/" + yiGraceCap(p), "#7ec0ff", 12);
     }
   }
 
@@ -838,7 +853,9 @@ function updateYiCue(p) {
   if (p.yiMarkT > 0) {
     const g = p.yiGrace || 0;
     const gPct = g >= YI_GRACE_TIER_9 ? (YI_GRACE_BASE_DMG * 100) : Math.min(16, g * YI_GRACE_PER_STACK * 100);
-    txt += " · MARK (+ " + gPct + "% on marked skill)";
+    txt += g >= YI_GRACE_TIER_9
+      ? " · MARK · BASE SKILLS +" + gPct + "%"
+      : " · MARK (+ " + gPct + "% on marked skill)";
   }
   const tier = yiGraceTier(p);
   const cls = "on" + (tier >= 3 ? " payout" : tier >= 2 ? " unlock2" : tier >= 1 ? " unlock1" : "");
