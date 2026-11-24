@@ -123,8 +123,13 @@ const YI_WEAPON_SLASH = [YI_WEAPON_BASTARD, YI_WEAPON_GREATSWORD, YI_WEAPON_SCYT
 const YI_WEAPON_LASH = [YI_WEAPON_WHIP];
 
 /* ---------------------------------------------------------
-   ATTACK ANIMATION — every vessel is swung its own way, and
-   every third swing of a pattern is its own finisher.
+   ATTACK ANIMATION — every vessel is swung its own way, in
+   three beats. The Oracle picks the beat from the horror in
+   front of it: an untouched horror takes the opening beat
+   (even when one blow would end it), a horror already cut
+   takes the follow-through, and a follow-through that will
+   end it takes the finisher. A vessel answers three swings
+   before the wheel draws another.
 
    A timeline is normalized to the swing (t 0..1) and read as
    channels, so the same table drives the arm, the stance and
@@ -892,6 +897,10 @@ function yiHitEnemy(p, e, x, y, forceCrit, biteMul, weapon) {
     owner: p, x, y, melee: true, critHit: crit,
     knock: (m.knock || 0) * yiWeaponKnock(weapon) * (forceCrit ? 1.6 : 1),
   });
+  /* the Oracle remembers where its first cut landed: the next blow on this
+     horror follows through, and the blow that ends it is the finisher. Set
+     before the guest's early return so a guest's own Yi reads the same. */
+  if (!e.dead) e.yiStruck = true;
   /* GUEST: the host settles the ledger; the guest's cut is only a picture */
   if (typeof Net !== "undefined" && Net.role === "guest") return;
   /* every landed cut banks Poise — [On Hit] in his kit — and a critical banks an extra;
@@ -984,6 +993,8 @@ function yiCutArc(p, x, y, aim, halfArc, reach, forceCrit, mark, biteMul, weapon
     const expose = weapon === YI_WEAPON_RAPIER ? 1 + YI_RAPIER_DEFDOWN : 1;
     hurtPlayer(foe, yiBite(p) * (biteMul || 1) * yiWeaponMul(weapon) * expose * (crit ? critMul : 1),
       { x, y, knock: (m.knock || 0) * (weapon === YI_WEAPON_HATCHET ? 0.9 : 0.6) });
+    /* the rival has been opened: the next cut follows through */
+    if (foe.hp > 0) foe.yiStruck = true;
   }
   return best;
 }
@@ -1101,6 +1112,45 @@ function yiTick(p, dt) {
   yiCheckUnlock(p);
 }
 
+/* the horror this cut is meant for — the nearest one inside the wedge.
+   In VERSUS a rival warden answers to the same read. */
+function yiSwingTarget(p, aim, reach, halfArc) {
+  let best = null, bestD = Infinity;
+  const consider = (e, rival) => {
+    if (!e || e === p) return;
+    if (e.dead || e.ghost || e.spawnT > 0 || e.hp <= 0) return;
+    if (!rival && e.team === "p") return;
+    if (rival && (e.downed || e.gone)) return;
+    const dx = e.x - p.x, dy = e.y - p.y;
+    const d = Math.hypot(dx, dy);
+    if (d > reach + e.r) return;
+    let delta = Math.atan2(dy, dx) - aim;
+    delta = Math.atan2(Math.sin(delta), Math.cos(delta));
+    if (Math.abs(delta) > halfArc) return;
+    if (d < bestD) { bestD = d; best = e; }
+  };
+  for (const e of enemies) consider(e, false);
+  if (Game.pvpMode) for (const foe of players) consider(foe, true);
+  return best;
+}
+
+/* what this vessel's cut would take off the horror — the same bite the cut
+   deals, with the crit roll folded in as its expectation (the scythe always
+   finds the gap), so the finisher answers the blow that is going to end it */
+function yiPreviewBite(p, e, weapon) {
+  const m = p.mods || {};
+  let dmg = yiBite(p) * yiWeaponMul(weapon);
+  const critP = weapon === YI_WEAPON_SCYTHE ? 1 : Math.min(1, Math.max(0, m.crit || 0));
+  dmg *= 1 + critP * ((m.critMul || 2.2) - 1);
+  const ft = yiWeaponFragType(weapon);
+  if (e.fragT > 0 && e.fragStacks > 0 && ft && e.fragType === ft)
+    dmg *= 1 + YI_FRAG_DMG * e.fragStacks;
+  if (e.defDown > 0) dmg *= 1 + Math.min(0.5, e.defDown * YI_RAPIER_DEFDOWN);
+  /* the Marrow King's vessels ward him until they break */
+  if (e.boss && e.kind === 1 && e.shielded) dmg *= 0.2;
+  return dmg;
+}
+
 /* the Oracle delivers its account — one swing of the pattern */
 function yiSwing(p, x, y, aim) {
   const m = p.mods;
@@ -1126,17 +1176,24 @@ function yiSwing(p, x, y, aim) {
   p.fireT = 1 / (m.rate * wd.rate * jamMul);
   /* per-weapon reach, scaled by size mods like every melee warden */
   const reach = yiWeaponReach(weapon) + Math.max(0, (m.size || 4) - 4) * 0.8;
-  /* combo: the third swing of the pattern is the finisher, and each vessel
-     has its own three-beat timeline (scythe has a fourth: Furioso-Replica) */
-  const comboIdx = keep ? Math.min(2, p.yiComboN || 0) : 0;
-  const isFinal = comboIdx === 2;
+  /* the Oracle reads the horror before it cuts. A horror it has not opened
+     yet takes the opening beat — even when one blow would end it. A horror
+     already bleeding takes the follow-through, and when this blow is enough
+     to finish it, the finisher. Each vessel keeps its own three beats (the
+     scythe has a fourth: Furioso-Replica). */
+  const quarry = yiSwingTarget(p, aim, reach, totalHalf);
+  let comboIdx = 0;
+  if (quarry && quarry.yiStruck)
+    comboIdx = yiPreviewBite(p, quarry, weapon) >= quarry.hp ? 2 : 1;
   const anim = yiComboAnim(weapon, comboIdx);
   p.yiComboIdx = comboIdx;
   p.yiAnimLife = anim.life;
   p.yiSlashT = anim.life;
   p.yiHoldT = anim.hold || 0;
-  p.yiComboWeapon = weapon;
-  p.yiComboN = isFinal ? 0 : comboIdx + 1;
+  /* the wheel: one vessel answers three swings, then it is drawn again */
+  const swung = keep ? (p.yiComboN || 0) : 0;
+  p.yiComboWeapon = swung >= 2 ? -1 : weapon;
+  p.yiComboN = (swung + 1) % 3;
   p.yiComboGap = 1.6;
   if (anim.push) {
     p.yiPropelAng = aim;
