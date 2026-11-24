@@ -122,6 +122,376 @@ const YI_WEAPON_SLASH = [YI_WEAPON_BASTARD, YI_WEAPON_GREATSWORD, YI_WEAPON_SCYT
 /* the whip is its own animal: it is not swung, it is thrown — a wide overhead lash */
 const YI_WEAPON_LASH = [YI_WEAPON_WHIP];
 
+/* ---------------------------------------------------------
+   ATTACK ANIMATION — every vessel is swung its own way, and
+   every third swing of a pattern is its own finisher.
+
+   A timeline is normalized to the swing (t 0..1) and read as
+   channels, so the same table drives the arm, the stance and
+   the light of the cut on every client:
+     arm    : shoulder swing, -1..1 (times YI_ARM_ARC radians)
+     thrust : hand driven at the target, 0..1
+     two    : second hand on the haft, 0..1
+     crouch : stance dropped and pulled back, 0..1
+     dash   : body carried along the aim, px (a flourish, not a teleport)
+     form   : how far the Vial has congealed, 0..1
+   fx says when a cut is born: at = start of that beat, d = its share of
+   the swing, kind = arc | stab | slam | lash, dir = which way it sweeps.
+   push is a real lunge: wait seconds, then spd for t seconds.
+   --------------------------------------------------------- */
+const YI_ARM_ARC = 0.78;
+const YI_ANIM_CH = ["arm", "thrust", "two", "crouch", "dash", "form"];
+const YI_COMBO_ANIM = [
+  /* ---- HATCHET — low and angled, then a big upswing; then a side cut;
+     the finisher is the upswing again with his weight behind it ---- */
+  [
+    { life: 0.34, keys: [
+      { t: 0.00, arm: -0.20 },
+      { t: 0.22, arm: -0.95, two: 0.15, crouch: 0.30 },
+      { t: 0.42, arm: -1.00, crouch: 0.35 },
+      { t: 0.62, arm: 0.55, crouch: 0.05 },
+      { t: 0.74, arm: 1.00 },
+      { t: 1.00, arm: 0.70 }],
+      fx: [{ at: 0.50, kind: "arc", dir: -1, scale: 1.05 }] },
+    { life: 0.32, keys: [
+      { t: 0.00, arm: 0.85 },
+      { t: 0.30, arm: 0.95, crouch: 0.20 },
+      { t: 0.55, arm: -0.25 },
+      { t: 0.72, arm: -0.95 },
+      { t: 1.00, arm: -0.80 }],
+      fx: [{ at: 0.42, kind: "arc", dir: 1 }] },
+    { life: 0.40, keys: [
+      { t: 0.00, arm: -0.20 },
+      { t: 0.20, arm: -0.95, crouch: 0.30 },
+      { t: 0.38, arm: -1.00, crouch: 0.35 },
+      { t: 0.56, arm: 0.50, dash: 10 },
+      { t: 0.70, arm: 1.00, dash: 26 },
+      { t: 1.00, arm: 0.80, dash: 18 }],
+      fx: [{ at: 0.46, kind: "arc", dir: -1, scale: 1.15 },
+           { at: 0.70, kind: "arc", dir: -1, scale: 1.30, d: 0.26 }],
+      push: { wait: 0.10, spd: 520, t: 0.26 }, hold: 0.12 },
+  ],
+  /* ---- STILETTO — only ever a thrust. The finisher carries him in ---- */
+  [
+    { life: 0.22, keys: [
+      { t: 0.00, thrust: 0.00, arm: 0.05 },
+      { t: 0.18, thrust: 0.10, arm: 0.12 },
+      { t: 0.45, thrust: 1.00, arm: 0.00 },
+      { t: 0.70, thrust: 0.35 },
+      { t: 1.00, thrust: 0.00 }],
+      fx: [{ at: 0.28, kind: "stab", d: 0.30 }],
+      push: { wait: 0.02, spd: 150, t: 0.12 } },
+    { life: 0.22, keys: [
+      { t: 0.00, thrust: 0.00 },
+      { t: 0.16, thrust: 0.12 },
+      { t: 0.42, thrust: 1.00 },
+      { t: 0.68, thrust: 0.30 },
+      { t: 1.00, thrust: 0.00 }],
+      fx: [{ at: 0.26, kind: "stab", d: 0.30 }],
+      push: { wait: 0.02, spd: 175, t: 0.12 } },
+    { life: 0.32, keys: [
+      { t: 0.00, thrust: 0.00, crouch: 0.10 },
+      { t: 0.14, thrust: 0.12, crouch: 0.20 },
+      { t: 0.40, thrust: 1.15, dash: 16 },
+      { t: 0.72, thrust: 0.90, dash: 34 },
+      { t: 1.00, thrust: 0.15, dash: 30 }],
+      fx: [{ at: 0.24, kind: "stab", scale: 1.15, d: 0.34 }],
+      push: { wait: 0.06, spd: 470, t: 0.24 }, hold: 0.10 },
+  ],
+  /* ---- BASTARD SWORD — raised, then down; then two fast side cuts,
+     the first carrying him behind the target; then both hands ---- */
+  [
+    { life: 0.32, keys: [
+      { t: 0.00, arm: 0.20 },
+      { t: 0.30, arm: 0.95, crouch: 0.15, two: 0.30 },
+      { t: 0.45, arm: 1.05, two: 0.30 },
+      { t: 0.62, arm: -0.20 },
+      { t: 0.78, arm: -1.00 },
+      { t: 1.00, arm: -0.85 }],
+      fx: [{ at: 0.52, kind: "arc", dir: 1, scale: 1.05 }] },
+    { life: 0.38, keys: [
+      { t: 0.00, arm: 0.70 },
+      { t: 0.14, arm: 1.00, two: 0.20 },
+      { t: 0.30, arm: -0.60, dash: 30 },
+      { t: 0.44, arm: -1.00, dash: 45 },
+      { t: 0.56, arm: -0.85, dash: 40 },
+      { t: 0.70, arm: 0.90, dash: 14 },
+      { t: 0.84, arm: 1.00, dash: 6 },
+      { t: 1.00, arm: 0.60, dash: 0 }],
+      fx: [{ at: 0.16, kind: "arc", dir: 1 },
+           { at: 0.62, kind: "arc", dir: -1 }] },
+    { life: 0.44, keys: [
+      { t: 0.00, arm: 0.15, two: 0.70 },
+      { t: 0.32, arm: 1.00, two: 1, crouch: 0.20 },
+      { t: 0.50, arm: 1.10, two: 1 },
+      { t: 0.68, arm: -0.40, two: 1 },
+      { t: 0.82, arm: -1.05, two: 0.90, crouch: 0.15 },
+      { t: 1.00, arm: -0.80, two: 0.50 }],
+      fx: [{ at: 0.55, kind: "arc", dir: 1, scale: 1.15 }], hold: 0.10 },
+  ],
+  /* ---- RAPIER — the long puncture that lifts; a flurry of needles;
+     the last thrust throws him through ---- */
+  [
+    { life: 0.26, keys: [
+      { t: 0.00, thrust: 0.00, arm: -0.10, crouch: 0.20 },
+      { t: 0.20, thrust: 0.15, arm: -0.20, crouch: 0.35 },
+      { t: 0.45, thrust: 1.10, arm: 0.35 },
+      { t: 0.70, thrust: 0.60, arm: 0.45 },
+      { t: 1.00, thrust: 0.00, arm: 0.20 }],
+      fx: [{ at: 0.28, kind: "stab", scale: 1.15, d: 0.34 }] },
+    { life: 0.36, keys: [
+      { t: 0.00, thrust: 0.00 },
+      { t: 0.18, thrust: 0.90 },
+      { t: 0.30, thrust: 0.25 },
+      { t: 0.46, thrust: 0.95 },
+      { t: 0.58, thrust: 0.30 },
+      { t: 0.74, thrust: 1.00 },
+      { t: 0.88, thrust: 0.40 },
+      { t: 1.00, thrust: 0.10 }],
+      fx: [{ at: 0.12, kind: "stab", d: 0.22 },
+           { at: 0.40, kind: "stab", d: 0.20 },
+           { at: 0.68, kind: "stab", scale: 1.10, d: 0.22 }],
+      push: { wait: 0.04, spd: 120, t: 0.14 } },
+    { life: 0.38, keys: [
+      { t: 0.00, thrust: 0.00, crouch: 0.25 },
+      { t: 0.18, thrust: 0.15, crouch: 0.40 },
+      { t: 0.40, thrust: 1.20, dash: 20 },
+      { t: 0.70, thrust: 1.20, dash: 48 },
+      { t: 1.00, thrust: 0.20, dash: 44 }],
+      fx: [{ at: 0.24, kind: "stab", scale: 1.30, d: 0.40 }],
+      push: { wait: 0.08, spd: 560, t: 0.30 }, hold: 0.12 },
+  ],
+  /* ---- HAMMER — one swing, three times. The finisher plants its feet ---- */
+  [
+    { life: 0.36, keys: [
+      { t: 0.00, arm: 0.40, two: 0.30 },
+      { t: 0.34, arm: 1.05, crouch: 0.30 },
+      { t: 0.46, arm: 1.15, crouch: 0.32 },
+      { t: 0.64, arm: -0.55 },
+      { t: 0.80, arm: -1.05, crouch: 0.20 },
+      { t: 1.00, arm: -0.90 }],
+      fx: [{ at: 0.54, kind: "slam", scale: 1.10 }] },
+    { life: 0.36, keys: [
+      { t: 0.00, arm: 0.40, two: 0.30 },
+      { t: 0.34, arm: 1.05, crouch: 0.30 },
+      { t: 0.46, arm: 1.15, crouch: 0.32 },
+      { t: 0.64, arm: -0.55 },
+      { t: 0.80, arm: -1.05, crouch: 0.20 },
+      { t: 1.00, arm: -0.90 }],
+      fx: [{ at: 0.54, kind: "slam", scale: 1.10 }] },
+    { life: 0.42, keys: [
+      { t: 0.00, arm: 0.40, two: 0.70 },
+      { t: 0.34, arm: 1.05, two: 1, crouch: 0.36 },
+      { t: 0.46, arm: 1.15, two: 1, crouch: 0.38 },
+      { t: 0.64, arm: -0.55, two: 1 },
+      { t: 0.80, arm: -1.05, two: 0.90, crouch: 0.26 },
+      { t: 1.00, arm: -0.90, two: 0.60 }],
+      fx: [{ at: 0.54, kind: "slam", scale: 1.25 }], hold: 0.10 },
+  ],
+  /* ---- GREATSWORD — a held caduceus, then the blade; a side cut;
+     then the whole mass of it ---- */
+  [
+    { life: 0.40, keys: [
+      { t: 0.00, arm: 0.00, thrust: 0.15, form: 0.15 },
+      { t: 0.16, arm: -0.05, thrust: 0.20, form: 0.15 },
+      { t: 0.30, arm: 0.90, form: 1, two: 0.40, crouch: 0.15 },
+      { t: 0.44, arm: 1.05, form: 1, two: 0.50 },
+      { t: 0.62, arm: -0.30, form: 1, two: 0.50 },
+      { t: 0.80, arm: -1.05, form: 1, two: 0.40 },
+      { t: 1.00, arm: -0.85, form: 1, two: 0.20 }],
+      fx: [{ at: 0.54, kind: "arc", dir: 1, scale: 1.10 }] },
+    { life: 0.36, keys: [
+      { t: 0.00, arm: 0.80, form: 1, two: 0.40 },
+      { t: 0.28, arm: 1.00, form: 1, two: 0.50, crouch: 0.15 },
+      { t: 0.60, arm: -0.70, form: 1, two: 0.30 },
+      { t: 0.82, arm: -1.00, form: 1, two: 0.20 },
+      { t: 1.00, arm: -0.85, form: 1, two: 0.20 }],
+      fx: [{ at: 0.44, kind: "arc", dir: 1, scale: 1.10 }] },
+    { life: 0.48, keys: [
+      { t: 0.00, arm: 0.10, form: 0.60, two: 0.80 },
+      { t: 0.30, arm: 0.95, form: 1, two: 1, crouch: 0.20 },
+      { t: 0.46, arm: 1.10, form: 1, two: 1 },
+      { t: 0.66, arm: -0.50, form: 1, two: 1 },
+      { t: 0.82, arm: -1.10, form: 1, two: 0.80, crouch: 0.20 },
+      { t: 1.00, arm: -0.90, form: 1, two: 0.60 }],
+      fx: [{ at: 0.56, kind: "arc", dir: 1, scale: 1.22 }], hold: 0.14 },
+  ],
+  /* ---- LANCE — the propelling point. Only the last one carries him
+     all the way past the target ---- */
+  [
+    { life: 0.28, keys: [
+      { t: 0.00, thrust: 0.00, crouch: 0.15 },
+      { t: 0.22, thrust: 0.15, crouch: 0.25 },
+      { t: 0.48, thrust: 1.00, arm: 0.05 },
+      { t: 0.74, thrust: 0.40 },
+      { t: 1.00, thrust: 0.00 }],
+      fx: [{ at: 0.30, kind: "stab", scale: 1.10, d: 0.34 }] },
+    { life: 0.32, keys: [
+      { t: 0.00, thrust: 0.00, crouch: 0.12 },
+      { t: 0.20, thrust: 0.18, crouch: 0.22 },
+      { t: 0.46, thrust: 1.05, arm: 0.04 },
+      { t: 0.72, thrust: 0.45 },
+      { t: 1.00, thrust: 0.00 }],
+      fx: [{ at: 0.28, kind: "stab", scale: 1.15, d: 0.34 }] },
+    { life: 0.44, keys: [
+      { t: 0.00, thrust: 0.00, crouch: 0.30 },
+      { t: 0.20, thrust: 0.20, crouch: 0.40 },
+      { t: 0.46, thrust: 1.25, dash: 10 },
+      { t: 0.72, thrust: 1.25, dash: 90 },
+      { t: 1.00, thrust: 0.20, dash: 110 }],
+      fx: [{ at: 0.26, kind: "stab", scale: 1.38, d: 0.44 }],
+      push: { wait: 0.08, spd: 620, t: 0.30 }, hold: 0.14 },
+  ],
+  /* ---- WHIP — two cracks; one crack; a storm of side cracks that
+     finishes overhead ---- */
+  [
+    { life: 0.32, keys: [
+      { t: 0.00, arm: 0.60 },
+      { t: 0.20, arm: 1.00, crouch: 0.10 },
+      { t: 0.34, arm: -0.60 },
+      { t: 0.46, arm: -0.95 },
+      { t: 0.58, arm: 0.80 },
+      { t: 0.74, arm: 1.00 },
+      { t: 1.00, arm: 0.40 }],
+      fx: [{ at: 0.10, kind: "lash", dir: 1, d: 0.24 },
+           { at: 0.58, kind: "lash", dir: -1, d: 0.24 }] },
+    { life: 0.24, keys: [
+      { t: 0.00, arm: 0.80 },
+      { t: 0.24, arm: 1.00 },
+      { t: 0.60, arm: -0.90 },
+      { t: 1.00, arm: -0.60 }],
+      fx: [{ at: 0.28, kind: "lash", dir: 1, d: 0.30 }] },
+    { life: 0.52, keys: [
+      { t: 0.00, arm: 0.70 },
+      { t: 0.14, arm: 1.00 },
+      { t: 0.26, arm: -0.80 },
+      { t: 0.38, arm: -1.00 },
+      { t: 0.50, arm: 0.90 },
+      { t: 0.62, arm: 1.00 },
+      { t: 0.74, arm: -0.50 },
+      { t: 0.82, arm: 1.15, crouch: 0.10 },
+      { t: 0.92, arm: -0.95, crouch: 0.30 },
+      { t: 1.00, arm: -0.70, crouch: 0.25 }],
+      fx: [{ at: 0.06, kind: "lash", dir: -1, d: 0.20 },
+           { at: 0.28, kind: "lash", dir: 1, d: 0.20 },
+           { at: 0.48, kind: "lash", dir: -1, d: 0.20 },
+           { at: 0.84, kind: "slam", scale: 1.10, d: 0.20 }],
+      hold: 0.10 },
+  ],
+  /* ---- SCYTHE — a cut that halts halfway and then thinks better of it;
+     a side cut; then the long Reaper finish that leaves him crouched.
+     The fourth entry is Furioso-Replica's own vastly different cut. ---- */
+  [
+    { life: 0.30, keys: [
+      { t: 0.00, arm: 0.60 },
+      { t: 0.24, arm: 0.90 },
+      { t: 0.46, arm: -0.15 },
+      { t: 0.62, arm: -0.18 },
+      { t: 0.82, arm: -0.95 },
+      { t: 1.00, arm: -0.80 }],
+      fx: [{ at: 0.34, kind: "arc", dir: 1, scale: 0.90, d: 0.28 },
+           { at: 0.64, kind: "arc", dir: 1, scale: 1.10, d: 0.30 }] },
+    { life: 0.26, keys: [
+      { t: 0.00, arm: -0.80 },
+      { t: 0.30, arm: -0.95 },
+      { t: 0.62, arm: 0.70 },
+      { t: 0.84, arm: 1.00 },
+      { t: 1.00, arm: 0.80 }],
+      fx: [{ at: 0.36, kind: "arc", dir: -1, scale: 1.00 }] },
+    { life: 0.52, keys: [
+      { t: 0.00, arm: 0.50 },
+      { t: 0.12, arm: 0.95 },
+      { t: 0.24, arm: -0.70 },
+      { t: 0.36, arm: -1.00 },
+      { t: 0.46, arm: 0.85 },
+      { t: 0.58, arm: 1.00 },
+      { t: 0.68, arm: -0.20, crouch: 0.30 },
+      { t: 0.78, arm: 0.60, crouch: 0.50, dash: 18 },
+      { t: 0.86, arm: -1.00, crouch: 0.80, dash: 55 },
+      { t: 1.00, arm: -1.10, crouch: 1.00, dash: 60 }],
+      fx: [{ at: 0.04, kind: "arc", dir: -1, d: 0.20 },
+           { at: 0.26, kind: "arc", dir: 1, d: 0.20 },
+           { at: 0.44, kind: "arc", dir: -1, d: 0.20 },
+           { at: 0.60, kind: "arc", dir: 1, d: 0.18 },
+           { at: 0.74, kind: "arc", dir: -1, scale: 1.20, d: 0.24 },
+           { at: 0.86, kind: "slam", scale: 1.30, d: 0.22 }],
+      push: { wait: 0.10, spd: 620, t: 0.32 }, hold: 0.55 },
+    { life: 0.64, furioso: true, keys: [
+      { t: 0.00, arm: 0.30, crouch: 0.40 },
+      { t: 0.12, arm: 0.70, crouch: 0.60 },
+      { t: 0.20, arm: -1.20, crouch: 0.80 },
+      { t: 0.30, arm: 1.20 },
+      { t: 0.42, arm: -1.20 },
+      { t: 0.54, arm: 1.20 },
+      { t: 0.66, arm: -1.20 },
+      { t: 0.78, arm: 1.20, dash: 30 },
+      { t: 0.90, arm: -1.40, crouch: 1.00, dash: 50 },
+      { t: 1.00, arm: -1.40, crouch: 1.00, dash: 55 }],
+      fx: [{ at: 0.10, kind: "arc", dir: 1, d: 0.20 }],
+      push: { wait: 0.12, spd: 580, t: 0.34 }, hold: 0.40 },
+  ],
+];
+/* fill the channels a key does not name, and nail the ends down */
+function yiNormAnims() {
+  for (const family of YI_COMBO_ANIM) for (const def of family) {
+    let cur = { arm: 0, thrust: 0, two: 0, crouch: 0, dash: 0, form: 1 };
+    for (const key of def.keys) {
+      for (const ch of YI_ANIM_CH)
+        key[ch] = key[ch] === undefined ? cur[ch] : key[ch];
+      cur = key;
+    }
+    const first = def.keys[0], last = def.keys[def.keys.length - 1];
+    if (first.t > 0) def.keys.unshift(Object.assign({}, first, { t: 0 }));
+    if (last.t < 1) def.keys.push(Object.assign({}, last, { t: 1 }));
+    if (def.life === undefined) def.life = YI_SLASH_LIFE;
+  }
+}
+yiNormAnims();
+
+function yiComboAnim(w, i) {
+  const family = YI_COMBO_ANIM[w] || YI_COMBO_ANIM[YI_WEAPON_BASTARD];
+  return family[Math.max(0, Math.min(family.length - 1, i | 0))];
+}
+/* smoothstep between the two keys that bracket this instant */
+function yiSampleAnim(keys, k) {
+  let i = 0;
+  while (i < keys.length - 1 && keys[i + 1].t <= k) i++;
+  const a = keys[i], b = keys[Math.min(i + 1, keys.length - 1)];
+  const span = b.t - a.t;
+  let u = span > 0 ? (k - a.t) / span : 1;
+  u = clamp(u, 0, 1);
+  u = u * u * (3 - 2 * u);
+  const out = {};
+  for (const ch of YI_ANIM_CH) out[ch] = a[ch] + (b[ch] - a[ch]) * u;
+  return out;
+}
+/* the pose at this instant. Pure in (weapon, combo, swing clock), so the
+   host and every guest read the same frame without syncing keyframes. */
+function yiAnimState(p) {
+  const w = p.yiWeapon == null ? YI_WEAPON_BASTARD : clamp(p.yiWeapon | 0, 0, 8);
+  const def = yiComboAnim(w, p.yiComboIdx || 0);
+  const life = (p.yiAnimLife > 0) ? p.yiAnimLife : def.life;
+  const swinging = (p.yiSlashT || 0) > 0;
+  const holding = !swinging && (p.yiHoldT || 0) > 0;
+  const k = swinging ? clamp(1 - p.yiSlashT / life, 0, 1) : (holding ? 1 : 0);
+  const s = swinging || holding ? yiSampleAnim(def.keys, k)
+    : { arm: 0, thrust: 0, two: 0, crouch: 0, dash: 0, form: 1 };
+  s.k = k;
+  s.life = life;
+  s.swinging = swinging || holding;
+  s.holding = holding;
+  s.weapon = w;
+  s.def = def;
+  s.furioso = !!def.furioso;
+  return s;
+}
+function yiFxKind(w) {
+  if (YI_WEAPON_PIERCE.indexOf(w) >= 0) return "stab";
+  if (YI_WEAPON_LASH.indexOf(w) >= 0) return "lash";
+  if (YI_WEAPON_BLUNT.indexOf(w) >= 0) return "slam";
+  return "arc";
+}
+
 /* per-weapon ledger — damage, rate (× base), reach, knock, and the rider
    each cut pays out. rate > 1 swings faster; reach in px; knock × base. */
 const YI_WEAPON_DATA = [
@@ -226,6 +596,12 @@ function yiVitals(p) {
   if (p.yiSlashAng === undefined) p.yiSlashAng = 0;
   if (p.yiSlashDir === undefined) p.yiSlashDir = 1;
   if (p.yiSlashReach === undefined) p.yiSlashReach = YI_REACH_BASE;
+  if (p.yiComboIdx === undefined) p.yiComboIdx = 0;
+  if (p.yiAnimLife === undefined) p.yiAnimLife = YI_SLASH_LIFE;
+  if (p.yiHoldT === undefined) p.yiHoldT = 0;
+  if (p.yiComboGap === undefined) p.yiComboGap = 0;
+  if (p.yiPropelWait === undefined) p.yiPropelWait = 0;
+  if (p.yiPropelDur === undefined) p.yiPropelDur = 0;
   if (p.yiPoise === undefined) p.yiPoise = 0;
   if (p.yiOffenseS === undefined) p.yiOffenseS = 0;
   if (p.yiOffenseT === undefined) p.yiOffenseT = 0;
@@ -300,6 +676,26 @@ function yiSkill3Swing(p, x, y, aim, furioso) {
   const crit = furioso || weapon === YI_WEAPON_SCYTHE;
   const critMul = furioso ? (m.critMul || 2.2) * (1 + YI_FURIOSO_CRIT_BONUS) : (m.critMul || 2.2);
   const marked = p.yiMarkT > 0;
+  /* the [E] cut has its own timeline: S3 is the vessel's finisher, and
+     Furioso-Replica is the scythe's fourth and vastly different pattern */
+  const comboIdx = furioso ? 3 : 2;
+  const anim = yiComboAnim(weapon, comboIdx);
+  p.yiWeapon = weapon;
+  p.yiComboIdx = comboIdx;
+  p.yiAnimLife = anim.life;
+  p.yiSlashT = anim.life;
+  p.yiHoldT = anim.hold || 0;
+  p.yiSlashAng = aim;
+  p.yiSlashDir = Math.random() < 0.5 ? -1 : 1;
+  p.yiSlashLanes = null;
+  const guestNow = typeof Net !== "undefined" && Net.role === "guest";
+  if (anim.push && !guestNow) {
+    p.yiPropelAng = aim;
+    p.yiPropelSpd = anim.push.spd;
+    p.yiPropelDur = anim.push.t;
+    p.yiPropelWait = anim.push.wait || 0.04;
+    p.yiPropelT = 0;
+  }
   const hit = [];
   for (const e of enemies) {
     if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p") continue;
@@ -603,16 +999,38 @@ function yiTick(p, dt) {
      alive for its own frame; the mark, Grace and Karmic arrive through snapshots. */
   if (typeof Net !== "undefined" && Net.role === "guest") {
     p.yiSlashT = Math.max(0, p.yiSlashT - dt);
+    if (p.yiSlashT <= 0 && (p.yiHoldT || 0) > 0) p.yiHoldT = Math.max(0, p.yiHoldT - dt);
     return;
   }
-  p.yiSlashT = Math.max(0, p.yiSlashT - dt);
+  if (p.yiSlashT > 0) p.yiSlashT = Math.max(0, p.yiSlashT - dt);
+  else if ((p.yiHoldT || 0) > 0) p.yiHoldT = Math.max(0, p.yiHoldT - dt);
+  /* the blow lands on its beat, not on the tap */
+  if (p.yiCutPlan) {
+    if ((p.hp || 0) <= 0) p.yiCutPlan = null;
+    else if ((p.yiAnimLife || YI_SLASH_LIFE) - p.yiSlashT >= p.yiCutPlan.at) {
+      const plan = p.yiCutPlan;
+      p.yiCutPlan = null;
+      yiResolveCut(p, plan);
+    }
+  }
+  /* the Oracle's grip lapses if the pattern is left hanging — the next swing
+     draws a fresh vessel from the wheel */
+  if ((p.yiComboGap || 0) > 0) {
+    p.yiComboGap = Math.max(0, p.yiComboGap - dt);
+    if (p.yiComboGap <= 0) { p.yiComboN = 0; p.yiComboWeapon = -1; }
+  }
   /* the BASTARD SWORD hones but for a while */
   if (p.yiOffenseT > 0) {
     p.yiOffenseT -= dt;
     if (p.yiOffenseT <= 0) p.yiOffenseS = 0;
   }
   if ((p.yiSkill3Cd || 0) > 0) p.yiSkill3Cd = Math.max(0, p.yiSkill3Cd - dt);
-  /* final-hit propulsion: Yi Sang lunges through the target (host only) */
+  /* final-hit propulsion: the strike lands, then Yi Sang carries through the
+     target (host only). A short wait lets the blow read before the body follows. */
+  if ((p.yiPropelWait || 0) > 0) {
+    p.yiPropelWait = Math.max(0, p.yiPropelWait - dt);
+    if (p.yiPropelWait <= 0) p.yiPropelT = p.yiPropelDur || 0.28;
+  }
   if ((p.yiPropelT || 0) > 0) {
     p.yiPropelT = Math.max(0, p.yiPropelT - dt);
     const spd = p.yiPropelSpd || 0;
@@ -693,13 +1111,14 @@ function yiSwing(p, x, y, aim) {
   const totalHalf = YI_HALF_ARC + Math.max(0, m.meleeSpread || 0);
   const wedge = totalHalf / arcs;
   const dir = Math.random() < 0.5 ? -1 : 1;
-  p.yiSlashT = YI_SLASH_LIFE;
   p.yiSlashAng = aim;
   p.yiSlashDir = dir;
   p.yiSlashLanes = null;
 
-  /* the Oracle rules its weapon — one of nine is handed down this swing */
-  const weapon = (Math.random() * 9) | 0;
+  /* the Oracle keeps its grip for the pattern — the same vessel answers for
+     three swings, then the wheel turns. A lapsed pattern draws a fresh one. */
+  const keep = (p.yiComboN || 0) > 0 && p.yiComboWeapon >= 0;
+  const weapon = keep ? p.yiComboWeapon : (Math.random() * 9) | 0;
   p.yiWeapon = weapon;
   const wd = yiWeaponData(weapon);
   /* per-weapon attack speed: a heavy greatsword resets slower than a stiletto */
@@ -707,15 +1126,26 @@ function yiSwing(p, x, y, aim) {
   p.fireT = 1 / (m.rate * wd.rate * jamMul);
   /* per-weapon reach, scaled by size mods like every melee warden */
   const reach = yiWeaponReach(weapon) + Math.max(0, (m.size || 4) - 4) * 0.8;
-  /* combo: the third consecutive swing of the same vessel is the final hit,
-     which propels Yi Sang through the target (lance/hard-hitters) */
-  const isFinal = (p.yiComboWeapon || -1) === weapon && (p.yiComboN || 0) >= 2;
+  /* combo: the third swing of the pattern is the finisher, and each vessel
+     has its own three-beat timeline (scythe has a fourth: Furioso-Replica) */
+  const comboIdx = keep ? Math.min(2, p.yiComboN || 0) : 0;
+  const isFinal = comboIdx === 2;
+  const anim = yiComboAnim(weapon, comboIdx);
+  p.yiComboIdx = comboIdx;
+  p.yiAnimLife = anim.life;
+  p.yiSlashT = anim.life;
+  p.yiHoldT = anim.hold || 0;
   p.yiComboWeapon = weapon;
-  p.yiComboN = isFinal ? 0 : ((p.yiComboN || 0) + 1);
-  if (isFinal && wd.propel) {
-    p.yiPropelT = 0.4;
+  p.yiComboN = isFinal ? 0 : comboIdx + 1;
+  p.yiComboGap = 1.6;
+  if (anim.push) {
     p.yiPropelAng = aim;
-    p.yiPropelSpd = 560 * wd.propel;
+    p.yiPropelSpd = anim.push.spd;
+    p.yiPropelDur = anim.push.t;
+    p.yiPropelWait = anim.push.wait || 0.04;
+    p.yiPropelT = 0;
+  } else {
+    p.yiPropelWait = 0; p.yiPropelT = 0; p.yiPropelSpd = 0;
   }
 
   const guest = typeof Net !== "undefined" && Net.role === "guest";
@@ -762,13 +1192,14 @@ function yiSwing(p, x, y, aim) {
     }
   }
 
-  for (let i = 0; i < arcs; i++) {
-    const a = arcs === 1 ? aim : aim + (-totalHalf + wedge * (2 * i + 1));
-    yiCutArc(p, x, y, a, arcs === 1 ? totalHalf : wedge, reach, false, mark, null, weapon);
-  }
-  yiTrail(x, y, aim, reach, weapon, arcs === 1 ? 9 : Math.min(9, 5 + arcs));
+  /* the cut is dealt at the beat the animation reaches — a hatchet's tap
+     hangs a moment before the ribs, a stiletto leaves at once */
+  const contact = (anim.fx && anim.fx.length ? anim.fx[0].at : 0.35) * anim.life;
+  p.yiCutPlan = {
+    at: contact, x, y, aim, reach, mark, weapon, dir, arcs, wedge, totalHalf, twin, mirror,
+  };
 
-  /* lanes and rear cuts get their own crescents */
+  /* lanes and rear cuts get their own crescents — drawn now, they are light, not harm */
   if (arcs > 1 || twin || mirror) {
     p.yiSlashLanes = [];
     for (let i = 0; i < arcs; i++) {
@@ -782,26 +1213,44 @@ function yiSwing(p, x, y, aim) {
     for (let i = 0; i < twin; i++) {
       const side = i % 2 === 0 ? 1 : -1;
       const off = YI_TWIN_GAP * (Math.floor(i / 2) + 1) * side;
-      const ox = x + perpX * off, oy = y + perpY * off;
-      yiCutArc(p, ox, oy, aim, YI_TWIN_HALF, reach, proc, mark, null, weapon);
       p.yiSlashLanes.push({
         dx: perpX * off, dy: perpY * off, ang: aim,
         scale: YI_TWIN_HALF / YI_HALF_ARC, delay: 0.02 + i * 0.012,
         alpha: 0.75, dir, cheap: true, weapon,
       });
-      yiTrail(ox, oy, aim, reach, weapon, 3);
     }
     const backHalf = YI_HALF_ARC * 0.8;
     for (let i = 0; i < mirror; i++) {
-      yiCutArc(p, x, y, aim + Math.PI, backHalf, reach * 0.9, proc, mark, null, weapon);
       p.yiSlashLanes.push({
         dx: 0, dy: 0, ang: aim + Math.PI, scale: backHalf / YI_HALF_ARC,
         delay: 0.03 + i * 0.012, alpha: 0.7, dir: -dir, cheap: true, weapon,
       });
-      yiTrail(x, y, aim + Math.PI, reach * 0.9, weapon, 3);
     }
   }
   return true;
+}
+
+/* the blow itself, once the weapon's beat arrives */
+function yiResolveCut(p, plan) {
+  const { x, y, aim, reach, mark, weapon, dir, arcs, wedge, totalHalf, twin, mirror } = plan;
+  const proc = false;
+  for (let i = 0; i < arcs; i++) {
+    const a = arcs === 1 ? aim : aim + (-totalHalf + wedge * (2 * i + 1));
+    yiCutArc(p, x, y, a, arcs === 1 ? totalHalf : wedge, reach, false, mark, null, weapon);
+  }
+  yiTrail(x, y, aim, reach, weapon, arcs === 1 ? 9 : Math.min(9, 5 + arcs));
+  const perpX = Math.cos(aim + Math.PI / 2), perpY = Math.sin(aim + Math.PI / 2);
+  for (let i = 0; i < twin; i++) {
+    const side = i % 2 === 0 ? 1 : -1;
+    const off = YI_TWIN_GAP * (Math.floor(i / 2) + 1) * side;
+    yiCutArc(p, x + perpX * off, y + perpY * off, aim, YI_TWIN_HALF, reach, proc, mark, null, weapon);
+    yiTrail(x + perpX * off, y + perpY * off, aim, reach, weapon, 3);
+  }
+  const backHalf = YI_HALF_ARC * 0.8;
+  for (let i = 0; i < mirror; i++) {
+    yiCutArc(p, x, y, aim + Math.PI, backHalf, reach * 0.9, proc, mark, null, weapon);
+    yiTrail(x, y, aim + Math.PI, reach * 0.9, weapon, 3);
+  }
 }
 
 /* the dark motes thrown along a cut, and the blood the Oracle spilled to price them */
@@ -869,16 +1318,18 @@ function updateYiCue(p) {
 /* ---------------------------------------------------------
    RENDER — the seal of the Prescript, the crescent of the cut
    --------------------------------------------------------- */
-function drawYiSlashArc(px, py, ang, reach, k, alpha, dir, arcScale, weapon, cheap) {
+function drawYiSlashArc(px, py, ang, reach, k, alpha, dir, arcScale, weapon, cheap, a0, a1) {
   const scale = arcScale || 1;
   const span = YI_HALF_ARC * 0.9 * scale;
   const prog = k < YI_SWEEP_SHARE ? k / YI_SWEEP_SHARE : 1;
   const d = dir < 0 ? -1 : 1;
-  const start = d > 0 ? -span : span;
-  const end = -start;
+  /* the crescent is drawn from the blade's own two ends when the caller
+     supplies them, so the light can never lie about where the steel is */
+  const start = a0 == null ? (d > 0 ? -span : span) : a0;
+  const end = a1 == null ? -start : a1;
   const head = start + (end - start) * prog;
   const trail = (1.15 * scale) + 0.4;
-  const tail = d > 0 ? Math.max(start, head - trail) : Math.min(start, head + trail);
+  const tail = end >= start ? Math.max(start, head - trail) : Math.min(start, head + trail);
   const linger = k < YI_SWEEP_SHARE ? 1 : 1 - (k - YI_SWEEP_SHARE) / (1 - YI_SWEEP_SHARE);
   const fade = alpha * Math.pow(Math.max(0, linger), 0.8);
   if (fade <= 0.01 || Math.abs(head - tail) < 0.02) return;
@@ -1275,11 +1726,20 @@ function drawYiVial(px, py, aim, t) {
 
 function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
   const t = Game.time;
+  /* the pattern's pose, and the body it carries: a dash rides the aim, a
+     crouch drops the weight back off the front foot */
+  const an = yiAnimState(P);
+  /* a blow that really carries him needs no drawn lean — the body itself
+     travels; the leaned carry is only for flourishes that do not move px */
+  const drawDash = an.def.push ? 0 : an.dash;
+  const carry = drawDash - an.crouch * 4;
+  const bpx = px + Math.cos(aim) * carry;
+  const bpy = py + Math.sin(aim) * carry + an.crouch * 1.5;
 
   /* the coat streams behind him — one black ribbon, one splash of old dark blood */
   const sway = Math.sin(t * 2.3 + px * 0.017) * 2.4;
   cx.save();
-  cx.translate(px, py);
+  cx.translate(bpx, bpy);
   cx.rotate(aim + Math.PI);
   cx.globalAlpha = 0.6;
   cx.fillStyle = YI_COL.suit;
@@ -1297,7 +1757,7 @@ function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
 
   /* body: the long coat, black trimmed with gold */
   cx.save();
-  cx.translate(px, py);
+  cx.translate(bpx, bpy);
   cx.rotate(aim);
   cx.fillStyle = YI_COL.suit;
   cx.beginPath();
@@ -1342,42 +1802,32 @@ function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
   cx.restore();
 
   /* nothing to cut — the Vial keeps its base form and he tosses it over his palm */
-  if (!(P.yiSlashT > 0) && !yiHasQuarry(P)) {
+  if (!(P.yiSlashT > 0) && !(P.yiHoldT > 0) && !yiHasQuarry(P)) {
     drawYiVial(px, py, aim, t);
     cx.globalAlpha = 1; cx.shadowBlur = 0;
     return;
   }
 
-  /* the Vial congeals — one of nine weapons this swing answers the Prescript with */
-  const swing = P.yiSlashT > 0 ? clamp(1 - P.yiSlashT / YI_SLASH_LIFE, 0, 1) : 0;
-  const sweep = P.yiSlashT > 0 ? Math.min(1, swing / YI_SWEEP_SHARE) : 0;
+  /* the Vial congeals — this swing answers the Prescript with its own vessel
+     and its own beat of the pattern (see YI_COMBO_ANIM) */
+  const weapon = an.weapon;
   const armDir = P.yiSlashDir < 0 ? -1 : 1;
-  const bladeSweep = armDir * (-0.75 + 1.5 * sweep);
-  const weapon = P.yiWeapon == null ? YI_WEAPON_BASTARD : P.yiWeapon;
-  const isPierce = YI_WEAPON_PIERCE.indexOf(weapon) >= 0;
-  const isSlash = YI_WEAPON_SLASH.indexOf(weapon) >= 0;
-  const isBlunt = YI_WEAPON_BLUNT.indexOf(weapon) >= 0;
-  const isLash = YI_WEAPON_LASH.indexOf(weapon) >= 0;
-  /* idle: the weapon is held low, whatever it is — family poses only exist while swinging */
-  const swinging = P.yiSlashT > 0;
-  const active = swinging ? 1 : 0;
-  /* pierce weapons thrust straight forward — no arc of the arm */
-  const armExt = isPierce ? Math.sin(Math.PI * Math.min(1, sweep * 1.02)) * 7 : 0;
-  /* blunt weapons crash down from above — raised, then swung through */
-  const bluntSweep = (isBlunt ? (-1.42 + 2.08 * Math.min(1, sweep * 1.12)) : bladeSweep) * active;
-  /* the lash is a short throw of the arm; the chain does the travelling */
-  const lashSweep = (isLash ? (-0.55 + 1.45 * Math.min(1, sweep * 1.1)) : bladeSweep) * active;
-  const arcSweep = bladeSweep * active;
+  const swinging = an.swinging;
+  const sweep = an.k / YI_SWEEP_SHARE;
+  /* thrust drives the fist at the target; the arm angle comes straight from
+     the timeline (positive = raised), mirrored left or right by this swing's roll */
+  const armExt = an.thrust * 9;
   cx.save();
-  cx.translate(px, py);
-  if (isPierce) cx.translate(Math.cos(aim) * armExt, Math.sin(aim) * armExt);
-  const ba = isPierce
-    ? aim + (swinging ? 0 : 0.06)
-    : aim + armDir * (isLash ? lashSweep : isBlunt ? bluntSweep : arcSweep) + (swinging ? 0 : 0.22);
+  cx.translate(bpx, bpy);
+  if (armExt) cx.translate(Math.cos(aim) * armExt, Math.sin(aim) * armExt);
+  const ba = swinging
+    ? aim - armDir * an.arm * YI_ARM_ARC
+    : aim + 0.22;
   const cosA = Math.cos(ba), sinA = Math.sin(ba);
   const hand = 7;
-  /* each weapon carries its own length — a rapier is long and thin, a hammer is beastly */
-  const len = weapon === YI_WEAPON_RAPIER ? 88
+  /* each weapon carries its own length — a rapier is long and thin, a hammer is beastly.
+     form scales it while the Vial is still congealing (the greatsword's held caduceus) */
+  const fullLen = weapon === YI_WEAPON_RAPIER ? 88
             : weapon === YI_WEAPON_LANCE ? 86
             : weapon === YI_WEAPON_HAMMER ? 44
             : weapon === YI_WEAPON_SCYTHE ? 74
@@ -1385,7 +1835,8 @@ function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
             : weapon === YI_WEAPON_WHIP ? 86
             : weapon === YI_WEAPON_GREATSWORD ? 64
             : weapon === YI_WEAPON_STILETTO ? 52
-            : 54 + 12 * Math.sin(Math.PI * sweep);
+            : 54 + 12 * Math.sin(Math.PI * Math.min(1, sweep));
+  const len = fullLen * (0.2 + 0.8 * an.form);
   const hiltX = cosA * hand, hiltY = sinA * hand;
   const tipX = cosA * len, tipY = sinA * len;
   let edge = tint || yiArcColor(weapon);
@@ -1625,10 +2076,10 @@ function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
     const segN = 8;
     const step = len / segN;
     /* while the lash is out, an S travels down the chain — the tip is always a beat behind */
-    const lashK = P.yiSlashT > 0 ? Math.min(1, sweep * 1.25) : 0;
+    const lashK = P.yiSlashT > 0 ? Math.min(1, Math.abs(an.arm) + 0.2) : 0;
     const rest = P.yiSlashT > 0 ? 0 : 1;
     /* an S runs down the chain as it is thrown, then dies out at full extension */
-    const whipK = P.yiSlashT > 0 ? Math.sin(Math.PI * Math.min(1, swing * 1.15)) : 0;
+    const whipK = P.yiSlashT > 0 ? Math.sin(Math.PI * Math.min(1, an.k * 1.15)) : 0;
     const joints = [];
     let jx = hiltX, jy = hiltY;
     let ja = ba;
@@ -1808,6 +2259,16 @@ function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
     /* fallback — weapon 0 == HATCHET, no other weapon is meant to hit this path */
     cx.beginPath(); cx.moveTo(hiltX, hiltY); cx.lineTo(tipX, tipY); cx.stroke();
   }
+  /* the off hand comes onto the haft for the heavy two-handed beats */
+  if (an.two > 0.05) {
+    const gx = hiltX - cosA * 3.4, gy = hiltY - sinA * 3.4;
+    cx.globalAlpha = 0.9 * Math.min(1, an.two);
+    cx.strokeStyle = YI_COL.suitDark; cx.lineWidth = 2.2; cx.shadowBlur = 0;
+    cx.beginPath(); cx.moveTo(0, 0); cx.lineTo(gx, gy); cx.stroke();
+    cx.fillStyle = YI_COL.glove; cx.strokeStyle = "#8f8a80"; cx.lineWidth = 0.65;
+    cx.beginPath(); cx.ellipse(gx, gy, 1.9, 1.35, ba + 0.35, 0, TAU); cx.fill(); cx.stroke();
+    cx.globalAlpha = 1;
+  }
   /* gold guard — always */
   cx.strokeStyle = YI_COL.gold; cx.lineWidth = 2.1; cx.shadowBlur = 0;
   const perpA2 = ba + Math.PI / 2;
@@ -1815,36 +2276,81 @@ function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
   cx.beginPath(); cx.moveTo(hiltX - perpX2, hiltY - perpY2); cx.lineTo(hiltX + perpX2, hiltY + perpY2); cx.stroke();
   cx.restore();
 
-  /* the swing's FX — slash : crescents ; pierce : a stabbing rail ; blunt : a slam burst ;
-     lash : a long whipping thread of light with the chain's collars riding it */
+  /* the pattern's FX — each beat of the timeline is born where it is written:
+     a crescent for a cut, a rail for a thrust, a slam for a crush, a thread of
+     light for the lash */
   const reach = P.yiSlashReach || YI_REACH_BASE;
-  const weaponFx = P.yiWeapon == null ? YI_WEAPON_BASTARD : P.yiWeapon;
-  const isPierceFx = YI_WEAPON_PIERCE.indexOf(weaponFx) >= 0;
-  const isBluntFx = YI_WEAPON_BLUNT.indexOf(weaponFx) >= 0;
-  const isLashFx = YI_WEAPON_LASH.indexOf(weaponFx) >= 0;
-  const isSlashFx = YI_WEAPON_SLASH.indexOf(weaponFx) >= 0;
+  const weaponFx = an.weapon;
   const dir = P.yiSlashDir < 0 ? -1 : 1;
   if (P.yiSlashT > 0) {
-    if (isPierceFx) {
-      const k = clamp(1 - P.yiSlashT / YI_SLASH_LIFE, 0, 1);
-      drawYiStabFx(px, py, P.yiSlashAng, reach, k, weaponFx);
-    } else if (isLashFx) {
-      const k = clamp(1 - P.yiSlashT / YI_SLASH_LIFE, 0, 1);
-      drawYiLashFx(P, px, py, P.yiSlashAng, reach, k, weaponFx, dir);
-    } else if (isBluntFx) {
-      const k = clamp(1 - P.yiSlashT / YI_SLASH_LIFE, 0, 1);
-      drawYiSlamFx(px, py, P.yiSlashAng, reach, k, weaponFx);
-    } else if (P.yiSlashLanes && P.yiSlashLanes.length) {
+    const fxList = (an.def.fx && an.def.fx.length) ? an.def.fx : [{ at: 0.04, d: 0.4 }];
+    for (const f of fxList) {
+      const k = clamp((an.k - f.at) / (f.d || 0.34), 0, 1);
+      if (k <= 0 || k >= 1) continue;
+      const kind = f.kind || yiFxKind(weaponFx);
+      const fdir = f.dir == null ? dir : f.dir;
+      const scale = f.scale || 1;
+      if (kind === "stab") drawYiStabFx(bpx, bpy, P.yiSlashAng, reach * scale, k, weaponFx);
+      else if (kind === "lash") drawYiLashFx(P, bpx, bpy, P.yiSlashAng, reach * scale, k, weaponFx, fdir);
+      else if (kind === "slam") drawYiSlamFx(bpx, bpy, P.yiSlashAng, reach * scale, k, weaponFx);
+      else {
+        /* take the crescent's two ends from the blade's own angle at the
+           beginning and end of this beat */
+        const dur = f.d || 0.34;
+        const a0 = -yiSampleAnim(an.def.keys, clamp(f.at, 0, 1)).arm * YI_ARM_ARC * armDir;
+        const a1 = -yiSampleAnim(an.def.keys, clamp(f.at + dur, 0, 1)).arm * YI_ARM_ARC * armDir;
+        drawYiSlashArc(bpx, bpy, P.yiSlashAng, reach * scale, k,
+          f.alpha == null ? 1 : f.alpha, fdir, scale, weaponFx, false, a0, a1);
+      }
+    }
+    /* Furioso-Replica is not a cut but a room being unmade */
+    if (an.furioso) drawYiFuriosoFx(bpx, bpy, reach, an.k, weaponFx);
+    /* rune lanes and rear cuts keep their own crescents */
+    if (P.yiSlashLanes && P.yiSlashLanes.length) {
       for (const L of P.yiSlashLanes) {
-        const k = clamp(1 - (P.yiSlashT - (L.delay || 0)) / YI_SLASH_LIFE, 0, 1);
-        drawYiSlashArc(px + (L.dx || 0), py + (L.dy || 0), L.ang, reach, k,
+        const dk = (L.delay || 0) / (an.life || YI_SLASH_LIFE);
+        const k = clamp((an.k - dk) / Math.max(0.15, 1 - dk), 0, 1);
+        drawYiSlashArc(bpx + (L.dx || 0), bpy + (L.dy || 0), L.ang, reach, k,
           L.alpha == null ? 1 : L.alpha, L.dir == null ? dir : L.dir, L.scale || 1, L.weapon, !!L.cheap);
       }
-    } else {
-      const k = clamp(1 - P.yiSlashT / YI_SLASH_LIFE, 0, 1);
-      drawYiSlashArc(px, py, P.yiSlashAng - 0.18, reach, k, 1, dir, 1, P.yiWeapon);
-      drawYiSlashArc(px, py, P.yiSlashAng + 0.18, reach, Math.max(0, k - 0.06), 0.7, dir, 1, P.yiWeapon);
     }
+  }
+  cx.globalAlpha = 1; cx.shadowBlur = 0;
+}
+
+/* Furioso-Replica's light: the ninefold cut arrives from every bearing at once,
+   a white star at the centre, then the room falls quiet */
+function drawYiFuriosoFx(px, py, reach, k, weapon) {
+  const ring = clamp(k / 0.55, 0, 1);
+  if (ring <= 0) return;
+  const n = 9;
+  for (let i = 0; i < n; i++) {
+    const local = clamp((k - i * 0.035) / 0.34, 0, 1);
+    if (local <= 0 || local >= 1) continue;
+    const a = (i / n) * TAU + k * 1.8;
+    drawYiSlashArc(px, py, a, reach * (0.78 + 0.16 * (i % 2)),
+      local, 0.8, i % 2 ? 1 : -1, 0.72, weapon, true);
+  }
+  /* the star where the scythe came down */
+  const star = Math.max(0, 1 - Math.abs(k - 0.62) * 2.4);
+  if (star > 0) {
+    cx.save();
+    cx.translate(px, py);
+    cx.globalAlpha = star * 0.9;
+    cx.strokeStyle = "#ffffff"; cx.shadowColor = yiArcColor(weapon); cx.shadowBlur = 22;
+    cx.lineWidth = 2.1; cx.lineCap = "round";
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * TAU + 0.2;
+      const r0 = 10 + (1 - star) * 22, r1 = r0 + 26 + star * 18;
+      cx.beginPath();
+      cx.moveTo(Math.cos(a) * r0, Math.sin(a) * r0);
+      cx.lineTo(Math.cos(a) * r1, Math.sin(a) * r1);
+      cx.stroke();
+    }
+    cx.globalAlpha = star * 0.5;
+    cx.strokeStyle = yiArcColor(weapon); cx.lineWidth = 1.2;
+    cx.beginPath(); cx.arc(0, 0, 18 + (1 - star) * 40, 0, TAU); cx.stroke();
+    cx.restore();
   }
   cx.globalAlpha = 1; cx.shadowBlur = 0;
 }
