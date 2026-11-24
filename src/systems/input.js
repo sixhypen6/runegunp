@@ -29,9 +29,10 @@ const Input = {
    had, so nothing changes for anyone who never opens CONTROLS (or for Android).
    PAUSE is not rebindable: Escape / P on the keyboard, MENU (9) on a controller. */
 /* R is the refine key — Sancho converts Bloodfeast into Hardblood with it;
-   Q is the surge key — at max hardblood it unleashes the Hardblood Surge.
-   The action ids stay "recall" and "surge" so saves and co-op counters work;
-   CONTROLS labels them accordingly. */
+   Q is the ultimate key — Yi Sang fires Skill 3 / Furioso-Replica with it,
+   and at max hardblood Sancho unleashes the Hardblood Surge. The action ids
+   stay "recall" and "surge" so saves and co-op counters work; CONTROLS
+   labels them accordingly. */
 const KEY_ACTIONS = ["up", "down", "left", "right", "fire", "dash", "use", "recall", "surge", "mark1", "mark2", "runes"];
 const KEY_DEFAULTS = {
   up: ["KeyW", "ArrowUp"], down: ["KeyS", "ArrowDown"], left: ["KeyA", "ArrowLeft"], right: ["KeyD", "ArrowRight"],

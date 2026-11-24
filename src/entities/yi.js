@@ -27,7 +27,7 @@
 
    PROCURATION [HERMES] — filled by marked swings, capped at
    eight until Unlock II, then nine. At nine it opens Skill 3
-   (Furioso-Replica), the [E] finisher that consumes the meter.
+   (Furioso-Replica), the [Q] finisher that consumes the meter.
 
    POISE — every cut banks a Poise, a critical banks two (max 5);
    +6% cut damage per stack. The kit's [On Hit] builds paid out
@@ -69,7 +69,7 @@ const YI_PROC_CAP_LOW = 8;
 const YI_EXECUTE_HEAL = 8;
 /* Turn End (Unlock II): heal 4 SP → 4 vitality once per turn when the Prescript was executed this turn */
 const YI_TURN_HEAL = 4;
-/* Skill 3 / Furioso-Replica — the E-key ability */
+/* Skill 3 / Furioso-Replica — the Q-key ability */
 const YI_SKILL3_CD = 2.5;             // cooldown between Skill 3 uses
 const YI_FURIOSO_CRIT_BONUS = 0.90;   // +90% critical damage
 const YI_FURIOSO_BURN_T = 4;          // seconds of Burn
@@ -661,7 +661,7 @@ function yiClearMark(p) {
   p.yiFuriosoUsed = false;      // once-per-turn Furioso re-arms next Prescript window
 }
 
-/* Skill 3 / Furioso-Replica — the [E] ability. At Hermes 9 it becomes
+/* Skill 3 / Furioso-Replica — the [Q] ability. At Hermes 9 it becomes
    Furioso-Replica: a guaranteed-crit Scythe strike that consumes all Hermes,
    burns, binds, and frays everything it touches, then must be re-earned. */
 function yiTrySkill3(p) {
@@ -681,7 +681,7 @@ function yiSkill3Swing(p, x, y, aim, furioso) {
   const crit = furioso || weapon === YI_WEAPON_SCYTHE;
   const critMul = furioso ? (m.critMul || 2.2) * (1 + YI_FURIOSO_CRIT_BONUS) : (m.critMul || 2.2);
   const marked = p.yiMarkT > 0;
-  /* the [E] cut has its own timeline: S3 is the vessel's finisher, and
+  /* the [Q] cut has its own timeline: S3 is the vessel's finisher, and
      Furioso-Replica is the scythe's fourth and vastly different pattern */
   const comboIdx = furioso ? 3 : 2;
   const anim = yiComboAnim(weapon, comboIdx);
@@ -1211,7 +1211,7 @@ function yiSwing(p, x, y, aim) {
   /* MARK OF THE PRESCRIPT on the Base Attack Skill: using a marked skill
      gains 1 Procuration [Hermes] per swing (host settles the ledger).
      Hermes 9 does NOT auto-execute on basic swings — it unlocks Skill 3
-     (Furioso-Replica), which the player fires with [E] and which consumes
+     (Furioso-Replica), which the player fires with [Q] and which consumes
      all Hermes. */
   if (mark && !guest) {
     p.yiTurnHermesGained = true;
@@ -1353,8 +1353,10 @@ function updateYiCue(p) {
   txt += " · POISE " + (p.yiPoise || 0) + "/" + YI_POISE_MAX;
   txt += " · " + weapon;
   const furioso = (p.yiProc || 0) >= YI_PROC_MAX && !p.yiFuriosoUsed;
-  if (furioso) txt += " · FURIOSO-REPLICA [E]";
-  else if ((p.yiSkill3Cd || 0) <= 0) txt += " · SKILL 3 [E]";
+  /* Q is the ultimate key; a touch layout has no Q, so its SEAL button carries it */
+  const ult = (typeof Input !== "undefined" && Input.touchMode) ? "SEAL" : "Q";
+  if (furioso) txt += " · FURIOSO-REPLICA [" + ult + "]";
+  else if ((p.yiSkill3Cd || 0) <= 0) txt += " · SKILL 3 [" + ult + "]";
   else txt += " · SKILL 3 " + (p.yiSkill3Cd || 0).toFixed(1) + "s";
   if (p.yiMarkT > 0) {
     const g = p.yiGrace || 0;

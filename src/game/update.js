@@ -258,6 +258,9 @@ function updatePlayer(p, inp, dt) {
     if (p.char === "sancho" && inp.surgeTap) sanchoManualSurge(p);
     reanimatorTick(p, dt);
   }
+  /* THE INDEX NURSEFATHER — Q is the ultimate key: Skill 3, and Furioso-Replica
+     at Procuration [Hermes] 9. The guest keeps its copy in step through snapshots. */
+  if (p.char === "yi" && inp.surgeTap && typeof yiTrySkill3 === "function") yiTrySkill3(p);
   /* WARP — R tears four rifts around the nearest foe. The host runs a guest's
      cast from the wire frame, so both wardens see the same shred. Reanimator
      and Sancho keep R for their own abilities; a Passenger never shares it. */
@@ -785,9 +788,10 @@ function update(dt) {
          SEEKER's errand, the saloon, THE UNKNOWN. Only an empty prompt is
          Sancho's own — that is where the stance changes. */
       if (pAct) pAct();
-      else if (!Game.inSaloon && typeof sanchoToggleStance === "function") sanchoToggleStance(p);
-      else if (!Game.inSaloon && p.char === "yi" && typeof yiTrySkill3 === "function") yiTrySkill3(p);
+      else if (!Game.inSaloon && p.char === "sancho" && typeof sanchoToggleStance === "function") sanchoToggleStance(p);
       else if (!Game.inSaloon && p.char === "solemn" && typeof slTrySkill3 === "function") slTrySkill3(p);
+      /* a touch layout has no Q: its SEAL button carries Yi's ultimate */
+      else if (!Game.inSaloon && f.touchMode && p.char === "yi" && typeof yiTrySkill3 === "function") yiTrySkill3(p);
     }
     /* Q abandons the rite entirely — the warden is not owed the speech and
        does not need to stand through it */

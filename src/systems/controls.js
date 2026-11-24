@@ -292,7 +292,7 @@ if (PC_CONTROLS) {
 /* ---------- the CONTROLS panel ---------- */
 const BIND_ROWS = [
   ["up", "MOVE UP"], ["down", "MOVE DOWN"], ["left", "MOVE LEFT"], ["right", "MOVE RIGHT"],
-  ["fire", "FIRE"], ["dash", "DASH"], ["use", "SEAL / INTERACT"], ["recall", "REFINE / RECALL"], ["surge", "HARDBLOOD SURGE"],
+  ["fire", "FIRE"], ["dash", "DASH"], ["use", "SEAL / INTERACT"], ["recall", "REFINE / RECALL"], ["surge", "ULTIMATE / SURGE"],
   ["mark1", "SEEKER MARK I"], ["mark2", "SEEKER MARK II"], ["runes", "RUNES HELD"],
 ];
 /* never bindable: pause (Escape / P), the OS key, fullscreen, the console's F9 / ` */
