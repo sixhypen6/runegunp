@@ -89,6 +89,50 @@ const YI_KARMIC_PER_STACK = 0.004;  // each Consequence drags cuts down 0.4% (40
 const YI_KARMIC_EXECUTE_CLEAR = 20; // exiting a prescript lifts twenty
 const YI_KARMIC_MISS = 20;          // a mark that escapes alive adds twenty
 
+/* --- WOUND-CASING MASK / SIZZLING WOUND ---
+   The Index Nurserfather enters each Encounter wearing a casing of the Oracle's
+   skin: Offense Level +2, Defense Level -2, and a little less bite from attacks
+   he is not turned against. Take a staggering blow while it holds and, at Turn
+   End, he recovers from the Stagger and the casing sizzles over into a wound —
+   Offense Level +3, Defense Level -3, a deeper guard against unopposed attacks,
+   a Burn and a Bleed every Turn Start, +15% with his Base Attacks, faster swings,
+   and a storm of dark-blue electric light along every cut. */
+const YI_MASK_OFF = 0.20;             // Offense Level +2 → +20% cut damage
+const YI_WOUND_OFF = 0.30;            // Offense Level +3 → +30% cut damage
+const YI_WOUND_BASE = 0.15;           // Sizzling Wound: +15% with Base Attacks
+const YI_MASK_DEF = 0.20;             // Defense Level -2 → +20% damage taken
+const YI_WOUND_DEF = 0.30;            // Defense Level -3 → +30% damage taken
+const YI_MASK_UNOPPOSED = 0.10;       // -10% from Unopposed Attacks
+const YI_WOUND_UNOPPOSED = 0.25;      // -25% from Unopposed Attacks
+const YI_WOUND_DOT_T = 6;             // Turn Start: seconds of self Burn & Bleed
+const YI_WOUND_DOT_DPS = 2;           // ...and how hard they bite
+const YI_MASK_STAGGER_FRAC = 0.18;    // a blow this heavy Staggers him while masked
+const YI_WOUND_ANIM_DUR = 0.72;       // Sizzling Wound: swings play 28% faster
+const YI_WOUND_RATE = 0.85;           // ...and the next swing comes 15% sooner
+
+/* --- SHIN (心) - FATE ---
+   At Unlock - III the Prescript breathes into him: Min & Max Speed +1, +1 more
+   Poise from Base Skills, and a read of the spirit — +1% damage per 3 SP over
+   the target, capped at +15%. Grace of the Prescript is his SP read (×5, so
+   nine Grace is 45 SP and the full +15%); a horror without SP is read at 0. */
+const YI_SHIN_SP_PER_GRACE = 5;       // SP read: Grace × 5
+const YI_SHIN_SP_STEP = 3;            // +1% per 3 SP of difference
+const YI_SHIN_SP_MAX = 0.15;          // cap +15%
+const YI_SHIN_SPEED = 1.10;           // Min & Max Speed +1 → +10% stride
+const YI_SHIN_ATK = 1.08;             // ...and a touch more swing speed
+const YI_DESIRE_BONUS = 0.06;         // Desire for Acknowledgement Sated: +6% with a partner
+
+/* --- INDULGENCE IN PRESCRIPTS ---
+   While the Sizzling Wound is open and Furioso-Replica waits on the Dashboard,
+   Turn Start grants a single turn of indulgence: Min & Max Speed +5, Furioso's
+   cuts sink deeper, and every blow lands 30% harder. It burns out at Turn End. */
+const YI_INDULGE_SPEED = 1.50;        // Min & Max Speed +5 → +50% stride
+const YI_INDULGE_ATK = 1.40;          // ...and a faster pattern
+const YI_INDULGE_DMG = 0.30;          // Deal +30% damage
+const YI_INDULGE_SINK_POT = 1;        // Furioso: +1 more Sinking Potency
+const YI_INDULGE_SINK_COUNT = 3;      // ...and +3 Sinking Count (once per target)
+const YI_INDULGE_POISE = 1;           // ...and +1 more Poise Potency
+
 /* --- Poise --- */
 const YI_POISE_MAX = 5;
 const YI_POISE_DMG = 0.06;
@@ -620,6 +664,18 @@ function yiVitals(p) {
   if (p.yiTurnHermesGained === undefined) p.yiTurnHermesGained = false;
   if (p.yiTurnHealed === undefined) p.yiTurnHealed = false;
   if (p.yiDevice4T === undefined) p.yiDevice4T = 0;
+  /* the casing: 0 none, 1 Wound-casing Mask, 2 Sizzling Wound */
+  if (p.yiWoundState === undefined) p.yiWoundState = 0;
+  if (p.yiMaskWave === undefined) p.yiMaskWave = -1;
+  if (p.yiMaskStagger === undefined) p.yiMaskStagger = false;
+  if (p.yiShinSeen === undefined) p.yiShinSeen = false;
+  if (p.yiWoundDotT === undefined) p.yiWoundDotT = 0;
+  if (p.yiWoundDotTick === undefined) p.yiWoundDotTick = 0;
+  if (p.yiWoundDotDps === undefined) p.yiWoundDotDps = 0;
+  /* Indulgence in Prescripts — a turn-long blessing; Furioso's first use marks
+     the Encounter so the casing can burn through at Turn End */
+  if (p.yiIndulge === undefined) p.yiIndulge = false;
+  if (p.yiFuriosoSeen === undefined) p.yiFuriosoSeen = false;
 }
 
 /* the Prescript's quarry — the strongest horror standing, tracked for the
@@ -643,6 +699,41 @@ function yiFallMark(p) {
   p.yiGraceStruck = false;        // one Grace per Prescript — the first marked-skill use pays it
   p.yiTurnHermesGained = false;   // has the Prescript been executed this turn (window)?
   p.yiTurnHealed = false;         // Turn End 4-vitality heal already paid this turn?
+  /* TURN START — entering this Encounter for the first time, the casing closes
+     over him. A new wave is a new Encounter, so the mask is fresh each one. */
+  const waveKey = (Game.loop || 0) * 1000 + (Game.wave || 0);
+  if (p.yiMaskWave !== waveKey) {
+    p.yiMaskWave = waveKey;
+    p.yiWoundState = 1;
+    p.yiMaskStagger = false;
+    p.yiWoundDotT = 0;
+    p.yiIndulge = false;
+    p.yiFuriosoSeen = false;
+    if (p === localPlayer())
+      floatText(p.x, p.y - 46, "WOUND-CASING MASK", "#c9a44e", 14);
+  }
+  /* Sizzling Wound — Turn Start: gain 1 Burn and 1 Bleed */
+  if ((p.yiWoundState | 0) === 2) {
+    p.yiWoundDotT = YI_WOUND_DOT_T;
+    p.yiWoundDotTick = 0;
+    p.yiWoundDotDps = YI_WOUND_DOT_DPS;
+    if (p === localPlayer())
+      floatText(p.x, p.y - 62, "SIZZLING WOUND — BURN & BLEED", "#ff6b3d", 12);
+    /* INDULGENCE IN PRESCRIPTS — the wound and Furioso on the Dashboard together
+       grant one turn of indulgence */
+    const online = (p.yiProc || 0) >= YI_PROC_MAX && !p.yiFuriosoUsed;
+    if (online && !p.yiIndulge) {
+      p.yiIndulge = true;
+      if (p === localPlayer()) {
+        floatText(p.x, p.y - 78, "INDULGENCE IN PRESCRIPTS", "#ff9ad5", 14);
+        if (typeof toast === "function") toast("INDULGENCE IN PRESCRIPTS — SPEED +5, FURIOSO DEEPENS");
+      }
+    } else if (!online) {
+      p.yiIndulge = false;
+    }
+  } else {
+    p.yiIndulge = false;
+  }
   /* TURN START: the Device is handed down for the Unlock already earned. */
   const dev = Math.max(1, Math.min(4, (p.yiUnlockTier || 0) + 1));
   if (dev > (p.yiDevice || 1)) {
@@ -685,11 +776,13 @@ function yiSkill3Swing(p, x, y, aim, furioso) {
      Furioso-Replica is the scythe's fourth and vastly different pattern */
   const comboIdx = furioso ? 3 : 2;
   const anim = yiComboAnim(weapon, comboIdx);
+  const animDur = yiWoundAnimDur(p);
+  const animLife = anim.life * animDur;
   p.yiWeapon = weapon;
   p.yiComboIdx = comboIdx;
-  p.yiAnimLife = anim.life;
-  p.yiSlashT = anim.life;
-  p.yiHoldT = anim.hold || 0;
+  p.yiAnimLife = animLife;
+  p.yiSlashT = animLife;
+  p.yiHoldT = (anim.hold || 0) * animDur;
   p.yiSlashAng = aim;
   p.yiSlashDir = Math.random() < 0.5 ? -1 : 1;
   p.yiSlashLanes = null;
@@ -733,7 +826,10 @@ function yiSkill3Swing(p, x, y, aim, furioso) {
   p.yiProc = 0;
   p.yiProcReady = false;
   p.yiFuriosoUsed = true;      // once per Prescript window
+  p.yiFuriosoSeen = true;      // the first Furioso of this Encounter burns the casing
   p.yiPoise = Math.min(YI_POISE_MAX, (p.yiPoise || 0) + YI_FURIOSO_POISE);
+  /* INDULGENCE IN PRESCRIPTS — Furioso's cuts sink deeper and give him Poise */
+  const indulge = !!p.yiIndulge;
   for (const e of hit) {
     e.burnT = Math.max(e.burnT || 0, YI_FURIOSO_BURN_T);
     e.burnDps = Math.max(e.burnDps || 0, YI_FURIOSO_BURN_DPS);
@@ -742,6 +838,14 @@ function yiSkill3Swing(p, x, y, aim, furioso) {
     if (e.fragT <= 0 || e.fragType !== "slash") { e.fragType = "slash"; e.fragStacks = 1; }
     else { e.fragStacks = Math.min(YI_FRAG_MAX, (e.fragStacks || 0) + 1); }
     e.fragT = Math.max(e.fragT || 0, YI_FRAG_TIME);
+    if (indulge) {
+      /* +1 Sinking Potency, +3 Sinking Count (once per target), and Poise */
+      e.sinkingStacks = Math.min(9, (e.sinkingStacks || 0) + YI_INDULGE_SINK_POT);
+      e.sinkingT = Math.min(12, (e.sinkingT || 0) + YI_INDULGE_SINK_COUNT);
+      e.sinkingDps = Math.max(e.sinkingDps || 0, YI_SINKING_DPS);
+      e.sinkingBy = p;
+      p.yiPoise = Math.min(YI_POISE_MAX, (p.yiPoise || 0) + YI_INDULGE_POISE);
+    }
   }
   if (p === localPlayer()) {
     floatText(p.x, p.y - 44, "FURIOSO-REPLICA", "#ffedb8", 16);
@@ -864,6 +968,82 @@ function yiCheckUnlock(p) {
   if (typeof localPlayer === "function" && p !== localPlayer()) return;
   yiSayUnlock(YI_UNLOCKS[tier - 1]);
   if (heal > 0) floatText(p.x, p.y - 40, "+" + heal, "#8ef0a0", 14);
+  /* SHIN (心) - FATE arrives with Unlock III */
+  if (tier >= 3 && !p.yiShinSeen) {
+    p.yiShinSeen = true;
+    floatText(p.x, p.y - 58, "SHIN (心) - FATE", "#ffe9a8", 15);
+    if (typeof toast === "function") toast("SHIN (心) - FATE — THE SPIRIT READS THE HORROR");
+  }
+}
+
+/* --- Shin (心) - Fate: active from Unlock III (Grace 9) --- */
+function yiShinActive(p) {
+  return (p.yiUnlockTier || 0) >= 3;
+}
+/* his SP read: Grace × 5, so nine Grace is 45 SP and the full +15% */
+function yiShinSp(p) {
+  return Math.max(0, (p.yiGrace || 0) * YI_SHIN_SP_PER_GRACE);
+}
+function yiShinSpBonus(p) {
+  if (!yiShinActive(p)) return 0;
+  /* horrors without SP are read at 0, so the difference is simply his own read */
+  const sp = yiShinSp(p);
+  return Math.min(YI_SHIN_SP_MAX, Math.floor(sp / YI_SHIN_SP_STEP) * 0.01);
+}
+function yiShinSpeedMul(p) {
+  let m = yiShinActive(p) ? YI_SHIN_SPEED : 1;
+  if (p.yiIndulge) m *= YI_INDULGE_SPEED;
+  return m;
+}
+function yiShinAtkMul(p) {
+  let m = yiShinActive(p) ? YI_SHIN_ATK : 1;
+  if (p.yiIndulge) m *= YI_INDULGE_ATK;
+  return m;
+}
+
+/* --- Wound-casing Mask / Sizzling Wound --- */
+function yiWoundAtkMul(p) {
+  const st = p.yiWoundState | 0;
+  if (st === 1) return 1 + YI_MASK_OFF;
+  if (st === 2) return 1 + YI_WOUND_OFF + YI_WOUND_BASE;
+  return 1;
+}
+/* how a blow lands on him: the Defense Level drop deepens every hit, while
+   attacks he is not turned against (bullets, waves, pools) bite a little less */
+function yiWoundDmgMul(p, src) {
+  const st = p.yiWoundState | 0;
+  if (!st) return 1;
+  let m = 1 + (st === 2 ? YI_WOUND_DEF : YI_MASK_DEF);
+  const opposed = src && typeof enemies !== "undefined" && enemies.indexOf(src) >= 0;
+  if (!opposed) m *= 1 - (st === 2 ? YI_WOUND_UNOPPOSED : YI_MASK_UNOPPOSED);
+  return m;
+}
+/* Sizzling Wound quickens the pattern itself */
+function yiWoundAnimDur(p) {
+  return (p.yiWoundState | 0) === 2 ? YI_WOUND_ANIM_DUR : 1;
+}
+function yiWoundRateMul(p) {
+  return (p.yiWoundState | 0) === 2 ? YI_WOUND_RATE : 1;
+}
+/* a staggering blow landed while the casing still holds */
+function yiMaskStaggerHit(p, dmg) {
+  if (!p || p.char !== "yi") return;
+  if ((p.yiWoundState | 0) !== 1 || p.yiMaskStagger) return;
+  if (dmg >= (p.maxHp || 0) * YI_MASK_STAGGER_FRAC) {
+    p.yiMaskStagger = true;
+    if (p === localPlayer())
+      floatText(p.x, p.y - 40, "THE CASING HOLDS — STAGGERED", "#ffd27a", 13);
+  }
+}
+/* Desire for Acknowledgement Sated — another warden on the field kindles him */
+function yiDesireBonus(p) {
+  if (Game.pvpMode) return 0;
+  if (typeof players === "undefined") return 0;
+  for (const q of players) {
+    if (q === p || q.hp <= 0 || q.downed || q.gone) continue;
+    return YI_DESIRE_BONUS;
+  }
+  return 0;
 }
 
 /* one cut's bite — Poise sharpens, Grace deepens, Karmic drags, the BASTARD SWORD
@@ -875,6 +1055,12 @@ function yiBite(p) {
     * (1 + (p.yiPoise || 0) * YI_POISE_DMG)
     * (1 + yiGraceBonus(p))
     * (1 + off * YI_OFFENSE_DMG)
+    /* the casing and the wound: Offense Level, +15% Base Attacks */
+    * yiWoundAtkMul(p)
+    /* Shin (心) - Fate reads the spirit; a partner kindles acknowledgement */
+    * (1 + yiShinSpBonus(p))
+    * (1 + yiDesireBonus(p))
+    * (1 + (p.yiIndulge ? YI_INDULGE_DMG : 0))
     * (1 - Math.min(0.4, (p.yiKarmic || 0) * YI_KARMIC_PER_STACK));
   return bite;
 }
@@ -906,8 +1092,10 @@ function yiHitEnemy(p, e, x, y, forceCrit, biteMul, weapon) {
   /* every landed cut banks Poise — [On Hit] in his kit — and a critical banks an extra;
      the Oracle counts true strikes, and Yi Sang stacks them like a debt-book */
   if (!e.dead && (p.yiPoise || 0) < YI_POISE_MAX) {
-    /* the hatchet's own line: +2 Poise on hit; every other cut banks one */
-    const gain = (weapon === YI_WEAPON_HATCHET ? YI_HATCHET_POISE : 1) + (crit ? 1 : 0);
+    /* the hatchet's own line: +2 Poise on hit; every other cut banks one.
+       Shin (心) - Fate adds one more from every Base Skill. */
+    const gain = (weapon === YI_WEAPON_HATCHET ? YI_HATCHET_POISE : 1)
+      + (crit ? 1 : 0) + (yiShinActive(p) ? 1 : 0);
     p.yiPoise = Math.min(YI_POISE_MAX, (p.yiPoise || 0) + gain);
     if (p === localPlayer() && (crit || p.yiPoise >= YI_POISE_MAX))
       floatText(e.x, e.y - e.r - 16, "POISE " + p.yiPoise + "/" + YI_POISE_MAX, "#d9b65c", 13);
@@ -1013,6 +1201,17 @@ function yiTick(p, dt) {
     if (p.yiSlashT <= 0 && (p.yiHoldT || 0) > 0) p.yiHoldT = Math.max(0, p.yiHoldT - dt);
     return;
   }
+  /* Sizzling Wound — the Burn and the Bleed gnaw at him each turn (never to death) */
+  if ((p.yiWoundDotT || 0) > 0) {
+    p.yiWoundDotT = Math.max(0, p.yiWoundDotT - dt);
+    p.yiWoundDotTick = (p.yiWoundDotTick || 0) - dt;
+    if (p.yiWoundDotTick <= 0) {
+      p.yiWoundDotTick = 1;
+      const drain = Math.max(1, Math.round(p.yiWoundDotDps || 0));
+      if (p.hp > 1) p.hp = Math.max(1, p.hp - drain);
+      if (p === localPlayer() && typeof updateHp === "function") updateHp();
+    }
+  }
   if (p.yiSlashT > 0) p.yiSlashT = Math.max(0, p.yiSlashT - dt);
   else if ((p.yiHoldT || 0) > 0) p.yiHoldT = Math.max(0, p.yiHoldT - dt);
   /* the blow lands on its beat, not on the tap */
@@ -1054,6 +1253,25 @@ function yiTick(p, dt) {
     p.yiMarkT = Math.max(0, p.yiMarkT - dt);
     if (p.yiMarkT <= 0) {
       /* TURN END — the Prescript window closes. Resolve it once. */
+      /* a casing that took a staggering blow — or witnessed its first
+         Furioso-Replica this Encounter — recovers from the Stagger and sizzles
+         over into the wound at Turn End */
+      const furiosoFirst = !!p.yiFuriosoSeen;
+      if ((p.yiWoundState | 0) === 1 && (p.yiMaskStagger || furiosoFirst)) {
+        p.yiWoundState = 2;
+        p.yiMaskStagger = false;
+        p.paralyzeT = 0;
+        if (p.slowT) p.slowT = 0;
+        if (p === localPlayer()) {
+          floatText(p.x, p.y - 46, "SIZZLING WOUND", "#ff6b3d", 15);
+          if (typeof toast === "function") toast("SIZZLING WOUND — THE CASING BURNS THROUGH");
+        }
+      }
+      /* INDULGENCE IN PRESCRIPTS expires with the turn */
+      if (p.yiIndulge) {
+        p.yiIndulge = false;
+        if (p === localPlayer()) floatText(p.x, p.y - 60, "INDULGENCE LAPSES", "#8f9bb0", 12);
+      }
       const executed = !!p.yiTurnHermesGained;
       const atUnlock2 = yiGraceTier(p) >= 2;
       if (executed && atUnlock2 && !p.yiTurnHealed) {
@@ -1171,9 +1389,10 @@ function yiSwing(p, x, y, aim) {
   const weapon = keep ? p.yiComboWeapon : (Math.random() * 9) | 0;
   p.yiWeapon = weapon;
   const wd = yiWeaponData(weapon);
-  /* per-weapon attack speed: a heavy greatsword resets slower than a stiletto */
+  /* per-weapon attack speed: a heavy greatsword resets slower than a stiletto.
+     Shin quickens the hand; a Sizzling Wound quickens the whole pattern. */
   const jamMul = curseActive(p, "jam") ? 0.5 : 1;
-  p.fireT = 1 / (m.rate * wd.rate * jamMul);
+  p.fireT = (1 / (m.rate * wd.rate * jamMul * yiShinAtkMul(p))) * yiWoundRateMul(p);
   /* per-weapon reach, scaled by size mods like every melee warden */
   const reach = yiWeaponReach(weapon) + Math.max(0, (m.size || 4) - 4) * 0.8;
   /* the Oracle reads the horror before it cuts. A horror it has not opened
@@ -1186,10 +1405,14 @@ function yiSwing(p, x, y, aim) {
   if (quarry && quarry.yiStruck)
     comboIdx = yiPreviewBite(p, quarry, weapon) >= quarry.hp ? 2 : 1;
   const anim = yiComboAnim(weapon, comboIdx);
+  /* a Sizzling Wound plays the same beat faster — the clock, the hold and the
+     contact frame all shorten together, so the cut still lands on its mark */
+  const animDur = yiWoundAnimDur(p);
+  const animLife = anim.life * animDur;
   p.yiComboIdx = comboIdx;
-  p.yiAnimLife = anim.life;
-  p.yiSlashT = anim.life;
-  p.yiHoldT = anim.hold || 0;
+  p.yiAnimLife = animLife;
+  p.yiSlashT = animLife;
+  p.yiHoldT = (anim.hold || 0) * animDur;
   /* the wheel: one vessel answers three swings, then it is drawn again */
   const swung = keep ? (p.yiComboN || 0) : 0;
   p.yiComboWeapon = swung >= 2 ? -1 : weapon;
@@ -1251,7 +1474,7 @@ function yiSwing(p, x, y, aim) {
 
   /* the cut is dealt at the beat the animation reaches — a hatchet's tap
      hangs a moment before the ribs, a stiletto leaves at once */
-  const contact = (anim.fx && anim.fx.length ? anim.fx[0].at : 0.35) * anim.life;
+  const contact = (anim.fx && anim.fx.length ? anim.fx[0].at : 0.35) * animLife;
   p.yiCutPlan = {
     at: contact, x, y, aim, reach, mark, weapon, dir, arcs, wedge, totalHalf, twin, mirror,
   };
@@ -1291,39 +1514,43 @@ function yiSwing(p, x, y, aim) {
 function yiResolveCut(p, plan) {
   const { x, y, aim, reach, mark, weapon, dir, arcs, wedge, totalHalf, twin, mirror } = plan;
   const proc = false;
+  const sizzle = (p.yiWoundState | 0) === 2;
   for (let i = 0; i < arcs; i++) {
     const a = arcs === 1 ? aim : aim + (-totalHalf + wedge * (2 * i + 1));
     yiCutArc(p, x, y, a, arcs === 1 ? totalHalf : wedge, reach, false, mark, null, weapon);
   }
-  yiTrail(x, y, aim, reach, weapon, arcs === 1 ? 9 : Math.min(9, 5 + arcs));
+  yiTrail(x, y, aim, reach, weapon, arcs === 1 ? 9 : Math.min(9, 5 + arcs), sizzle);
   const perpX = Math.cos(aim + Math.PI / 2), perpY = Math.sin(aim + Math.PI / 2);
   for (let i = 0; i < twin; i++) {
     const side = i % 2 === 0 ? 1 : -1;
     const off = YI_TWIN_GAP * (Math.floor(i / 2) + 1) * side;
     yiCutArc(p, x + perpX * off, y + perpY * off, aim, YI_TWIN_HALF, reach, proc, mark, null, weapon);
-    yiTrail(x + perpX * off, y + perpY * off, aim, reach, weapon, 3);
+    yiTrail(x + perpX * off, y + perpY * off, aim, reach, weapon, 3, sizzle);
   }
   const backHalf = YI_HALF_ARC * 0.8;
   for (let i = 0; i < mirror; i++) {
     yiCutArc(p, x, y, aim + Math.PI, backHalf, reach * 0.9, proc, mark, null, weapon);
-    yiTrail(x, y, aim + Math.PI, reach * 0.9, weapon, 3);
+    yiTrail(x, y, aim + Math.PI, reach * 0.9, weapon, 3, sizzle);
   }
 }
 
 /* the dark motes thrown along a cut, and the blood the Oracle spilled to price them */
-function yiTrail(x, y, aim, reach, weapon, amount) {
+function yiTrail(x, y, aim, reach, weapon, amount, sizzle) {
   if (particles.length >= 560) return;
   const base = weapon === YI_WEAPON_HATCHET ? [YI_COL.blunt, "#ffcf9a", "#8a5630"]
     : weapon === YI_WEAPON_STILETTO ? [YI_COL.pierce, "#c9b6ff", "#4a2f9a"]
     : [YI_COL.slash, "#ffffff", "#8d9099"];
+  /* Sizzling Wound — the cut sheds dark-blue embers and violet thorn-light */
+  const sizzleCols = ["#3a7bff", "#6fd8ff", "#8fe6ff", "#7a3cff", "#bff0ff"];
   for (let i = 0; i < amount; i++) {
     const a = aim + rnd(-0.9, 0.9);
     const d = rnd(reach * 0.25, reach + 8);
-    const blood = Math.random() < 0.2;
+    const hot = !!sizzle && Math.random() < 0.45;
+    const blood = !hot && Math.random() < 0.2;
     particles.push({ x: x + Math.cos(a) * d, y: y + Math.sin(a) * d,
       vx: Math.cos(a) * rnd(70, 240), vy: Math.sin(a) * rnd(70, 240),
-      t: 0, life: rnd(0.14, 0.3), r: rnd(1.2, 3.2),
-      color: blood ? pick([YI_COL.blood, YI_COL.bloodHi, "#60140f"]) : pick(base) });
+      t: 0, life: hot ? rnd(0.18, 0.36) : rnd(0.14, 0.3), r: hot ? rnd(1.4, 3.4) : rnd(1.2, 3.2),
+      color: hot ? pick(sizzleCols) : blood ? pick([YI_COL.blood, YI_COL.bloodHi, "#60140f"]) : pick(base) });
   }
 }
 
@@ -1351,6 +1578,11 @@ function updateYiCue(p) {
   txt += " · HERMES " + (p.yiProc || 0) + "/" + yiProcCap(p)
     + (p.yiProcReady ? " READY" : (!p.yiProcMaxed && (p.yiDevice || 1) >= 3 ? " · GRACE 9 LOCKED" : ""));
   txt += " · POISE " + (p.yiPoise || 0) + "/" + YI_POISE_MAX;
+  /* the casing, and the Unlock III blessing */
+  if ((p.yiWoundState | 0) === 1) txt += " · MASK";
+  else if ((p.yiWoundState | 0) === 2) txt += " · SIZZLING WOUND";
+  if (p.yiIndulge) txt += " · INDULGENCE";
+  if (yiShinActive(p)) txt += " · SHIN";
   txt += " · " + weapon;
   const furioso = (p.yiProc || 0) >= YI_PROC_MAX && !p.yiFuriosoUsed;
   /* Q is the ultimate key; a touch layout has no Q, so its SEAL button carries it */
@@ -1377,7 +1609,7 @@ function updateYiCue(p) {
 /* ---------------------------------------------------------
    RENDER — the seal of the Prescript, the crescent of the cut
    --------------------------------------------------------- */
-function drawYiSlashArc(px, py, ang, reach, k, alpha, dir, arcScale, weapon, cheap, a0, a1) {
+function drawYiSlashArc(px, py, ang, reach, k, alpha, dir, arcScale, weapon, cheap, a0, a1, sizzle) {
   const scale = arcScale || 1;
   const span = YI_HALF_ARC * 0.9 * scale;
   const prog = k < YI_SWEEP_SHARE ? k / YI_SWEEP_SHARE : 1;
@@ -1459,6 +1691,73 @@ function drawYiSlashArc(px, py, ang, reach, k, alpha, dir, arcScale, weapon, che
       cx.lineTo(c0 * (rr + 10) - s0 * 3, s0 * (rr + 10) + c0 * 3);
       cx.stroke();
     }
+  }
+  /* Sizzling Wound — the cut drags a dark-blue current along its edge */
+  if (sizzle) {
+    cx.globalAlpha = fade * 0.5;
+    cx.strokeStyle = "#3a7bff"; cx.shadowColor = "#2f6cff"; cx.shadowBlur = 18;
+    cx.lineWidth = cheap ? 2.0 : 3.4;
+    cx.beginPath(); cx.arc(0, 0, R + 2, lo, hi); cx.stroke();
+    cx.globalAlpha = fade * 0.9;
+    cx.strokeStyle = "#8fe6ff"; cx.shadowBlur = 8; cx.lineWidth = 1.0;
+    cx.beginPath(); cx.arc(0, 0, R - 3, lo, hi); cx.stroke();
+    cx.globalAlpha = fade * 0.6;
+    cx.strokeStyle = "#7a3cff"; cx.shadowBlur = 10; cx.lineWidth = 1.2;
+    cx.beginPath(); cx.arc(0, 0, R + 9, lo, hi); cx.stroke();
+  }
+  cx.restore();
+  cx.globalAlpha = 1; cx.shadowBlur = 0;
+}
+
+/* Sizzling Wound — dark-blue electric thorns crackle across the strike. This is
+   drawn for every client (it reads only the warden's own state and the clock), so
+   a guest sees the same storm as the host. */
+function drawYiSizzleSparks(px, py, ang, reach, k) {
+  const fade = k < 0.18 ? k / 0.18 : 1 - Math.max(0, k - 0.6) * 2.4;
+  if (fade <= 0.02) return;
+  cx.save();
+  cx.translate(px, py);
+  cx.rotate(ang);
+  cx.lineCap = "round";
+  /* bolts fanning across the arc, jittering with the beat */
+  const n = 6;
+  for (let i = 0; i < n; i++) {
+    const a = -0.85 + (i / (n - 1)) * 1.7;
+    const r0 = reach * (0.34 + 0.5 * ((i * 0.37) % 1));
+    const j = Math.sin(k * 42 + i * 7.1) * 7;
+    const x0 = Math.cos(a) * r0, y0 = Math.sin(a) * r0 + j * 0.3;
+    const x1 = Math.cos(a) * (r0 + 16 + j), y1 = Math.sin(a) * (r0 + 16) - j;
+    cx.globalAlpha = fade * (0.45 + 0.4 * ((i * 0.53) % 1));
+    cx.strokeStyle = i % 2 ? "#3a7bff" : "#6fd8ff";
+    cx.shadowColor = "#2f6cff"; cx.shadowBlur = 12;
+    cx.lineWidth = i % 2 ? 1.3 : 2.1;
+    cx.beginPath();
+    cx.moveTo(x0, y0);
+    cx.lineTo(x0 + Math.cos(a) * 6 + Math.sin(a) * j * 0.7,
+              y0 + Math.sin(a) * 6 - Math.cos(a) * j * 0.7);
+    cx.lineTo(x1, y1);
+    cx.stroke();
+  }
+  /* dark-violet thorn tendrils — the wound reaching for the horror */
+  cx.shadowColor = "#7a3cff"; cx.shadowBlur = 10;
+  cx.strokeStyle = "#7a3cff"; cx.lineWidth = 1.5;
+  for (let i = 0; i < 2; i++) {
+    const a = -0.4 + i * 0.8;
+    const r = reach * 0.55;
+    cx.globalAlpha = fade * 0.6;
+    cx.beginPath();
+    cx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+    cx.quadraticCurveTo(Math.cos(a + 0.3) * (r + 12), Math.sin(a + 0.3) * (r + 12),
+                        Math.cos(a + 0.1) * (r + 24), Math.sin(a + 0.1) * (r + 24));
+    cx.stroke();
+  }
+  /* a scatter of sparks at the head */
+  cx.shadowColor = "#6fd8ff"; cx.shadowBlur = 8; cx.fillStyle = "#bff0ff";
+  for (let s = 0; s < 4; s++) {
+    const sa = ang + Math.sin(k * 33 + s * 5.3) * 0.9;
+    const d = reach * (0.55 + 0.4 * ((s * 0.33) % 1));
+    cx.globalAlpha = fade * 0.8;
+    cx.beginPath(); cx.arc(Math.cos(sa) * d, Math.sin(sa) * d, 1.4, 0, TAU); cx.fill();
   }
   cx.restore();
   cx.globalAlpha = 1; cx.shadowBlur = 0;
@@ -1662,6 +1961,69 @@ function drawYiLashFx(P, px, py, ang, reach, k, weapon, dir) {
   cx.globalAlpha = 1; cx.shadowBlur = 0;
 }
 
+/* Sizzling Wound's standing storm — a low ring of cyan current and violet thorn-light
+   that clings to him between swings. Deterministic from Game.time, so guests agree. */
+function drawYiSizzleAura(px, py, t) {
+  const pulse = 0.55 + 0.45 * Math.sin(t * 3.1);
+  cx.save();
+  cx.translate(px, py);
+  cx.lineCap = "round";
+  /* the ground ring */
+  cx.globalAlpha = 0.22 + 0.16 * pulse;
+  cx.strokeStyle = "#2f6cff"; cx.shadowColor = "#3a7bff"; cx.shadowBlur = 14; cx.lineWidth = 2.0;
+  cx.beginPath(); cx.ellipse(0, 5, 18 + pulse * 4, 6.5 + pulse * 1.6, 0, 0, TAU); cx.stroke();
+  cx.globalAlpha = 0.14 + 0.1 * pulse;
+  cx.strokeStyle = "#7a3cff"; cx.shadowColor = "#7a3cff"; cx.shadowBlur = 12; cx.lineWidth = 1.2;
+  cx.beginPath(); cx.ellipse(0, 5, 24 + pulse * 5, 9 + pulse * 2, 0, 0, TAU); cx.stroke();
+  /* orbiting bolts climbing his body */
+  for (let i = 0; i < 5; i++) {
+    const ph = t * 1.7 + i * 1.26;
+    const a = ph % TAU;
+    const rx = 13 + Math.sin(ph * 0.7) * 3;
+    const ry = 20 + Math.cos(ph * 0.9) * 6;
+    const x0 = Math.cos(a) * rx, y0 = Math.sin(a) * ry * 0.55 - 4;
+    const x1 = x0 + Math.sin(ph * 5.1) * 5, y1 = y0 - 6 - (i % 3) * 3;
+    cx.globalAlpha = 0.35 + 0.3 * ((i * 0.37) % 1);
+    cx.strokeStyle = i % 2 ? "#6fd8ff" : "#3a7bff";
+    cx.shadowColor = "#2f6cff"; cx.shadowBlur = 9; cx.lineWidth = i % 2 ? 1.0 : 1.6;
+    cx.beginPath(); cx.moveTo(x0, y0); cx.lineTo((x0 + x1) * 0.5, (y0 + y1) * 0.5); cx.lineTo(x1, y1); cx.stroke();
+  }
+  /* a violet thorn curling up off the wound */
+  cx.globalAlpha = 0.3 + 0.14 * pulse;
+  cx.strokeStyle = "#7a3cff"; cx.shadowColor = "#7a3cff"; cx.shadowBlur = 10; cx.lineWidth = 1.4;
+  cx.beginPath();
+  cx.moveTo(-4, -6);
+  cx.quadraticCurveTo(-9 + Math.sin(t * 2.2) * 3, -16, -3 + Math.sin(t * 3.1) * 4, -26);
+  cx.stroke();
+  cx.restore();
+  cx.globalAlpha = 1; cx.shadowBlur = 0;
+}
+
+/* Furioso-Replica on the Dashboard — black smoke is drawn toward him, pulled off the
+   room by the promise of the cut. Deterministic, so it reads the same on every client. */
+function drawYiFuriosoSmoke(px, py, t) {
+  cx.save();
+  cx.translate(px, py);
+  cx.lineCap = "round";
+  for (let i = 0; i < 7; i++) {
+    const ph = (t * 0.6 + i * 0.37) % 1;
+    const a = i * 1.13 + t * 0.25;
+    const far = 52 + 26 * ((i * 0.61) % 1);
+    const d = far * (1 - ph);
+    const x0 = Math.cos(a) * d, y0 = Math.sin(a) * d * 0.7;
+    const sway = Math.sin(t * 2.4 + i * 1.7) * 5 * (1 - ph * 0.5);
+    cx.globalAlpha = 0.20 * ph * (0.6 + 0.4 * ((i * 0.43) % 1));
+    cx.strokeStyle = "#0a0a10"; cx.shadowColor = "#0a0a10"; cx.shadowBlur = 8;
+    cx.lineWidth = 3.4 * (1 - ph * 0.6);
+    cx.beginPath();
+    cx.moveTo(x0 + sway, y0 - 2);
+    cx.quadraticCurveTo(x0 * 0.6 + sway * 1.4, y0 * 0.6 - 4, x0 * 0.22, y0 * 0.22 - 2);
+    cx.stroke();
+  }
+  cx.restore();
+  cx.globalAlpha = 1; cx.shadowBlur = 0;
+}
+
 /* the warden's body — drawn from drawWarden() */
 /* with nothing to cut, the Oracle's weapon stays in its base form — the Vial does not
    take a shape until the Prescript shows it a target on screen */
@@ -1795,6 +2157,11 @@ function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
   const bpx = px + Math.cos(aim) * carry;
   const bpy = py + Math.sin(aim) * carry + an.crouch * 1.5;
 
+  /* the standing storm of the Sizzling Wound, and the black smoke that Furioso
+     draws off the room while it waits on the Dashboard */
+  if ((P.yiWoundState | 0) === 2) drawYiSizzleAura(bpx, bpy, t);
+  if ((P.yiProc || 0) >= YI_PROC_MAX && !P.yiFuriosoUsed) drawYiFuriosoSmoke(bpx, bpy, t);
+
   /* the coat streams behind him — one black ribbon, one splash of old dark blood */
   const sway = Math.sin(t * 2.3 + px * 0.017) * 2.4;
   cx.save();
@@ -1858,6 +2225,19 @@ function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
   cx.globalAlpha = 0.55;
   cx.beginPath(); cx.ellipse(6.7, 1.4, 0.85, 0.5, -0.35, 0, TAU); cx.fill();
   cx.shadowBlur = 0; cx.globalAlpha = 1;
+  /* SIZZLING WOUND — now and then the side of his face he kept goes black, and
+     a red smile cuts across it. Deterministic, so every client sees the same. */
+  if ((P.yiWoundState | 0) === 2 && Math.sin(t * 0.47 + px * 0.01) > 0.88) {
+    cx.save();
+    cx.beginPath(); cx.ellipse(4.4, 0, 3.6, 3.1, 0, 0, TAU); cx.clip();
+    cx.globalAlpha = 0.94; cx.fillStyle = "#05050a";
+    cx.beginPath(); cx.ellipse(5.4, 1.9, 3.6, 2.7, 0.28, 0, TAU); cx.fill();
+    cx.globalAlpha = 1;
+    cx.strokeStyle = "#e01c2a"; cx.shadowColor = "#ff2b3a"; cx.shadowBlur = 6;
+    cx.lineWidth = 1.1; cx.lineCap = "round";
+    cx.beginPath(); cx.moveTo(4.0, 1.9); cx.quadraticCurveTo(6.4, 3.5, 8.1, 1.1); cx.stroke();
+    cx.restore();
+  }
   cx.restore();
 
   /* nothing to cut — the Vial keeps its base form and he tosses it over his palm */
@@ -2341,6 +2721,7 @@ function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
   const reach = P.yiSlashReach || YI_REACH_BASE;
   const weaponFx = an.weapon;
   const dir = P.yiSlashDir < 0 ? -1 : 1;
+  const sizzling = (P.yiWoundState | 0) === 2;
   if (P.yiSlashT > 0) {
     const fxList = (an.def.fx && an.def.fx.length) ? an.def.fx : [{ at: 0.04, d: 0.4 }];
     for (const f of fxList) {
@@ -2359,18 +2740,23 @@ function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
         const a0 = -yiSampleAnim(an.def.keys, clamp(f.at, 0, 1)).arm * YI_ARM_ARC * armDir;
         const a1 = -yiSampleAnim(an.def.keys, clamp(f.at + dur, 0, 1)).arm * YI_ARM_ARC * armDir;
         drawYiSlashArc(bpx, bpy, P.yiSlashAng, reach * scale, k,
-          f.alpha == null ? 1 : f.alpha, fdir, scale, weaponFx, false, a0, a1);
+          f.alpha == null ? 1 : f.alpha, fdir, scale, weaponFx, false, a0, a1, sizzling);
+      }
+      /* Sizzling Wound — the electric thorns crackle off every kind of strike */
+      if (sizzling) {
+        const sAng = kind === "lash" ? (P.yiWhipAng || P.yiSlashAng) : P.yiSlashAng;
+        drawYiSizzleSparks(bpx, bpy, sAng, reach * scale, k);
       }
     }
     /* Furioso-Replica is not a cut but a room being unmade */
-    if (an.furioso) drawYiFuriosoFx(bpx, bpy, reach, an.k, weaponFx);
+    if (an.furioso) drawYiFuriosoFx(bpx, bpy, reach, an.k, weaponFx, sizzling);
     /* rune lanes and rear cuts keep their own crescents */
     if (P.yiSlashLanes && P.yiSlashLanes.length) {
       for (const L of P.yiSlashLanes) {
         const dk = (L.delay || 0) / (an.life || YI_SLASH_LIFE);
         const k = clamp((an.k - dk) / Math.max(0.15, 1 - dk), 0, 1);
         drawYiSlashArc(bpx + (L.dx || 0), bpy + (L.dy || 0), L.ang, reach, k,
-          L.alpha == null ? 1 : L.alpha, L.dir == null ? dir : L.dir, L.scale || 1, L.weapon, !!L.cheap);
+          L.alpha == null ? 1 : L.alpha, L.dir == null ? dir : L.dir, L.scale || 1, L.weapon, !!L.cheap, null, null, sizzling);
       }
     }
   }
@@ -2379,7 +2765,7 @@ function drawYiWarden(P, px, py, aim, col, tint, hpFrac) {
 
 /* Furioso-Replica's light: the ninefold cut arrives from every bearing at once,
    a white star at the centre, then the room falls quiet */
-function drawYiFuriosoFx(px, py, reach, k, weapon) {
+function drawYiFuriosoFx(px, py, reach, k, weapon, sizzle) {
   const ring = clamp(k / 0.55, 0, 1);
   if (ring <= 0) return;
   const n = 9;
@@ -2388,7 +2774,7 @@ function drawYiFuriosoFx(px, py, reach, k, weapon) {
     if (local <= 0 || local >= 1) continue;
     const a = (i / n) * TAU + k * 1.8;
     drawYiSlashArc(px, py, a, reach * (0.78 + 0.16 * (i % 2)),
-      local, 0.8, i % 2 ? 1 : -1, 0.72, weapon, true);
+      local, 0.8, i % 2 ? 1 : -1, 0.72, weapon, true, null, null, sizzle);
   }
   /* the star where the scythe came down */
   const star = Math.max(0, 1 - Math.abs(k - 0.62) * 2.4);

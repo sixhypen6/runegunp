@@ -351,6 +351,11 @@ function updatePlayer(p, inp, dt) {
     /* WARP rush: every rift crossed leaves speed in the Passenger's heels */
     const warpMul = typeof warpSpeedMul === "function" ? warpSpeedMul(p) : 1;
     mvx *= warpMul; mvy *= warpMul;
+    /* SHIN (心) - FATE: Min & Max Speed +1 at Unlock III */
+    if (p.char === "yi" && typeof yiShinSpeedMul === "function") {
+      const shinMul = yiShinSpeedMul(p);
+      mvx *= shinMul; mvy *= shinMul;
+    }
     /* FORTRESS boost: holding SHIFT engages thrusters — the hull keeps its normal
        walk, and the thrusters add a second velocity that builds up slowly and
        coasts down after release, so a turn curves instead of snapping. inp.boost

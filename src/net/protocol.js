@@ -86,6 +86,7 @@ const PLAYER_FIELDS = ["x", "y", "vx", "vy", "hp", "maxHp", "shield", "shieldMax
   "yiOffenseS", "yiOffenseT", "yiUnlockTier", "yiDevice", "yiProc",
   "yiProcReady", "yiProcMaxed", "yiDevice4T", "yiGraceStruck",
   "yiTurnHermesGained", "yiTurnHealed", "yiSkill3Cd", "yiFuriosoUsed",
+  "yiWoundState", "yiIndulge", "yiMaskStagger",
   "slLiving", "slDeparted", "slReloadT", "slSkill3Cd", "slSwingT", "slSwingSide", "slS3StrikeT", "slHasteTurn", "slCombatStart"];
 
 const NUM3 = v => typeof v === "number" ? Math.round(v * 100) / 100 : v;

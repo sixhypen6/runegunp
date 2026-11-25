@@ -1364,7 +1364,12 @@ function hurtPlayer(p, dmg, src) {
      eats the hit outright) and REPRIEVE below (a lethal blow is refused), exactly
      as the challenge promises — only the warden's own wards may answer. */
   if (Game.challenge === "onehit" && dmg > 0) dmg *= 1000000;
+  /* THE INDEX NURSEFATHER's casing: Defence Level down, and a lighter bite from
+     attacks he is not turned against (bullets, waves, pools) */
+  if (typeof yiWoundDmgMul === "function") dmg *= yiWoundDmgMul(p, src);
   p.hp -= dmg;
+  /* a staggering blow while the casing still holds sets up the Sizzling Wound */
+  if (typeof yiMaskStaggerHit === "function") yiMaskStaggerHit(p, dmg);
   /* STRUCK — the blow lands, so the next cut is the draw, counter or no counter
      (Yield My Flesh: [Clash Lose] — after being hit, use To Claim Their Bones) */
   if (p.char === "kim") {
