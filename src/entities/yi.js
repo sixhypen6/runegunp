@@ -1478,6 +1478,11 @@ function yiSwing(p, x, y, aim) {
   p.yiCutPlan = {
     at: contact, x, y, aim, reach, mark, weapon, dir, arcs, wedge, totalHalf, twin, mirror,
   };
+  /* never let the next swing start before this cut's damage lands: at very high
+     attack speed fireT can undercut the contact frame and fireWeapon calls
+     yiSwing again, overwriting yiCutPlan and losing the previous cut's bite.
+     Clamp the reset so every swing resolves. */
+  if (p.fireT < contact) p.fireT = contact;
 
   /* lanes and rear cuts get their own crescents — drawn now, they are light, not harm */
   if (arcs > 1 || twin || mirror) {
