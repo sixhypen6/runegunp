@@ -796,92 +796,36 @@ function yiSkill3Swing(p, x, y, aim, furioso) {
   p.yiSlashDir = Math.random() < 0.5 ? -1 : 1;
   p.yiSlashLanes = null;
   const guestNow = typeof Net !== "undefined" && Net.role === "guest";
-  if (anim.push && !guestNow) {
+  if (anim.push && !guestNow && !furioso) {
     p.yiPropelAng = aim;
     p.yiPropelSpd = anim.push.spd;
     p.yiPropelDur = anim.push.t;
     p.yiPropelWait = anim.push.wait || 0.04;
     p.yiPropelT = 0;
   }
-  /* FURIOSO-REPLICA — nine consecutive strikes. Strikes 1-8 use a random
-     Oracle weapon each; only the last (9th) is the guaranteed scythe with
-     the special finisher animation. Count strikes that connect; refund
-     (9 - hits) Hermes when the skill ends. Cancel (no cost) if nothing is near. */
+  /* FURIOSO-REPLICA — nine consecutive strikes played one after another.
+     Strikes 1-8 each draw a random Oracle weapon; only the ninth is the
+     guaranteed scythe with its vastly different finisher animation. The
+     burst is queued and driven by yiFuriosoTick, so every strike has its own
+     silhouette. Hermes is consumed up front and (9 - hits) is paid back when
+     the burst ends. Cancel entirely if nothing is near — no cost. */
   if (furioso) {
-    let hits = 0;
-    const struck = new Set();
-    for (let s = 0; s < 9; s++) {
-      const last = s === 8;
-      const w = last ? YI_WEAPON_SCYTHE : (Math.random() * 9) | 0;
-      let swingHit = false;
-      for (const e of enemies) {
-        if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p") continue;
-        const dx = e.x - x, dy = e.y - y;
-        if (dx * dx + dy * dy > (reach + e.r) ** 2) continue;
-        let delta = Math.atan2(dy, dx) - aim;
-        delta = Math.atan2(Math.sin(delta), Math.cos(delta));
-        if (Math.abs(delta) > YI_HALF_ARC) continue;
-        yiHitEnemy(p, e, x, y, true, 1 + YI_FURIOSO_MARK_BONUS, w);
-        struck.add(e);
-        swingHit = true;
-      }
-      if (Game.pvpMode) {
-        for (const foe of players) {
-          if (foe === p || foe.hp <= 0 || foe.downed || foe.gone) continue;
-          const dx = foe.x - x, dy = foe.y - y;
-          if (dx * dx + dy * dy > (reach + foe.r) ** 2) continue;
-          let delta = Math.atan2(dy, dx) - aim;
-          delta = Math.atan2(Math.sin(delta), Math.cos(delta));
-          if (Math.abs(delta) > YI_HALF_ARC) continue;
-          hurtPlayer(foe, yiBite(p) * yiWeaponMul(w) * (last ? critMul : (m.critMul || 2.2)),
-            { x, y, knock: (m.knock || 0) * 0.6 });
-          swingHit = true;
-        }
-      }
-      if (swingHit) hits++;
+    /* GUEST: the host settles the ledger; the guest only sees the animation */
+    if (guestNow) {
+      yiFuriosoAnim(p, YI_WEAPON_SCYTHE, true, aim);
+      return;
     }
-    /* the finisher's scythe animation carries the visual for the whole burst */
-    p.yiWeapon = YI_WEAPON_SCYTHE;
-    p.yiComboIdx = 3;
-    const finisher = yiComboAnim(YI_WEAPON_SCYTHE, 3);
-    const finisherLife = finisher.life * animDur;
-    p.yiAnimLife = finisherLife;
-    p.yiSlashT = finisherLife;
-    p.yiHoldT = (finisher.hold || 0) * animDur;
-    /* GUEST: the host settles the ledger */
-    if (guestNow) return;
-    /* consume all Hermes, then refund the strikes that found nothing */
-    p.yiProc = 0;
+    const queue = [];
+    for (let s = 0; s < 9; s++) queue.push(s === 8 ? YI_WEAPON_SCYTHE : (Math.random() * 9) | 0);
+    p.yiProc = 0;                // spent up front, repaid at the end
     p.yiProcReady = false;
     p.yiFuriosoUsed = true;      // once per Prescript window
     p.yiFuriosoSeen = true;      // the first Furioso of this Encounter burns the casing
-    p.yiPoise = Math.min(YI_POISE_MAX, (p.yiPoise || 0) + YI_FURIOSO_POISE);
-    const refund = 9 - hits;
-    p.yiProc = Math.min(YI_PROC_MAX, refund);
-    /* status effects: burn, bind, fragility — applied once to everything struck */
-    const indulge = !!p.yiIndulge;
-    for (const e of struck) {
-      e.burnT = Math.max(e.burnT || 0, YI_FURIOSO_BURN_T);
-      e.burnDps = Math.max(e.burnDps || 0, YI_FURIOSO_BURN_DPS);
-      e.burnBy = p;
-      e.paralyzeT = Math.max(e.paralyzeT || 0, YI_FURIOSO_BIND_T);
-      if (e.fragT <= 0 || e.fragType !== "slash") { e.fragType = "slash"; e.fragStacks = 1; }
-      else { e.fragStacks = Math.min(YI_FRAG_MAX, (e.fragStacks || 0) + 1); }
-      e.fragT = Math.max(e.fragT || 0, YI_FRAG_TIME);
-      if (indulge) {
-        /* +1 Sinking Potency, +3 Sinking Count (once per target), and Poise */
-        e.sinkingStacks = Math.min(9, (e.sinkingStacks || 0) + YI_INDULGE_SINK_POT);
-        e.sinkingT = Math.min(12, (e.sinkingT || 0) + YI_INDULGE_SINK_COUNT);
-        e.sinkingDps = Math.max(e.sinkingDps || 0, YI_SINKING_DPS);
-        e.sinkingBy = p;
-        p.yiPoise = Math.min(YI_POISE_MAX, (p.yiPoise || 0) + YI_INDULGE_POISE);
-      }
-    }
+    p.yiFuriosoQ = { w: queue, i: 0, t: 0.04, gap: 0.10, hits: 0, struck: [] };
+    yiFuriosoAnim(p, queue[0], false, aim);
     if (p === localPlayer()) {
       floatText(p.x, p.y - 44, "FURIOSO-REPLICA", "#ffedb8", 16);
-      if (refund > 0) floatText(p.x, p.y - 60, "+" + refund + " HERMES", "#7ec0ff", 13);
-      if (marked) floatText(p.x, p.y - 76, "+ " + (YI_FURIOSO_MARK_BONUS * 100) + "% MARK", "#ffe9a8", 13);
-      if (typeof toast === "function") toast("FURIOSO-REPLICA — " + hits + "/9 STRIKES, +" + refund + " HERMES");
+      if (typeof toast === "function") toast("FURIOSO-REPLICA — NINE STRIKES" + (marked ? " · MARKED" : ""));
     }
     return;
   }
@@ -913,6 +857,134 @@ function yiSkill3Swing(p, x, y, aim, furioso) {
   }
   /* GUEST: the host settles the ledger */
   if (typeof Net !== "undefined" && Net.role === "guest") return;
+}
+
+/* one beat of Furioso-Replica: the vessel is drawn, the body snaps into its
+   silhouette, and the clock starts. The ninth strike is the scythe finisher. */
+function yiFuriosoAnim(p, w, last, aim) {
+  const animDur = yiWoundAnimDur(p);
+  /* strikes 1-8 roll their own beat too; the finisher always uses the scythe's
+     fourth, vastly different pattern */
+  const comboIdx = last ? 3 : ((Math.random() * 3) | 0);
+  const anim = yiComboAnim(w, comboIdx);
+  p.yiWeapon = w;
+  p.yiComboIdx = comboIdx;
+  p.yiAnimLife = anim.life * animDur;
+  p.yiSlashT = p.yiAnimLife;
+  p.yiHoldT = (anim.hold || 0) * animDur;
+  p.yiSlashAng = aim;
+  p.yiSlashDir = Math.random() < 0.5 ? -1 : 1;
+  p.yiSlashLanes = null;
+  if (last && anim.push) {
+    p.yiPropelAng = aim;
+    p.yiPropelSpd = anim.push.spd;
+    p.yiPropelDur = anim.push.t;
+    p.yiPropelWait = anim.push.wait || 0.04;
+    p.yiPropelT = 0;
+  }
+}
+
+/* one connecting beat of the burst: every foe in the arc eats the vessel's cut */
+function yiFuriosoCut(p, x, y, aim, w, last, q) {
+  const m = p.mods || {};
+  const reach = YI_REACH_BASE + Math.max(0, (m.size || 4) - 4) * 0.8;
+  const critMul = last ? (m.critMul || 2.2) * (1 + YI_FURIOSO_CRIT_BONUS) : (m.critMul || 2.2);
+  let swingHit = false;
+  for (const e of enemies) {
+    if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p") continue;
+    const dx = e.x - x, dy = e.y - y;
+    if (dx * dx + dy * dy > (reach + e.r) ** 2) continue;
+    let delta = Math.atan2(dy, dx) - aim;
+    delta = Math.atan2(Math.sin(delta), Math.cos(delta));
+    if (Math.abs(delta) > YI_HALF_ARC) continue;
+    yiHitEnemy(p, e, x, y, true, 1 + YI_FURIOSO_MARK_BONUS, w);
+    if (!q.struck.includes(e)) q.struck.push(e);
+    swingHit = true;
+  }
+  if (Game.pvpMode) {
+    for (const foe of players) {
+      if (foe === p || foe.hp <= 0 || foe.downed || foe.gone) continue;
+      const dx = foe.x - x, dy = foe.y - y;
+      if (dx * dx + dy * dy > (reach + foe.r) ** 2) continue;
+      let delta = Math.atan2(dy, dx) - aim;
+      delta = Math.atan2(Math.sin(delta), Math.cos(delta));
+      if (Math.abs(delta) > YI_HALF_ARC) continue;
+      hurtPlayer(foe, yiBite(p) * yiWeaponMul(w) * critMul,
+        { x, y, knock: (m.knock || 0) * 0.6 });
+      swingHit = true;
+    }
+  }
+  if (swingHit) q.hits++;
+}
+
+/* close the burst: bank Poise, repay the strikes that found nothing, and let
+   burn / bind / slash Fragility (plus Indulgence's Sinking) settle on everyone
+   the flurry touched */
+function yiFuriosoFinish(p) {
+  const q = p.yiFuriosoQ;
+  if (!q) return;
+  p.yiFuriosoQ = null;
+  const hits = q.hits;
+  const refund = Math.max(0, 9 - hits);
+  if (typeof Net !== "undefined" && Net.role === "guest") return;
+  p.yiProc = Math.min(YI_PROC_MAX, refund);
+  p.yiProcReady = false;
+  p.yiFuriosoUsed = true;      // once per Prescript window
+  p.yiFuriosoSeen = true;      // the first Furioso of this Encounter burns the casing
+  p.yiPoise = Math.min(YI_POISE_MAX, (p.yiPoise || 0) + YI_FURIOSO_POISE);
+  const indulge = !!p.yiIndulge;
+  for (const e of q.struck) {
+    if (e.dead) continue;
+    e.burnT = Math.max(e.burnT || 0, YI_FURIOSO_BURN_T);
+    e.burnDps = Math.max(e.burnDps || 0, YI_FURIOSO_BURN_DPS);
+    e.burnBy = p;
+    e.paralyzeT = Math.max(e.paralyzeT || 0, YI_FURIOSO_BIND_T);
+    if (e.fragT <= 0 || e.fragType !== "slash") { e.fragType = "slash"; e.fragStacks = 1; }
+    else { e.fragStacks = Math.min(YI_FRAG_MAX, (e.fragStacks || 0) + 1); }
+    e.fragT = Math.max(e.fragT || 0, YI_FRAG_TIME);
+    if (indulge) {
+      /* +1 Sinking Potency, +3 Sinking Count (once per target), and Poise */
+      e.sinkingStacks = Math.min(9, (e.sinkingStacks || 0) + YI_INDULGE_SINK_POT);
+      e.sinkingT = Math.min(12, (e.sinkingT || 0) + YI_INDULGE_SINK_COUNT);
+      e.sinkingDps = Math.max(e.sinkingDps || 0, YI_SINKING_DPS);
+      e.sinkingBy = p;
+      p.yiPoise = Math.min(YI_POISE_MAX, (p.yiPoise || 0) + YI_INDULGE_POISE);
+    }
+  }
+  if (p === localPlayer()) {
+    if (refund > 0) floatText(p.x, p.y - 60, "+" + refund + " HERMES", "#7ec0ff", 13);
+    if (typeof toast === "function") toast("FURIOSO-REPLICA — " + hits + "/9 STRIKES, +" + refund + " HERMES");
+  }
+}
+
+/* drive the queued burst: one strike per gap, each re-aimed at whatever is
+   nearest so the flurry tracks the target he has actually chosen */
+function yiFuriosoTick(p, dt) {
+  const q = p.yiFuriosoQ;
+  if (!q) return;
+  if ((p.hp || 0) <= 0 || p.downed || p.gone) { p.yiFuriosoQ = null; return; }
+  q.t -= dt;
+  if (q.t > 0) return;
+  const last = q.i >= q.w.length - 1;
+  const w = q.w[q.i] || YI_WEAPON_SCYTHE;
+  /* re-aim each beat at the closest body still standing in reach */
+  const m = p.mods || {};
+  const reach = YI_REACH_BASE + Math.max(0, (m.size || 4) - 4) * 0.8;
+  let aim = p.yiSlashAng || p.aim || 0;
+  let best = null, bestD = Infinity;
+  for (const e of enemies) {
+    if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p") continue;
+    const dx = e.x - p.x, dy = e.y - p.y;
+    const d = dx * dx + dy * dy;
+    if (d > (reach + e.r) ** 2) continue;
+    if (d < bestD) { bestD = d; best = e; }
+  }
+  if (best) aim = Math.atan2(best.y - p.y, best.x - p.x);
+  yiFuriosoAnim(p, w, last, aim);
+  yiFuriosoCut(p, p.x, p.y, aim, w, last, q);
+  q.i++;
+  if (q.i >= q.w.length) { yiFuriosoFinish(p); return; }
+  q.t = q.gap;
 }
 
 /* Grace of the Prescript — three unlocks and the full payout */
@@ -1275,6 +1347,8 @@ function yiTick(p, dt) {
   }
   if (p.yiSlashT > 0) p.yiSlashT = Math.max(0, p.yiSlashT - dt);
   else if ((p.yiHoldT || 0) > 0) p.yiHoldT = Math.max(0, p.yiHoldT - dt);
+  /* FURIOSO-REPLICA — the queued nine-strike flurry plays beat by beat */
+  yiFuriosoTick(p, dt);
   /* the blow lands on its beat, not on the tap */
   if (p.yiCutPlan) {
     if ((p.hp || 0) <= 0) p.yiCutPlan = null;
