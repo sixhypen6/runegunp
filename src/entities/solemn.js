@@ -277,8 +277,10 @@ function slFireBarrageShot(p, aim) {
   p.solemnSide = -(p.solemnSide || 1);
   const off = p.solemnSide * 5;
   const ox = perpX * off, oy = perpY * off;
+  const bx = p.x + Math.cos(aim) * 18 + ox;
+  const by = p.y + Math.sin(aim) * 18 + oy;
   bullets.push({
-    x: p.x + Math.cos(aim) * 18 + ox, y: p.y + Math.sin(aim) * 18 + oy,
+    x: bx, y: by,
     vx: Math.cos(aim) * m.speed, vy: Math.sin(aim) * m.speed,
     r: m.size, dmg: m.dmg, t: 0, life: 1.5,
     pierce: m.pierce, bounce: m.bounce, homing: m.homing,
@@ -287,8 +289,7 @@ function slFireBarrageShot(p, aim) {
     execute: m.execute, knock: m.knock,
     crit: m.crit, critMul: m.critMul, fear: m.fear, fearDur: m.fearDur,
     owner: p,
-    x0: x + Math.cos(aim) * 18 + ox,
-    y0: y + Math.sin(aim) * 18 + oy,
+    x0: bx, y0: by,
     hitSet: null,
     slSpend: 0,
     bflySide: p.solemnSide,
@@ -499,7 +500,7 @@ function updateSolemnCue(p) {
     + " · THE DEPARTED " + departed + "/" + SL_AMMO_MAX;
   if (reloading) txt += " · RELOADING " + (p.slReloadT || 0).toFixed(1) + "s";
   else if (s3cd) txt += " · SKILL 3 " + (p.slSkill3Cd || 0).toFixed(1) + "s";
-  else txt += " · SKILL 3 [E]";
+  else txt += " · SKILL 3 [Q]";
   const cls = "on" + (reloading ? " reload" : s3cd ? " cd" : "");
   if (lastSolemnCue !== txt + cls) {
     lastSolemnCue = txt + cls;

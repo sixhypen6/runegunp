@@ -753,14 +753,23 @@ function yiClearMark(p) {
 }
 
 /* Skill 3 / Furioso-Replica — the [Q] ability. At Hermes 9 it becomes
-   Furioso-Replica: a guaranteed-crit Scythe strike that consumes all Hermes,
-   burns, binds, and frays everything it touches, then must be re-earned. */
+   Furioso-Replica: nine consecutive scythe strikes that burn, bind, and fray
+   everything they touch, then must be re-earned. Cancel if nothing is near. */
 function yiTrySkill3(p) {
   if (!p || p.char !== "yi") return;
   const guest = typeof Net !== "undefined" && Net.role === "guest";
   if (guest) return;
   if ((p.yiSkill3Cd || 0) > 0) return;
   const furioso = (p.yiProc || 0) >= YI_PROC_MAX && !p.yiFuriosoUsed;
+  /* FURIOSO-REPLICA — nine consecutive strikes. If nothing is near enough to
+     cut, abort entirely: no Hermes spent, no cooldown paid. */
+  if (furioso) {
+    const m = p.mods || {};
+    const reach = YI_REACH_BASE + Math.max(0, (m.size || 4) - 4) * 0.8;
+    const near = enemies.some(e => !e.dead && !e.ghost && e.spawnT <= 0 && e.team !== "p"
+      && Math.hypot(e.x - p.x, e.y - p.y) <= reach + e.r);
+    if (!near) return;
+  }
   p.yiSkill3Cd = YI_SKILL3_CD;
   yiSkill3Swing(p, p.x, p.y, p.aim, furioso);
 }
@@ -794,6 +803,78 @@ function yiSkill3Swing(p, x, y, aim, furioso) {
     p.yiPropelWait = anim.push.wait || 0.04;
     p.yiPropelT = 0;
   }
+  /* FURIOSO-REPLICA — nine consecutive scythe strikes. Each strike hits every
+     enemy (and rival in PvP) in the arc. Count strikes that connect; refund
+     (9 - hits) Hermes when the skill ends. Cancel (no cost) if nothing is near. */
+  if (furioso) {
+    let hits = 0;
+    const struck = new Set();
+    for (let s = 0; s < 9; s++) {
+      let swingHit = false;
+      for (const e of enemies) {
+        if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p") continue;
+        const dx = e.x - x, dy = e.y - y;
+        if (dx * dx + dy * dy > (reach + e.r) ** 2) continue;
+        let delta = Math.atan2(dy, dx) - aim;
+        delta = Math.atan2(Math.sin(delta), Math.cos(delta));
+        if (Math.abs(delta) > YI_HALF_ARC) continue;
+        yiHitEnemy(p, e, x, y, true, 1 + YI_FURIOSO_MARK_BONUS, YI_WEAPON_SCYTHE);
+        struck.add(e);
+        swingHit = true;
+      }
+      if (Game.pvpMode) {
+        for (const foe of players) {
+          if (foe === p || foe.hp <= 0 || foe.downed || foe.gone) continue;
+          const dx = foe.x - x, dy = foe.y - y;
+          if (dx * dx + dy * dy > (reach + foe.r) ** 2) continue;
+          let delta = Math.atan2(dy, dx) - aim;
+          delta = Math.atan2(Math.sin(delta), Math.cos(delta));
+          if (Math.abs(delta) > YI_HALF_ARC) continue;
+          hurtPlayer(foe, yiBite(p) * yiWeaponMul(YI_WEAPON_SCYTHE) * critMul,
+            { x, y, knock: (m.knock || 0) * 0.6 });
+          swingHit = true;
+        }
+      }
+      if (swingHit) hits++;
+    }
+    /* GUEST: the host settles the ledger */
+    if (guestNow) return;
+    /* consume all Hermes, then refund the strikes that found nothing */
+    p.yiProc = 0;
+    p.yiProcReady = false;
+    p.yiFuriosoUsed = true;      // once per Prescript window
+    p.yiFuriosoSeen = true;      // the first Furioso of this Encounter burns the casing
+    p.yiPoise = Math.min(YI_POISE_MAX, (p.yiPoise || 0) + YI_FURIOSO_POISE);
+    const refund = 9 - hits;
+    p.yiProc = Math.min(YI_PROC_MAX, refund);
+    /* status effects: burn, bind, fragility — applied once to everything struck */
+    const indulge = !!p.yiIndulge;
+    for (const e of struck) {
+      e.burnT = Math.max(e.burnT || 0, YI_FURIOSO_BURN_T);
+      e.burnDps = Math.max(e.burnDps || 0, YI_FURIOSO_BURN_DPS);
+      e.burnBy = p;
+      e.paralyzeT = Math.max(e.paralyzeT || 0, YI_FURIOSO_BIND_T);
+      if (e.fragT <= 0 || e.fragType !== "slash") { e.fragType = "slash"; e.fragStacks = 1; }
+      else { e.fragStacks = Math.min(YI_FRAG_MAX, (e.fragStacks || 0) + 1); }
+      e.fragT = Math.max(e.fragT || 0, YI_FRAG_TIME);
+      if (indulge) {
+        /* +1 Sinking Potency, +3 Sinking Count (once per target), and Poise */
+        e.sinkingStacks = Math.min(9, (e.sinkingStacks || 0) + YI_INDULGE_SINK_POT);
+        e.sinkingT = Math.min(12, (e.sinkingT || 0) + YI_INDULGE_SINK_COUNT);
+        e.sinkingDps = Math.max(e.sinkingDps || 0, YI_SINKING_DPS);
+        e.sinkingBy = p;
+        p.yiPoise = Math.min(YI_POISE_MAX, (p.yiPoise || 0) + YI_INDULGE_POISE);
+      }
+    }
+    if (p === localPlayer()) {
+      floatText(p.x, p.y - 44, "FURIOSO-REPLICA", "#ffedb8", 16);
+      if (refund > 0) floatText(p.x, p.y - 60, "+" + refund + " HERMES", "#7ec0ff", 13);
+      if (marked) floatText(p.x, p.y - 76, "+ " + (YI_FURIOSO_MARK_BONUS * 100) + "% MARK", "#ffe9a8", 13);
+      if (typeof toast === "function") toast("FURIOSO-REPLICA — " + hits + "/9 STRIKES, +" + refund + " HERMES");
+    }
+    return;
+  }
+  /* normal Skill 3 — one vessel's finisher */
   const hit = [];
   for (const e of enemies) {
     if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p") continue;
@@ -822,36 +903,6 @@ function yiSkill3Swing(p, x, y, aim, furioso) {
   /* GUEST: the host settles the ledger */
   if (typeof Net !== "undefined" && Net.role === "guest") return;
   if (!furioso) return;
-  /* Furioso-Replica: consume all Hermes, bank Poise, ride every hit */
-  p.yiProc = 0;
-  p.yiProcReady = false;
-  p.yiFuriosoUsed = true;      // once per Prescript window
-  p.yiFuriosoSeen = true;      // the first Furioso of this Encounter burns the casing
-  p.yiPoise = Math.min(YI_POISE_MAX, (p.yiPoise || 0) + YI_FURIOSO_POISE);
-  /* INDULGENCE IN PRESCRIPTS — Furioso's cuts sink deeper and give him Poise */
-  const indulge = !!p.yiIndulge;
-  for (const e of hit) {
-    e.burnT = Math.max(e.burnT || 0, YI_FURIOSO_BURN_T);
-    e.burnDps = Math.max(e.burnDps || 0, YI_FURIOSO_BURN_DPS);
-    e.burnBy = p;
-    e.paralyzeT = Math.max(e.paralyzeT || 0, YI_FURIOSO_BIND_T);
-    if (e.fragT <= 0 || e.fragType !== "slash") { e.fragType = "slash"; e.fragStacks = 1; }
-    else { e.fragStacks = Math.min(YI_FRAG_MAX, (e.fragStacks || 0) + 1); }
-    e.fragT = Math.max(e.fragT || 0, YI_FRAG_TIME);
-    if (indulge) {
-      /* +1 Sinking Potency, +3 Sinking Count (once per target), and Poise */
-      e.sinkingStacks = Math.min(9, (e.sinkingStacks || 0) + YI_INDULGE_SINK_POT);
-      e.sinkingT = Math.min(12, (e.sinkingT || 0) + YI_INDULGE_SINK_COUNT);
-      e.sinkingDps = Math.max(e.sinkingDps || 0, YI_SINKING_DPS);
-      e.sinkingBy = p;
-      p.yiPoise = Math.min(YI_POISE_MAX, (p.yiPoise || 0) + YI_INDULGE_POISE);
-    }
-  }
-  if (p === localPlayer()) {
-    floatText(p.x, p.y - 44, "FURIOSO-REPLICA", "#ffedb8", 16);
-    if (marked) floatText(p.x, p.y - 60, "+ " + (YI_FURIOSO_MARK_BONUS * 100) + "% MARK", "#ffe9a8", 13);
-    if (typeof toast === "function") toast("FURIOSO-REPLICA — HERMES CONSUMED");
-  }
 }
 
 /* Grace of the Prescript — three unlocks and the full payout */
