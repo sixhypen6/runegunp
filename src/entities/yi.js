@@ -803,13 +803,16 @@ function yiSkill3Swing(p, x, y, aim, furioso) {
     p.yiPropelWait = anim.push.wait || 0.04;
     p.yiPropelT = 0;
   }
-  /* FURIOSO-REPLICA — nine consecutive scythe strikes. Each strike hits every
-     enemy (and rival in PvP) in the arc. Count strikes that connect; refund
+  /* FURIOSO-REPLICA — nine consecutive strikes. Strikes 1-8 use a random
+     Oracle weapon each; only the last (9th) is the guaranteed scythe with
+     the special finisher animation. Count strikes that connect; refund
      (9 - hits) Hermes when the skill ends. Cancel (no cost) if nothing is near. */
   if (furioso) {
     let hits = 0;
     const struck = new Set();
     for (let s = 0; s < 9; s++) {
+      const last = s === 8;
+      const w = last ? YI_WEAPON_SCYTHE : (Math.random() * 9) | 0;
       let swingHit = false;
       for (const e of enemies) {
         if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p") continue;
@@ -818,7 +821,7 @@ function yiSkill3Swing(p, x, y, aim, furioso) {
         let delta = Math.atan2(dy, dx) - aim;
         delta = Math.atan2(Math.sin(delta), Math.cos(delta));
         if (Math.abs(delta) > YI_HALF_ARC) continue;
-        yiHitEnemy(p, e, x, y, true, 1 + YI_FURIOSO_MARK_BONUS, YI_WEAPON_SCYTHE);
+        yiHitEnemy(p, e, x, y, true, 1 + YI_FURIOSO_MARK_BONUS, w);
         struck.add(e);
         swingHit = true;
       }
@@ -830,13 +833,21 @@ function yiSkill3Swing(p, x, y, aim, furioso) {
           let delta = Math.atan2(dy, dx) - aim;
           delta = Math.atan2(Math.sin(delta), Math.cos(delta));
           if (Math.abs(delta) > YI_HALF_ARC) continue;
-          hurtPlayer(foe, yiBite(p) * yiWeaponMul(YI_WEAPON_SCYTHE) * critMul,
+          hurtPlayer(foe, yiBite(p) * yiWeaponMul(w) * (last ? critMul : (m.critMul || 2.2)),
             { x, y, knock: (m.knock || 0) * 0.6 });
           swingHit = true;
         }
       }
       if (swingHit) hits++;
     }
+    /* the finisher's scythe animation carries the visual for the whole burst */
+    p.yiWeapon = YI_WEAPON_SCYTHE;
+    p.yiComboIdx = 3;
+    const finisher = yiComboAnim(YI_WEAPON_SCYTHE, 3);
+    const finisherLife = finisher.life * animDur;
+    p.yiAnimLife = finisherLife;
+    p.yiSlashT = finisherLife;
+    p.yiHoldT = (finisher.hold || 0) * animDur;
     /* GUEST: the host settles the ledger */
     if (guestNow) return;
     /* consume all Hermes, then refund the strikes that found nothing */
@@ -902,7 +913,6 @@ function yiSkill3Swing(p, x, y, aim, furioso) {
   }
   /* GUEST: the host settles the ledger */
   if (typeof Net !== "undefined" && Net.role === "guest") return;
-  if (!furioso) return;
 }
 
 /* Grace of the Prescript — three unlocks and the full payout */
