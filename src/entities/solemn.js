@@ -232,6 +232,18 @@ const SL_SWING_T = 0.14;       // basic-fire gun-sword swing duration
 const SL_SWING_ARC = 0.5;      // how far the guns swing out on a basic shot
 const SL_STRIKE_T = 0.35;      // S3 finale lunge-strike pose duration
 const SL_GLOOM_CAP = 30;       // gloom dmg cap
+/* --- BUTTERFLY PAYOFF (mid/late Encounter) ---
+   The mark is not just a +25% latch. Each turn of feeding takes a cut of the
+   target's vitality (potency-scaled, capped), its Sinking bites harder with
+   every potency, Goodbye Now's lunge reads the marks already on the body, and
+   a kill feeds the coffin back into both pools. */
+const SL_BFLY_MAXHP = 0.004;        // Butterfly turn: 0.4% max HP per Living potency
+const SL_BFLY_MAXHP_CAP = 0.05;     // ...capped at 5% max HP per turn
+const SL_BFLY_SINK_DPS = 0.25;      // Sinking ticks +0.25 per stack, per Living potency
+const SL_BFLY_SINK_DPS_CAP = 7;     // ...up to 7 per stack
+const SL_S3_BFLY_BONUS = 0.04;      // Goodbye Now: +4% strike damage per Butterfly on target
+const SL_S3_BFLY_CAP = 1.0;         // ...capped at +100%
+const SL_KILL_REFILL = 2;           // a kill returns 2 to The Living and 2 to The Departed
 
 function slVitals(p) {
   if (!p) return;
@@ -250,6 +262,15 @@ function slVitals(p) {
 }
 
 function slAmmoTotal(p) { return (p.slLiving || 0) + (p.slDeparted || 0); }
+
+/* a kill feeds the coffin: the dead join both pools, so a chained wave does not
+   stall on an empty magazine */
+function slOnKill(p) {
+  if (!p || p.char !== "solemn") return;
+  slVitals(p);
+  p.slLiving = Math.min(SL_AMMO_MAX, (p.slLiving || 0) + SL_KILL_REFILL);
+  p.slDeparted = Math.min(SL_AMMO_MAX, (p.slDeparted || 0) + SL_KILL_REFILL);
+}
 
 /* spend 1 ammo: randomly draw from The Living or The Departed pool.
    Returns spent (1) or -1 if both empty. */
@@ -312,8 +333,11 @@ function slFinishBarrage(p, spent) {
     let delta = Math.atan2(dy, dx) - p.aim;
     delta = Math.atan2(Math.sin(delta), Math.cos(delta));
     if (Math.abs(delta) > SL_STRIKE_HALF) continue;
+    /* the lunge reads the marks already on the body: each Butterfly adds 4% */
+    const bfly = (e.bflyLiving || 0) + (e.bflyDeparted || 0);
+    const bMul = 1 + Math.min(SL_S3_BFLY_CAP, bfly * SL_S3_BFLY_BONUS);
     slInflictButterfly(e, p, spent);
-    damageEnemy(e, dmg, { owner: p, x: p.x, y: p.y, knock: m.knock, crit: m.crit, critMul: m.critMul });
+    damageEnemy(e, dmg * bMul, { owner: p, x: p.x, y: p.y, knock: m.knock, crit: m.crit, critMul: m.critMul });
     hitAny = true;
   }
   p.slSkill3Cd = SL_SKILL3_CD;
@@ -382,7 +406,8 @@ function slInflictButterfly(e, p, spent) {
 }
 
 /* Butterfly turn-end tick for one enemy:
-   reset Departed to 0; gain Sinking equal to The Living; convert Living into Departed.
+   reset Departed to 0; feed on the soul (potency-scaled max-HP cut); gain
+   Sinking equal to The Living; convert Living into Departed.
    Expires when both reach 0. */
 function slButterflyTurnEnd(e) {
   if (!e) return;
@@ -390,11 +415,22 @@ function slButterflyTurnEnd(e) {
   const departed = e.bflyDeparted || 0;
   if (living <= 0 && departed <= 0) { e.bflyLiving = 0; e.bflyDeparted = 0; return; }
   e.bflyDeparted = 0;                                      // reset The Departed
-  if (living > 0) {                                        // gain Sinking equal to The Living
-    const stacks = Math.min(5, living);
+  if (living > 0) {
+    /* the butterflies eat the soul: a turn of feeding takes a cut of the
+       target's vitality, so the mark keeps paying on deep-floor flesh */
+    const frac = Math.min(SL_BFLY_MAXHP_CAP, living * SL_BFLY_MAXHP);
+    if (frac > 0 && e.hp > 0 && (e.maxHp || 0) > 0) {
+      const bite = Math.max(1, Math.round(e.maxHp * frac));
+      if (e.bflyBy === localPlayer()) floatText(e.x, e.y - e.r - 10, "-" + bite, "#c9b6ff", 12);
+      damageEnemy(e, bite, { owner: e.bflyBy || localPlayer(), x: e.x, y: e.y - 6 });
+      if (e.dead) { e.bflyLiving = 0; e.bflyDeparted = 0; return; }
+    }
+    const stacks = Math.min(5, living);                    // gain Sinking equal to The Living
     e.sinkingT = Math.max(e.sinkingT || 0, 4);
     e.sinkingStacks = Math.min(5, (e.sinkingStacks || 0) + stacks);
-    e.sinkingDps = YI_SINKING_DPS;
+    /* the deeper the mark, the harder the Sinking bites */
+    e.sinkingDps = Math.max(e.sinkingDps || 0,
+      Math.min(SL_BFLY_SINK_DPS_CAP, YI_SINKING_DPS + living * SL_BFLY_SINK_DPS));
     e.sinkingBy = e.bflyBy;
     /* Sinking indicator above the target */
     if (e.sinkingBy === localPlayer()) {

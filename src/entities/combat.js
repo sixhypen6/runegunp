@@ -1042,6 +1042,8 @@ function killEnemy(e, killer) {
   if (e.dead) return;
   e.dead = true;
   Game.kills++;
+  /* SOLEMN LAMENT: the dead join the coffin — a kill returns ammo to both pools */
+  if (killer && killer.char === "solemn" && typeof slOnKill === "function") slOnKill(killer);
   if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("KILL", e.type + (e.boss ? " (BOSS)" : "") + " at wave " + Game.wave);
   /* on-kill runes read the SLAYER's build; an unowned death (map hazard) has none */
   const km = killer ? killer.mods : null;

@@ -50,7 +50,7 @@
 
 /* --- the Prescript --- */
 const YI_MARK_CD = 9;              // fallback gap between Prescripts (the next name is written soon after)
-const YI_MARK_FIRST = 1.6;         // the first mark comes fast — the Oracle does not wait long
+const YI_MARK_FIRST = 1.1;         // the first mark comes fast — the Oracle does not wait long
 const YI_MARK_TIME = 12;           // the mark's window on the Base Attack Skill before the Oracle loses interest
 
 /* --- Grace of the Prescript --- */
@@ -88,6 +88,16 @@ const YI_KARMIC_MAX = 100;
 const YI_KARMIC_PER_STACK = 0.004;  // each Consequence drags cuts down 0.4% (40% at 100)
 const YI_KARMIC_EXECUTE_CLEAR = 20; // exiting a prescript lifts twenty
 const YI_KARMIC_MISS = 20;          // a mark that escapes alive adds twenty
+
+/* --- THE ORACLE'S VERDICT (Unlock - III, late Encounter) ---
+   Once the third Unlock is spoken the Oracle reads the target before it names
+   the vessel. A horror already below a third of its vitality is answered with
+   the heavy vessels only (greatsword, lance, whip, scythe) — the wheel stops
+   wasting the opening beats of a kill. And any cut that leaves a non-boss
+   horror below a tenth of its vitality is finished outright: SEVERED. */
+const YI_VERDICT_HP = 0.30;         // below this fraction the wheel draws heavy vessels
+const YI_EXECUTE_HP = 0.12;         // ...and a cut below this ends a non-boss horror
+const YI_VERDICT_HEAVY = [5, 6, 7, 8];  // greatsword, lance, whip, scythe
 
 /* --- WOUND-CASING MASK / SIZZLING WOUND ---
    The Index Nurserfather enters each Encounter wearing a casing of the Oracle's
@@ -544,10 +554,11 @@ function yiFxKind(w) {
 /* per-weapon ledger — damage, rate (× base), reach, knock, and the rider
    each cut pays out. rate > 1 swings faster; reach in px; knock × base. */
 const YI_WEAPON_DATA = [
-  /* HATCHET — blunt, +50% knock, slows, 2 Poise */
-  { type: "blunt", dmg: 1.0, rate: 0.9, reach: 100, knock: 1.5, poise: 2, slow: 0.6 },
+  /* HATCHET — blunt, +50% knock, slows, 2 Poise. The opening wheel has no dud:
+     even the lightest vessel still cuts a little harder than the bare blade. */
+  { type: "blunt", dmg: 1.04, rate: 0.9, reach: 100, knock: 1.5, poise: 2, slow: 0.6 },
   /* STILETTO — pierce, Sinking 2, thrusts forward */
-  { type: "pierce", dmg: 1.0, rate: 1.2, reach: 90, knock: 1.0, sinking: 2 },
+  { type: "pierce", dmg: 1.04, rate: 1.2, reach: 90, knock: 1.0, sinking: 2 },
   /* BASTARD SWORD — slash, +7.5% dmg, Offense Level +1 */
   { type: "slash", dmg: 1.075, rate: 1.0, reach: 105, knock: 1.1, offense: 1 },
   /* RAPIER — pierce, +7.5% dmg, Defence Level Down +1 */
@@ -1216,6 +1227,15 @@ function yiHitEnemy(p, e, x, y, forceCrit, biteMul, weapon) {
     owner: p, x, y, melee: true, critHit: crit,
     knock: (m.knock || 0) * yiWeaponKnock(weapon) * (forceCrit ? 1.6 : 1),
   });
+  /* THE ORACLE'S VERDICT — at Unlock III, a cut that leaves a non-boss horror
+     below a tenth of its vitality ends it outright. The ledger does not keep
+     half-finished names. */
+  if (!e.dead && !e.boss && (p.yiUnlockTier || 0) >= 3 && e.maxHp > 0
+      && e.hp > 0 && e.hp / e.maxHp <= YI_EXECUTE_HP) {
+    e.hp = 0;
+    if (p === localPlayer()) floatText(e.x, e.y - e.r - 14, "SEVERED", "#c4c9d4", 15);
+    killEnemy(e, p);
+  }
   /* the Oracle remembers where its first cut landed: the next blow on this
      horror follows through, and the blow that ends it is the finisher. Set
      before the guest's early return so a guest's own Yi reads the same. */
@@ -1417,7 +1437,19 @@ function yiTick(p, dt) {
           floatText(p.x, p.y - 40, "+" + YI_TURN_HEAL, "#8ef0a0", 14);
           if (typeof toast === "function") toast("TURN END — PRESCRIPT EXECUTED, VITALITY MENDED");
         }
-      } else if (!executed) {
+      }
+      if (executed) {
+        /* a Prescript carried out lifts twenty from the Karmic ledger — without
+           this the Consequence was a one-way debt and a long fight buried his
+           cuts under a permanent -40% */
+        const before = p.yiKarmic || 0;
+        if (before > 0) {
+          p.yiKarmic = Math.max(0, before - YI_KARMIC_EXECUTE_CLEAR);
+          if (p === localPlayer()) {
+            floatText(p.x, p.y - 54, "KARMIC -" + (before - p.yiKarmic), "#8ef0a0", 13);
+          }
+        }
+      } else {
         /* the Prescript lapsed unexecuted — the Karmic Consequence takes him */
         p.yiKarmic = Math.min(YI_KARMIC_MAX, (p.yiKarmic || 0) + YI_KARMIC_MISS);
         if (p === localPlayer()) floatText(p.x, p.y - 40, "KARMIC +" + YI_KARMIC_MISS, "#ff6b6b", 14);
@@ -1501,6 +1533,12 @@ function yiPreviewBite(p, e, weapon) {
   if (e.defDown > 0) dmg *= 1 + Math.min(0.5, e.defDown * YI_RAPIER_DEFDOWN);
   /* the Marrow King's vessels ward him until they break */
   if (e.boss && e.kind === 1 && e.shielded) dmg *= 0.2;
+  /* THE ORACLE'S VERDICT — a blow that leaves the horror under the execution
+     line reads as lethal to the beat machine, so the finisher answers it */
+  if ((p.yiUnlockTier || 0) >= 3 && !e.boss && e.maxHp > 0) {
+    const left = e.hp - dmg;
+    if (left > 0 && left / e.maxHp <= YI_EXECUTE_HP) dmg = e.hp + 1;
+  }
   return dmg;
 }
 
@@ -1521,7 +1559,20 @@ function yiSwing(p, x, y, aim) {
   /* the Oracle keeps its grip for the pattern — the same vessel answers for
      three swings, then the wheel turns. A lapsed pattern draws a fresh one. */
   const keep = (p.yiComboN || 0) > 0 && p.yiComboWeapon >= 0;
-  const weapon = keep ? p.yiComboWeapon : (Math.random() * 9) | 0;
+  let weapon;
+  if (keep) weapon = p.yiComboWeapon;
+  else {
+    weapon = (Math.random() * 9) | 0;
+    /* THE ORACLE'S VERDICT — past Unlock III, a horror already below a third of
+       its vitality is answered with the heavy vessels only, so the wheel no
+       longer spends the opening beats of a kill on a stiletto */
+    if ((p.yiUnlockTier || 0) >= 3) {
+      const reachMax = yiWeaponReach(YI_WEAPON_LANCE) + Math.max(0, (m.size || 4) - 4) * 0.8;
+      const broken = yiSwingTarget(p, aim, reachMax, totalHalf);
+      if (broken && broken.maxHp > 0 && broken.hp / broken.maxHp <= YI_VERDICT_HP)
+        weapon = YI_VERDICT_HEAVY[(Math.random() * YI_VERDICT_HEAVY.length) | 0];
+    }
+  }
   p.yiWeapon = weapon;
   const wd = yiWeaponData(weapon);
   /* per-weapon attack speed: a heavy greatsword resets slower than a stiletto.
