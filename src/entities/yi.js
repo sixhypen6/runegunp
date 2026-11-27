@@ -81,6 +81,9 @@ const YI_FURIOSO_BIND_T = 1.5;        // seconds of Bind / unable to act
 const YI_FURIOSO_FRAG_STACKS = 2;     // slash Fragility stacks
 const YI_FURIOSO_MARK_BONUS = 0.10;   // +10% damage while the Prescript marks the skill
 const YI_FURIOSO_POISE = 3;           // +3 Poise on use
+/* FURIOSO-REPLICA's nine coins climb like Limbus: each coin adds power, so
+   strike 1 hits at 1.0×, strike 2 at 1.5×, … strike 9 at 5.0× (6 → 9 → … → 30).
+   The multiplier is applied on top of the Mark bonus inside yiFuriosoCut. */
 /* the three Unlocks the Prescript grants at 3 / 6 / 9 Grace — and the line it speaks */
 const YI_UNLOCKS = [
   { tier: 1, name: "UNLOCK - I", line: "Wading through a dream, the self nowhere to be found.", kanji: "無我夢中" },
@@ -913,7 +916,8 @@ function yiFuriosoCut(p, x, y, aim, w, last, q) {
     let delta = Math.atan2(dy, dx) - aim;
     delta = Math.atan2(Math.sin(delta), Math.cos(delta));
     if (Math.abs(delta) > YI_HALF_ARC) continue;
-    yiHitEnemy(p, e, x, y, true, 1 + YI_FURIOSO_MARK_BONUS, w);
+    yiHitEnemy(p, e, x, y, true,
+      (1 + YI_FURIOSO_MARK_BONUS) * ((q.i + 2) / 2), w);
     if (!q.struck.includes(e)) q.struck.push(e);
     swingHit = true;
   }
