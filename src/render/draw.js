@@ -154,6 +154,24 @@ function drawEnemyBars(e) {
     /* Defence Down — a steel-blue sliver */
     cx.fillStyle = "#b9c8e2"; cx.fillRect(e.x - 4, e.y - e.r - 36, 8, 4);
   }
+  if ((e.bflyLiving || 0) > 0 || (e.bflyDeparted || 0) > 0) {
+    /* BUTTERFLY — two pools, not one total: THE LIVING (pale) is the potency
+       that feeds the turn-end cut and the Sinking bite, THE DEPARTED (violet)
+       is the converted count. Kept as separate numbers so a conversion is
+       legible at a glance. */
+    const liv = e.bflyLiving || 0, dep = e.bflyDeparted || 0;
+    const lTxt = "LIV " + liv, dTxt = "DEP " + dep;
+    const prevFont = cx.font, prevAlign = cx.textAlign, prevBase = cx.textBaseline;
+    cx.font = "10px monospace"; cx.textAlign = "left"; cx.textBaseline = "middle";
+    const gap = 6;
+    const lw = cx.measureText(lTxt).width, dw = cx.measureText(dTxt).width;
+    const x0 = e.x - (lw + gap + dw) / 2, y0 = e.y - e.r - 46;
+    cx.fillStyle = "rgba(0,0,0,0.62)";
+    cx.fillRect(x0 - 3, y0 - 7, lw + gap + dw + 6, 14);
+    cx.fillStyle = "#efe7da"; cx.fillText(lTxt, x0, y0 + 0.5);
+    cx.fillStyle = "#c9b6ff"; cx.fillText(dTxt, x0 + lw + gap, y0 + 0.5);
+    cx.font = prevFont; cx.textAlign = prevAlign; cx.textBaseline = prevBase;
+  }
   if (e.hp < e.maxHp && !e.boss) {
     cx.fillStyle = "rgba(0,0,0,0.6)"; cx.fillRect(e.x - e.r, e.y + e.r + 4, e.r * 2, 3);
     cx.fillStyle = e.team === "p" ? "#9d6bff" : e.ambush ? "#ff4d5e" : "#e8e2d0";

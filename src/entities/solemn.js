@@ -394,10 +394,13 @@ function slInflictButterfly(e, p, spent) {
   e.bflyDeparted = Math.min(SL_BFLY_MAX, (e.bflyDeparted || 0) + departed);
   e.bflyBy = p;
   e.bflyT = Math.max(e.bflyT || 0, SL_BFLY_TURN);
-  /* Butterfly indicator above the target */
-  const total = (e.bflyLiving || 0) + (e.bflyDeparted || 0);
+  /* Butterfly indicator above the target — the two pools are named separately:
+     THE LIVING (potency, what feeds the turn) and THE DEPARTED (the converted
+     count). A combined total hid which half of the mark was about to pay out. */
   if (p === localPlayer()) {
-    floatText(e.x, e.y - e.r - 10, "BUTTERFLY ×" + total, "#e8e2d0", 12);
+    floatText(e.x, e.y - e.r - 10,
+      "LIV " + (e.bflyLiving || 0) + " · DEP " + (e.bflyDeparted || 0),
+      "#e8e2d0", 11);
   }
   /* On hit: attacker heals (The Living / 4) HP, min 1. */
   const heal = Math.max(1, Math.floor(living / 4));
