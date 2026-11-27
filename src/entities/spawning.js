@@ -77,6 +77,19 @@ function resetRun(cfgs) {
   Game.mapIdx = 0; Game.loop = 0; Game.wave = 0;
   Game.score = 0; Game.kills = 0; Game.time = 0;
   Game.bloodfeast = 0;
+  /* preload Yi Sang voicelines (fire-and-forget; audio context unlocks on first input) */
+  if (typeof AudioFX !== "undefined" && typeof AudioFX.preloadVoiceFiles === "function") {
+    AudioFX.preloadVoiceFiles([
+      "furioso-clash-start.wav",
+      "the-will-of-hermes-furioso-clash-start.wav",
+      "furioso-last-coin-sizzle.wav",
+      "furioso-after-last-coin.wav",
+      "sizzle-furioso-after.wav",
+      "sizzling1.wav",
+      "sizzling2.wav",
+      "prescript-target.wav",
+    ]);
+  }
   if (typeof RunTimer !== "undefined") RunTimer.start();   // the speedrun clock starts with the descent
   Game.hitstop = 0; Game.flash = 0; Game.slowmo = 0; Game.ceremonyT = 0;
   Game.comboN = 0; Game.comboT = 0; Game.floorFade = 0; Game.voidImproved = null;

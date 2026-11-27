@@ -685,6 +685,7 @@ function yiVitals(p) {
   if (p.yiDevice4T === undefined) p.yiDevice4T = 0;
   /* the casing: 0 none, 1 Wound-casing Mask, 2 Sizzling Wound */
   if (p.yiWoundState === undefined) p.yiWoundState = 0;
+  if (p.yiSizzleVoice === undefined) p.yiSizzleVoice = 1;
   if (p.yiMaskWave === undefined) p.yiMaskWave = -1;
   if (p.yiMaskStagger === undefined) p.yiMaskStagger = false;
   if (p.yiShinSeen === undefined) p.yiShinSeen = false;
@@ -845,6 +846,11 @@ function yiSkill3Swing(p, x, y, aim, furioso) {
     if (p === localPlayer()) {
       floatText(p.x, p.y - 44, "FURIOSO-REPLICA", "#ffedb8", 16);
       if (typeof toast === "function") toast("FURIOSO-REPLICA — NINE STRIKES" + (marked ? " · MARKED" : ""));
+      /* CLASH START voiceline — the Will of Hermes if the Sizzling Wound is open */
+      if (typeof AudioFX !== "undefined" && typeof AudioFX.playVoice === "function") {
+        const sizzle = (p.yiWoundState | 0) === 2;
+        AudioFX.playVoice(sizzle ? "the-will-of-hermes-furioso-clash-start.wav" : "furioso-clash-start.wav");
+      }
     }
     return;
   }
@@ -974,6 +980,11 @@ function yiFuriosoFinish(p) {
   if (p === localPlayer()) {
     if (refund > 0) floatText(p.x, p.y - 60, "+" + refund + " HERMES", "#7ec0ff", 13);
     if (typeof toast === "function") toast("FURIOSO-REPLICA — " + hits + "/9 STRIKES, +" + refund + " HERMES");
+    /* AFTER ATTACK voiceline — when the Sizzling Wound is open, Yi hears the waves */
+    if (typeof AudioFX !== "undefined" && typeof AudioFX.playVoice === "function") {
+      const sizzle = (p.yiWoundState | 0) === 2;
+      AudioFX.playVoice(sizzle ? "sizzle-furioso-after.wav" : "furioso-after-last-coin.wav");
+    }
   }
 }
 
@@ -1002,6 +1013,10 @@ function yiFuriosoTick(p, dt) {
   if (best) aim = Math.atan2(best.y - p.y, best.x - p.x);
   yiFuriosoAnim(p, w, last, aim);
   yiFuriosoCut(p, p.x, p.y, aim, w, last, q);
+  /* LAST COIN voiceline — the ninth strike of Furioso-Replica (only with Sizzling Wound open) */
+  if (last && p === localPlayer() && typeof AudioFX !== "undefined" && typeof AudioFX.playVoice === "function") {
+    if ((p.yiWoundState | 0) === 2) AudioFX.playVoice("furioso-last-coin-sizzle.wav");
+  }
   q.i++;
   if (q.i >= q.w.length) { yiFuriosoFinish(p); return; }
   q.t = q.gap;
@@ -1435,6 +1450,11 @@ function yiTick(p, dt) {
         if (p === localPlayer()) {
           floatText(p.x, p.y - 46, "SIZZLING WOUND", "#ff6b3d", 15);
           if (typeof toast === "function") toast("SIZZLING WOUND — THE CASING BURNS THROUGH");
+          /* SIZZLING WOUND gained voiceline */
+          if (typeof AudioFX !== "undefined" && typeof AudioFX.playVoice === "function") {
+            AudioFX.playVoice(p.yiSizzleVoice === 1 ? "sizzling2.wav" : "sizzling1.wav");
+            p.yiSizzleVoice = p.yiSizzleVoice === 1 ? 2 : 1;
+          }
         }
       }
       /* INDULGENCE IN PRESCRIPTS expires with the turn */

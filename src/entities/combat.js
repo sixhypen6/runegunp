@@ -1049,6 +1049,13 @@ function killEnemy(e, killer) {
   Game.kills++;
   /* SOLEMN LAMENT: the dead join the coffin — a kill returns ammo to both pools */
   if (killer && killer.char === "solemn" && typeof slOnKill === "function") slOnKill(killer);
+  /* THE PRESCRIPT'S TARGET killed — Yi Sang's chosen horror falls to his blade */
+  if (
+    killer && killer.char === "yi" && killer === localPlayer() && e.yiStruck
+    && typeof AudioFX !== "undefined" && typeof AudioFX.playVoice === "function"
+  ) {
+    AudioFX.playVoice("prescript-target.wav");
+  }
   if (typeof RunegunConsole !== "undefined") RunegunConsole.logEvent("KILL", e.type + (e.boss ? " (BOSS)" : "") + " at wave " + Game.wave);
   /* on-kill runes read the SLAYER's build; an unowned death (map hazard) has none */
   const km = killer ? killer.mods : null;

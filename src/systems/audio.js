@@ -59,6 +59,27 @@ const AudioFX = (() => {
      a nova hitting 30 enemies meant ~86k Math.random() calls and ~345KB of
      throwaway Float32Array in the frame that was already the most expensive.
      The old per-sample (1 - i/len) decay now rides the gain envelope instead. */
+  /* ---------- preloaded voice-line buffers (WAV) ---------- */
+  let voiceBuffers = {};
+  async function preloadVoiceFiles(names) {
+    const a = ctx(); if (!a) return;
+    await Promise.all(names.map(async (name) => {
+      try {
+        const res = await fetch("audio/" + name);
+        const ab = await res.arrayBuffer();
+        voiceBuffers[name] = await a.decodeAudioData(ab);
+      } catch (e) { /* voicelines are optional — silent fail */ }
+    }));
+  }
+  function playVoice(name) {
+    const a = ctx(); if (!a) return;
+    const buf = voiceBuffers[name];
+    if (!buf) return;
+    const s = a.createBufferSource(); s.buffer = buf;
+    s.connect(master);
+    s.start();
+  }
+
   let noiseBed = null;
   function bed(a) {
     if (!noiseBed) {
@@ -195,6 +216,7 @@ const AudioFX = (() => {
 
   return {
     unlock: () => ctx(), setVolume, suspend, resume,
+    preloadVoiceFiles, playVoice,
     forgeMelt, meltBurst,
     streakChord, coinTick, streakLost,
     shoot: () => blip(rnd(420, 520), 0.07, "square", 0.05, 0.4),
