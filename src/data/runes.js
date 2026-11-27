@@ -270,7 +270,7 @@ const RUNES = {
     desc: "+25% souls from every kill per stack.",
     mod: (m, n) => { m.midas += 0.25 * stackCurve(n); } },
   quarry: { name: "QUARRY", glyph: "ᚩ", color: "#b6ff4d",
-    desc: "Your gun savors the wounded — bullets bite +20% harder per stack into anything burning, chilled or bleeding. The finisher every elemental build was missing.",
+    desc: "Your gun savors the wounded — bullets bite +20% harder per stack into anything burning, chilled, bleeding, sinking or wearing Butterfly. The finisher every elemental build was missing.",
     mod: (m, n) => { m.prey *= stackMul(1.2, n); } },
   puncture: { name: "PUNCTURE", glyph: "ᛈ", color: "#ffd23d",
     desc: "Every shot can find the gap in the armor — a chance to strike for more than double. Each stack raises the odds, up to 60%. Bosses bleed too.",
@@ -421,7 +421,7 @@ const UNK_PLAYER_RUNES = {
     desc: "+25% souls from every kill per stack.",
     mod: (m, n) => { m.midas += 0.25 * stackCurve(n); } },
   quarry: { name: "THE HUNT", glyph: "ᚩ", color: "#b6ff4d",
-    desc: "Your gun savors the wounded — bullets bite +20% harder per stack into anything burning or chilled. The finisher every elemental build was missing.",
+    desc: "Your gun savors the wounded — bullets bite +20% harder per stack into anything burning, chilled, sinking or wearing Butterfly. The finisher every elemental build was missing.",
     mod: (m, n) => { m.prey *= stackMul(1.2, n); } },
   puncture: { name: "THE NEEDLE", glyph: "ᛈ", color: "#ffd23d",
     desc: "Every shot can find the gap in the armor — a chance to strike for more than double. Each stack raises the odds, up to 60%. Bosses bleed too.",
@@ -1068,7 +1068,7 @@ function runeStatLines(p, id) {
   if (full.execute !== w.execute) L.push("REAP ENEMIES UNDER " + Math.round(full.execute * 100) + "% HP");
   if (full.midas !== w.midas) L.push("+" + Math.round(full.midas * 100) + "% SOULS / KILL");
   if (full.dashTrail !== w.dashTrail) L.push("DASH WAKE " + Math.round(5 + 4 * full.dashTrail) + " DMG / TICK");
-  if (full.prey !== w.prey) L.push("+" + Math.round((full.prey - 1) * 100) + "% DMG TO BURNING / CHILLED / BLEEDING");
+  if (full.prey !== w.prey) L.push("+" + Math.round((full.prey - 1) * 100) + "% DMG TO BURNING / CHILLED / BLEEDING / SINKING / BUTTERFLY");
   if (full.crit !== w.crit) L.push(Math.round(full.crit * 100) + "% CRIT ×" + full.critMul.toFixed(1));
   if (full.wrath !== w.wrath) L.push("UP TO +" + Math.round(full.wrath * 100) + "% DMG NEAR DEATH");
   if (full.dr !== w.dr) {

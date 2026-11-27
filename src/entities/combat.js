@@ -940,8 +940,13 @@ function damageEnemy(e, dmg, src) {
     const rab = (typeof YI_RAPIER_DEFDOWN === "number") ? YI_RAPIER_DEFDOWN : 0.10;
     dmg *= 1 + Math.min(0.5, e.defDown * rab);
   }
-  /* QUARRY: the gun savors the afflicted — burning, chilled or bleeding foes take more */
-  if (om && om.prey > 1 && (e.burnT > 0 || e.slowT > 0 || e.bleedT > 0)) dmg *= om.prey;
+  /* QUARRY: the gun savors the afflicted — burning, chilled, bleeding, sinking,
+     or wearing Butterfly all count, so the status build's finisher reads every
+     mark the wardens can actually apply */
+  const quarryPrey = e.burnT > 0 || e.slowT > 0 || e.bleedT > 0
+    || (e.sinkingT > 0 && (e.sinkingStacks || 0) > 0)
+    || (e.bflyLiving || 0) > 0 || (e.bflyDeparted || 0) > 0;
+  if (om && om.prey > 1 && quarryPrey) dmg *= om.prey;
   /* SNIPER: the farther the shot has travelled from the muzzle, the harder it
      lands. Direct bullets only — bleed ticks, novas and waves carry no x0. */
   if (om && om.rangeDmg > 0 && src && src.x0 !== undefined) {
