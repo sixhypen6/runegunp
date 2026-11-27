@@ -38,8 +38,11 @@
    THE ORACLE DEVICE — a vial of black metallic liquid at his throat.
    Each cut it pours out whichever weapon the Prescript demands
    (Hermes breathes through it): a HATCHET (copper: heavy knock,
-   drags the horror slow), a STILETTO (gloom-violet: a gloom-bleed
-   that never closes), or a BASTARD SWORD (pale steel: +18% damage).
+   drags the horror slow), a STILETTO (gloom-violet: three Sinking
+   Potency and the longest Count), or a BASTARD SWORD (pale steel:
+   +18% damage). Every landed cut lays one Sinking Potency — the
+   Index's base skills all sank the target; the stiletto is simply
+   the vessel that does it properly.
 
    The blade answers the projectile runes through the shared
    melee remap (data/runes.js: meleeWeaponMods /
@@ -557,8 +560,8 @@ const YI_WEAPON_DATA = [
   /* HATCHET — blunt, +50% knock, slows, 2 Poise. The opening wheel has no dud:
      even the lightest vessel still cuts a little harder than the bare blade. */
   { type: "blunt", dmg: 1.04, rate: 0.9, reach: 100, knock: 1.5, poise: 2, slow: 0.6 },
-  /* STILETTO — pierce, Sinking 2, thrusts forward */
-  { type: "pierce", dmg: 1.04, rate: 1.2, reach: 90, knock: 1.0, sinking: 2 },
+  /* STILETTO — pierce, lays three Sinking Potency (1 base + 2) and a longer Count */
+  { type: "pierce", dmg: 1.04, rate: 1.2, reach: 90, knock: 1.0 },
   /* BASTARD SWORD — slash, +7.5% dmg, Offense Level +1 */
   { type: "slash", dmg: 1.075, rate: 1.0, reach: 105, knock: 1.1, offense: 1 },
   /* RAPIER — pierce, +7.5% dmg, Defence Level Down +1 */
@@ -580,10 +583,12 @@ function yiWeaponReach(w) { return yiWeaponData(w).reach; }
 function yiWeaponKnock(w) { return yiWeaponData(w).knock; }       // more knockback on the heavy cuts
 const YI_HATCHET_SLOW = 0.6;
 const YI_HATCHET_POISE = 2;         // official: on hit, gain 2 Poise
-const YI_SINKING_T = 4;             // seconds of Sinking per stack
-const YI_SINKING_DPS = 4;         // damage per Sinking stack per second
-const YI_SINKING_MAX = 5;         // Sinking stacks cap
-const YI_STILETTO_SINKING = 2;    // Sinking stacks a stiletto hit lays
+const YI_SINKING_T = 4;             // seconds a plain cut's Sinking lasts (RUNEGUN's Count)
+const YI_SINKING_DPS = 4;           // damage per Sinking Potency per second
+const YI_SINKING_MAX = 5;           // Sinking Potency soft cap
+const YI_HIT_SINKING = 1;           // every landed cut lays one Sinking Potency (his base skills all sank)
+const YI_STILETTO_SINKING = 2;      // the stiletto lays two more — three Potency in one thrust
+const YI_STILETTO_SINK_T = 6;       // ...and holds a longer Count than a plain cut
 const YI_RAPIER_DEFDOWN = 0.10;     // defence punctured: +10% damage taken per stack
 const YI_RAPIER_DEFDOWN_TIME = 3;
 const YI_RAPIER_DEFDOWN_MAX = 2;
@@ -1257,11 +1262,17 @@ function yiHitEnemy(p, e, x, y, forceCrit, biteMul, weapon) {
   if (!e.dead && weapon === YI_WEAPON_HATCHET) {
     e.slowT = Math.max(e.slowT || 0, YI_HATCHET_SLOW);
   }
-  /* [Stiletto] — puncture the lungs: Sinking, a cold bleed that stacks */
-  if (!e.dead && weapon === YI_WEAPON_STILETTO) {
-    const add = YI_SINKING_T;
-    e.sinkingT = Math.max(e.sinkingT || 0, add);
-    e.sinkingStacks = Math.min(YI_SINKING_MAX, (e.sinkingStacks || 0) + YI_STILETTO_SINKING);
+  /* [Stiletto] — every cut opens the gloom, but the stiletto does it properly:
+     one Sinking Potency on any landed hit (the Index's base skills all sank),
+     plus two more and a longer Count when the thrust is the stiletto itself. */
+  if (!e.dead) {
+    const extra = weapon === YI_WEAPON_STILETTO ? YI_STILETTO_SINKING : 0;
+    const cur = e.sinkingStacks || 0;
+    /* never strip the deeper stacks Indulgence in Prescripts can lay */
+    const cap = Math.max(YI_SINKING_MAX, cur);
+    e.sinkingStacks = Math.min(cap, cur + YI_HIT_SINKING + extra);
+    e.sinkingT = Math.max(e.sinkingT || 0,
+      extra ? YI_STILETTO_SINK_T : YI_SINKING_T);
     e.sinkingDps = Math.max(e.sinkingDps || 0, YI_SINKING_DPS);
     e.sinkingBy = p;
   }
