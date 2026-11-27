@@ -230,19 +230,24 @@ const SL_STRIKE_REACH = 620;   // final strike reach
 const SL_STRIKE_HALF = 1.05;   // final strike arc half-angle
 const SL_SWING_T = 0.14;       // basic-fire gun-sword swing duration
 const SL_SWING_ARC = 0.5;      // how far the guns swing out on a basic shot
-const SL_STRIKE_T = 0.35;      // S3 finale lunge-strike pose duration
+const SL_STRIKE_T = 0.35;      // S3 finale coin-strike pose duration
 const SL_GLOOM_CAP = 30;       // gloom dmg cap
 /* --- BUTTERFLY PAYOFF (mid/late Encounter) ---
    The mark is not just a +25% latch. Each turn of feeding takes a cut of the
    target's vitality (potency-scaled, capped), its Sinking bites harder with
-   every potency, Goodbye Now's lunge reads the marks already on the body, and
+   every potency, Goodbye Now's coins read the marks already on the body, and
    a kill feeds the coffin back into both pools. */
 const SL_BFLY_MAXHP = 0.004;        // Butterfly turn: 0.4% max HP per Living potency
 const SL_BFLY_MAXHP_CAP = 0.05;     // ...capped at 5% max HP per turn
 const SL_BFLY_SINK_DPS = 0.25;      // Sinking ticks +0.25 per stack, per Living potency
 const SL_BFLY_SINK_DPS_CAP = 7;     // ...up to 7 per stack
-const SL_S3_BFLY_BONUS = 0.04;      // Goodbye Now: +4% strike damage per Butterfly on target
-const SL_S3_BFLY_CAP = 1.0;         // ...capped at +100%
+/* GOODBYE NOW — Limbus coin strikes: four coins. Base power +1 per 5 ammo
+   spent (max +4), coin power +1 per 6 Sinking+Butterfly on the target (max 2). */
+const SL_S3_BASE_PER_5 = 5;         // ammo per +1 base power
+const SL_S3_BASE_MAX = 4;           // max base power bonus
+const SL_S3_COIN_PER_6 = 6;         // target status per +1 coin power
+const SL_S3_COIN_MAX = 2;           // max coin power bonus
+const SL_S3_COINS = 4;              // number of coin strikes
 const SL_KILL_REFILL = 2;           // a kill returns 2 to The Living and 2 to The Departed
 
 function slVitals(p) {
@@ -318,33 +323,49 @@ function slFireBarrageShot(p, aim) {
   AudioFX.shoot();
 }
 
-/* S3 finale — lunge strike: inflict Butterfly = spent on every enemy in arc, deal damage, reload + haste */
+/* S3 finale — GOODBYE NOW coin strikes (Limbus): four coins. Base power scales
+   with ammo spent (+1 per 5, max +4), coin power scales with each target's
+   Sinking + Butterfly (+1 per 6, max 2), each coin inflicts Butterfly = spent
+   on that coin, then reload + Haste at the end. */
 function slFinishBarrage(p, spent) {
   p.slBarrageT = 0; p.slBarrageN = 0;
-  p.slS3StrikeT = SL_STRIKE_T;              // finale lunge-strike pose
+  p.slS3StrikeT = SL_STRIKE_T;
   const m = p.mods || {};
   const reach = SL_STRIKE_REACH + Math.max(0, (m.size || 4) - 4) * 4;
-  const dmg = (m.dmg || 30) * (1 + Math.min(2, spent / 10));
+
+  /* Base power: +1 per 5 ammo spent, capped at +4 (Limbus Goodbye Now) */
+  const baseBonus = Math.min(SL_S3_BASE_MAX, Math.floor(spent / SL_S3_BASE_PER_5));
+  const baseMul = 1 + baseBonus * 0.15;                    // 1x → 1.6x
+
   let hitAny = false;
-  for (const e of enemies) {
-    if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p") continue;
-    const dx = e.x - p.x, dy = e.y - p.y;
-    if (dx * dx + dy * dy > (reach + e.r) ** 2) continue;
-    let delta = Math.atan2(dy, dx) - p.aim;
-    delta = Math.atan2(Math.sin(delta), Math.cos(delta));
-    if (Math.abs(delta) > SL_STRIKE_HALF) continue;
-    /* the lunge reads the marks already on the body: each Butterfly adds 4% */
-    const bfly = (e.bflyLiving || 0) + (e.bflyDeparted || 0);
-    const bMul = 1 + Math.min(SL_S3_BFLY_CAP, bfly * SL_S3_BFLY_BONUS);
-    slInflictButterfly(e, p, spent);
-    damageEnemy(e, dmg * bMul, { owner: p, x: p.x, y: p.y, knock: m.knock, crit: m.crit, critMul: m.critMul });
-    hitAny = true;
+  for (let c = 0; c < SL_S3_COINS; c++) {
+    const coinSpent = Math.max(1, Math.floor(spent / SL_S3_COINS));
+    for (const e of enemies) {
+      if (e.dead || e.ghost || e.spawnT > 0 || e.team === "p") continue;
+      const dx = e.x - p.x, dy = e.y - p.y;
+      if (dx * dx + dy * dy > (reach + e.r) ** 2) continue;
+      let delta = Math.atan2(dy, dx) - p.aim;
+      delta = Math.atan2(Math.sin(delta), Math.cos(delta));
+      if (Math.abs(delta) > SL_STRIKE_HALF) continue;
+
+      /* Coin power: +1 per 6 value of Sinking + Butterfly on the target, max +2 */
+      const sinking = (e.sinkingT > 0 && (e.sinkingStacks || 0) > 0) ? (e.sinkingStacks || 0) : 0;
+      const bfly = (e.bflyLiving || 0) + (e.bflyDeparted || 0);
+      const coinPower = Math.min(SL_S3_COIN_MAX, Math.floor((sinking + bfly) / SL_S3_COIN_PER_6));
+      const coinMul = 1 + coinPower * 0.15;                // 1x → 1.3x
+
+      const dmg = (m.dmg || 30) * baseMul * coinMul;
+      slInflictButterfly(e, p, coinSpent);
+      damageEnemy(e, dmg, { owner: p, x: p.x, y: p.y, knock: m.knock, crit: m.crit, critMul: m.critMul });
+      hitAny = true;
+    }
   }
+
   p.slSkill3Cd = SL_SKILL3_CD;
   slTryReload(p, true);
   if (p === localPlayer()) {
     floatText(p.x, p.y - 44, hitAny ? "GOODBYE NOW" : "GOODBYE NOW — MISS", "#e8e2d0", 16);
-    if (typeof toast === "function") toast("GOODBYE NOW — ALL BUTTERFLY, RELOADING");
+    if (typeof toast === "function") toast("GOODBYE NOW — FOUR COINS, RELOADING");
   }
 }
 
@@ -447,7 +468,7 @@ function slButterflyTurnEnd(e) {
 }
 
 /* S3 / Goodbye Now — spend all ammo up front, fire a barrage (one shot per
-   SL_BARRAGE_RATE seconds), then lunge strike: inflict Butterfly = spent on every
+   SL_BARRAGE_RATE seconds), then coin strikes: inflict Butterfly = spent per coin on every
    enemy in arc, deal damage, reload + haste. */
 function slTrySkill3(p) {
   if (!p || p.char !== "solemn") return;
@@ -485,7 +506,7 @@ function slTickBarrage(p, dt) {
     p.slBarrageNext = SL_BARRAGE_RATE;
   }
   if (p.slBarrageT <= 0 && p.slBarrageN > 0) {
-    /* barrage finished — lunge strike finale */
+    /* barrage finished — coin strike finale */
     slFinishBarrage(p, p.slBarrageN);
     p.slBarrageN = 0;
   }
