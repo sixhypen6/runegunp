@@ -1049,9 +1049,10 @@ function killEnemy(e, killer) {
   Game.kills++;
   /* SOLEMN LAMENT: the dead join the coffin — a kill returns ammo to both pools */
   if (killer && killer.char === "solemn" && typeof slOnKill === "function") slOnKill(killer);
-  /* THE PRESCRIPT'S TARGET killed — Yi Sang's chosen horror falls to his blade */
+  /* THE PRESCRIPT'S TARGET killed — Yi Sang's chosen horror falls to his blade.
+     Only an enemy struck during an active Prescript window (e.yiMarked) counts. */
   if (
-    killer && killer.char === "yi" && killer === localPlayer() && e.yiStruck
+    killer && killer.char === "yi" && killer === localPlayer() && e.yiMarked
     && typeof AudioFX !== "undefined" && typeof AudioFX.playVoice === "function"
   ) {
     AudioFX.playVoice("prescript-target.wav");

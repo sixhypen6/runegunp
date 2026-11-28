@@ -1264,6 +1264,10 @@ function yiHitEnemy(p, e, x, y, forceCrit, biteMul, weapon) {
      horror follows through, and the blow that ends it is the finisher. Set
      before the guest's early return so a guest's own Yi reads the same. */
   if (!e.dead) e.yiStruck = true;
+  /* THE PRESCRIPT'S TARGET — an enemy cut while the Prescript window stands
+     (yiMarkT > 0) is the Oracle's marked quarry. Only it pays out the voiceline
+     when it falls. */
+  if (!e.dead && p.yiMarkT > 0) e.yiMarked = true;
   /* GUEST: the host settles the ledger; the guest's cut is only a picture */
   if (typeof Net !== "undefined" && Net.role === "guest") return;
   /* every landed cut banks Poise — [On Hit] in his kit — and a critical banks an extra;
@@ -1437,6 +1441,9 @@ function yiTick(p, dt) {
   if (p.yiMarkT > 0) {
     p.yiMarkT = Math.max(0, p.yiMarkT - dt);
     if (p.yiMarkT <= 0) {
+      /* the Prescript window lapses — clear the mark on every horror so a
+         later kill doesn't pay out for an old target */
+      for (const e of enemies) { e.yiMarked = false; }
       /* TURN END — the Prescript window closes. Resolve it once. */
       /* a casing that took a staggering blow — or witnessed its first
          Furioso-Replica this Encounter — recovers from the Stagger and sizzles
